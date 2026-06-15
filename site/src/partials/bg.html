@@ -91,7 +91,7 @@
 
       window.addEventListener('pointermove', function (e) { mx = e.clientX; my = e.clientY; wake(); });
       window.addEventListener('pointerleave', function () { mx = -99999; my = -99999; wake(); });
-      window.addEventListener('resize', function () { build(); frame(); });
+      window.addEventListener('resize', function () { if (raf) { cancelAnimationFrame(raf); raf = null; } build(); frame(); });
 
       build();
       frame();
