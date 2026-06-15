@@ -15,10 +15,10 @@ const STYLE: maplibregl.StyleSpecification = {
     carto: {
       type: "raster",
       tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
       ],
       tileSize: 256,
       attribution: '© <a href="https://carto.com/">CARTO</a> © OpenStreetMap contributors',
@@ -39,25 +39,23 @@ function resForZoom(z: number): number {
 
 function bubble(cell: Cell): HTMLElement {
   const el = document.createElement("div");
-  const h = Math.round(30 + Math.min(34, Math.sqrt(cell.count) * 8));
-  const w = Math.round(h * 1.5);
-  const fill = cell.hasGame ? "#1f8a3b" : "#f5c518";
-  const ink = cell.hasGame ? "#ffffff" : "#1a1407";
-  const stripe = cell.hasGame ? "rgba(255,255,255,.85)" : "rgba(26,20,7,.55)";
-  el.style.cssText = `width:${w}px;height:${h}px;cursor:pointer;transition:transform .12s;
-    filter:drop-shadow(0 2px 6px rgba(0,0,0,.55));`;
-  // a football: pointed oval, two white end-stripes, count where the laces sit
-  el.innerHTML = `<svg viewBox="0 0 150 100" width="${w}" height="${h}" style="display:block;overflow:visible">
-    <path d="M6,50 Q75,1 144,50 Q75,99 6,50 Z" fill="${fill}" stroke="rgba(255,255,255,.3)" stroke-width="3"/>
-    <path d="M26,33 Q20,50 26,67" fill="none" stroke="${stripe}" stroke-width="4" stroke-linecap="round"/>
-    <path d="M124,33 Q130,50 124,67" fill="none" stroke="${stripe}" stroke-width="4" stroke-linecap="round"/>
-    <text x="75" y="51" text-anchor="middle" dominant-baseline="central"
-      font-family="var(--font-barlow),system-ui,sans-serif" font-weight="700"
-      font-size="46" fill="${ink}">${cell.count}</text>
-  </svg>`;
+  const size = Math.round(38 + Math.min(46, Math.sqrt(cell.count) * 10));
+  const glow = cell.hasGame ? "#2bd66f" : "#ffcf33";
+  const fs = Math.round(size * 0.4);
+  el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;`;
+  // Inner wrapper carries the hover scale — NOT the marker element itself, whose
+  // transform maplibre owns for positioning (scaling it flings the marker to 0,0).
+  el.innerHTML = `<div class="mk-inner" style="position:relative;width:100%;height:100%;transform-origin:center;transition:transform .12s;">
+    <img src="/football.png" width="${size}" height="${size}" alt="" draggable="false"
+      style="display:block;filter:drop-shadow(0 0 ${Math.round(size * 0.16)}px ${glow}) drop-shadow(0 2px 3px rgba(0,0,0,.45));"/>
+    <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font:700 ${fs}px/1 var(--font-barlow),system-ui,sans-serif;color:#fff;
+      text-shadow:0 1px 2px #000,0 0 4px #000,0 0 7px rgba(0,0,0,.85);transform:translateY(1px);">${cell.count}</span>
+  </div>`;
   el.title = cell.hasGame ? `${cell.count} interested · game scheduled` : `${cell.count} interested`;
-  el.onmouseenter = () => { el.style.transform = "scale(1.1)"; };
-  el.onmouseleave = () => { el.style.transform = "scale(1)"; };
+  const inner = el.firstElementChild as HTMLElement;
+  el.addEventListener("mouseenter", () => { inner.style.transform = "scale(1.12)"; });
+  el.addEventListener("mouseleave", () => { inner.style.transform = "scale(1)"; });
   return el;
 }
 
@@ -78,9 +76,11 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
     // guard against the container sizing after init (flex/vh layouts)
+    // maplibre can mis-measure the container at construction (hydration timing),
+    // painting tiles into only part of the canvas. Force a resize on the next
+    // frame + on load, and keep observing for later layout changes.
+    requestAnimationFrame(() => map.resize());
     map.on("load", () => map.resize());
-    // the map canvas can mount before the container has its final size (vh/flex
-    // layouts hydrate late) — keep it filling the box whenever the box resizes.
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(ref.current);
 
