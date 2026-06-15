@@ -7,7 +7,7 @@
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var COLORS = ['#f5c518', '#e2483f', '#2fb673', '#f59e2a'];
-      var GR = 240;            // gravity radius - flags inside get pulled in
+      var GR = 168;            // gravity radius - flags inside get pulled in
       var W, H, flags, mx = -99999, my = -99999, raf = null;
 
       function rand(a, b) { return a + Math.random() * (b - a); }
@@ -17,7 +17,7 @@
         c.width = W * dpr; c.height = H * dpr;
         c.style.width = W + 'px'; c.style.height = H + 'px';
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        var n = Math.max(24, Math.min(90, Math.round((W * H) / 26000)));
+        var n = Math.max(31, Math.min(117, Math.round((W * H) / 20000)));
         flags = [];
         for (var i = 0; i < n; i++) {
           var hx = rand(0, W), hy = rand(0, H);

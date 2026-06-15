@@ -26,13 +26,14 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   /* space (starfield) + map (grid) backdrop */
-  /* deep space + a faint map grid; the scattered flags live on the #bg canvas */
-  background-color: #070b1a;
+  /* dark map motif (two-scale graticule grid); flags live on the #bg canvas */
+  background-color: #0b1210;
   background-image:
-    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(31, 138, 59, 0.16), transparent 62%),
-    linear-gradient(rgba(120, 170, 230, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 170, 230, 0.045) 1px, transparent 1px);
-  background-size: auto, 46px 46px, 46px 46px;
+    linear-gradient(rgba(150, 185, 160, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 185, 160, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(150, 185, 160, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 185, 160, 0.03) 1px, transparent 1px);
+  background-size: 160px 160px, 160px 160px, 32px 32px, 32px 32px;
   background-attachment: fixed;
 }
 
