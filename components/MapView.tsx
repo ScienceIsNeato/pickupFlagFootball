@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { FlagBurst } from "./FlagBurst";
+import { FootballBurst } from "./FootballBurst";
 import { ProposeModal } from "./ProposeModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
@@ -132,7 +132,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       {burst && (
-        <FlagBurst
+        <FootballBurst
           origin={{ x: burst.x, y: burst.y }}
           count={burst.count}
           onClose={() => setBurst(null)}

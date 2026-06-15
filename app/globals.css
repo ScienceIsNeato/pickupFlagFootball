@@ -40,9 +40,10 @@ body {
 
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 
-/* Warm sepia tone over the light basemap. Filters the tile canvas only — the
+/* Football-field tone over the light basemap: push the warm tiles toward a
+   muted grass green and darken them down. Filters the tile canvas only — the
    football markers are separate DOM and keep their own color. */
-.maplibregl-canvas { filter: sepia(0.62) saturate(1.35) brightness(0.98) contrast(0.96); }
+.maplibregl-canvas { filter: brightness(0.74) sepia(0.55) hue-rotate(55deg) saturate(1.7) contrast(1.02); }
 
 h1, h2, .brand, .step-n { font-family: var(--font-barlow), var(--font-inter), sans-serif; }
 a { color: var(--link); text-decoration: none; }
