@@ -170,6 +170,8 @@ CREATE TABLE formation_attempts (
   failure_reason   text,
   created_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (area_id, attempt_number),
+  -- composite-FK target so a game's area can't disagree with its attempt's area
+  UNIQUE (id, area_id),
   FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id),
   -- a confirmed attempt must point at the game it produced
   CHECK (status <> 'CONFIRMED' OR scheduled_game_id IS NOT NULL)
@@ -258,6 +260,10 @@ CREATE TABLE games (
   FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id),
   -- the winning option must come from this game's originating attempt
   FOREIGN KEY (winning_option_id, origin_attempt_id) REFERENCES formation_options(id, attempt_id),
+  -- the originating attempt must belong to this same area
+  FOREIGN KEY (origin_attempt_id, area_id) REFERENCES formation_attempts(id, area_id),
+  -- a winning option only makes sense alongside its origin attempt
+  CHECK (winning_option_id IS NULL OR origin_attempt_id IS NOT NULL),
   CHECK (recur_dow IS NULL OR recur_dow BETWEEN 0 AND 6)
 );
 CREATE INDEX idx_games_area ON games(activity_type_id, area_id);
