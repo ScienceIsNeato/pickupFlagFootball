@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       </div>
 
       <p style={{ color: "var(--faint)", fontSize: 13, marginTop: 12 }}>
-        each bubble is interested players in an area — zoom out and they merge, zoom in and they split.
+        each football is interested players in an area — zoom out and they merge, zoom in and they split.
         gold is gathering interest; green means a game is on.
       </p>
     </main>

@@ -39,19 +39,24 @@ function resForZoom(z: number): number {
 
 function bubble(cell: Cell): HTMLElement {
   const el = document.createElement("div");
-  const size = Math.round(30 + Math.min(36, Math.sqrt(cell.count) * 9));
-  const accent = cell.hasGame ? "#1f8a3b" : "#f5c518";
-  const ink = cell.hasGame ? "#fff" : "#1a1407";
-  el.style.cssText = `
-    width:${size}px;height:${size}px;border-radius:50%;
-    background:${accent};color:${ink};
-    display:flex;align-items:center;justify-content:center;
-    font:600 ${Math.round(size / 2.8)}px/1 var(--font-barlow),system-ui,sans-serif;
-    box-shadow:0 2px 10px rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.18);
-    cursor:pointer;transition:transform .12s;`;
-  el.textContent = String(cell.count);
+  const h = Math.round(30 + Math.min(34, Math.sqrt(cell.count) * 8));
+  const w = Math.round(h * 1.5);
+  const fill = cell.hasGame ? "#1f8a3b" : "#f5c518";
+  const ink = cell.hasGame ? "#ffffff" : "#1a1407";
+  const stripe = cell.hasGame ? "rgba(255,255,255,.85)" : "rgba(26,20,7,.55)";
+  el.style.cssText = `width:${w}px;height:${h}px;cursor:pointer;transition:transform .12s;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.55));`;
+  // a football: pointed oval, two white end-stripes, count where the laces sit
+  el.innerHTML = `<svg viewBox="0 0 150 100" width="${w}" height="${h}" style="display:block;overflow:visible">
+    <path d="M6,50 Q75,1 144,50 Q75,99 6,50 Z" fill="${fill}" stroke="rgba(255,255,255,.3)" stroke-width="3"/>
+    <path d="M26,33 Q20,50 26,67" fill="none" stroke="${stripe}" stroke-width="4" stroke-linecap="round"/>
+    <path d="M124,33 Q130,50 124,67" fill="none" stroke="${stripe}" stroke-width="4" stroke-linecap="round"/>
+    <text x="75" y="51" text-anchor="middle" dominant-baseline="central"
+      font-family="var(--font-barlow),system-ui,sans-serif" font-weight="700"
+      font-size="46" fill="${ink}">${cell.count}</text>
+  </svg>`;
   el.title = cell.hasGame ? `${cell.count} interested · game scheduled` : `${cell.count} interested`;
-  el.onmouseenter = () => { el.style.transform = "scale(1.08)"; };
+  el.onmouseenter = () => { el.style.transform = "scale(1.1)"; };
   el.onmouseleave = () => { el.style.transform = "scale(1)"; };
   return el;
 }
