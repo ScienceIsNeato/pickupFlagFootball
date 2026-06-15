@@ -24,10 +24,18 @@ const escapeHtml = (s) =>
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 
-// Single pass: each {{KEY}} replaced once (inserted copy never re-scanned). Values
-// are HTML-escaped unless flagged { raw: true } for HTML we generate ourselves.
+const part = (name) => readFileSync(join(root, 'src', 'partials', `${name}.html`), 'utf8');
+const partials = {
+  '{{INCLUDE_HEAD}}': part('head'),
+  '{{INCLUDE_NAV}}': part('nav'),
+  '{{INCLUDE_FOOTER}}': part('footer'),
+};
+
+// Inline the shared partials (trusted HTML), then do a single value pass: each
+// {{KEY}} is replaced once. Values are HTML-escaped unless { raw: true }.
 function render(templateFile, values) {
-  const html = readFileSync(join(root, 'src', templateFile), 'utf8');
+  let html = readFileSync(join(root, 'src', templateFile), 'utf8');
+  for (const [token, frag] of Object.entries(partials)) html = html.replaceAll(token, frag);
   const missing = [];
   const out = html.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     if (!(key in values)) { missing.push(key); return match; }
@@ -50,8 +58,6 @@ const howCards = content.how.map((s) => `
           <p>${escapeHtml(s.body)}</p>
         </div>`).join('');
 
-// FAQ answers are plain text (escaped) unless an item provides trusted aHtml, which
-// may contain links. {donate} in aHtml resolves to the configured donate URL.
 const donateUrl = escapeHtml(content.donate.url);
 const faqItems = content.faq.map((f) => {
   const answer = f.aHtml ? f.aHtml.replaceAll('{donate}', donateUrl) : escapeHtml(f.a);
@@ -71,9 +77,11 @@ const gearCards = content.gear.items.map((g) => `
 
 const common = {
   BRAND: content.brandName,
+  TAGLINE: content.footer.tagline,
+  GITHUB_URL: content.footer.githubUrl,
+  FOOTER_NOTE: content.footer.note,
   DONATE_URL: content.donate.url,
   DONATE_LABEL: content.donate.label,
-  FOOTER: content.footer,
 };
 
 const pages = {
@@ -112,6 +120,13 @@ const pages = {
     GEAR_HEADING: content.gear.heading,
     GEAR_BLURB: content.gear.blurb,
     GEAR_ITEMS: { raw: true, value: gearCards },
+  }),
+  'privacy.html': render('privacy.template.html', {
+    ...common,
+    SEO_TITLE: content.privacy.seoTitle,
+    SEO_DESC: content.privacy.seoDescription,
+    PRIV_HEADING: content.privacy.heading,
+    UPDATED: content.privacy.updated,
   }),
 };
 

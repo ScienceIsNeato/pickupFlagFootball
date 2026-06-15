@@ -1,34 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>{{SEO_TITLE}}</title>
-  <meta name="description" content="{{SEO_DESC}}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-</head>
+{{INCLUDE_HEAD}}
 <body>
-  <header class="nav">
-    <a href="index.html" class="brand">
-      <span class="ball" aria-hidden="true">
-        <svg viewBox="0 0 34 22" width="28" height="18">
-          <ellipse cx="17" cy="11" rx="16" ry="10" fill="#8a4b2a"></ellipse>
-          <path d="M7 11 H27" stroke="#fff" stroke-width="1.6"></path>
-          <path d="M13 8 V14 M17 7.2 V14.8 M21 8 V14" stroke="#fff" stroke-width="1.6"></path>
-        </svg>
-      </span>
-      {{BRAND}}
-    </a>
-    <nav>
-      <a href="index.html#how">how it works</a>
-      <a href="gear.html">gear</a>
-      <a href="faq.html">faq</a>
-    </nav>
-  </header>
+{{INCLUDE_NAV}}
 
   <main>
     <section>
@@ -38,18 +10,6 @@
     </section>
   </main>
 
-  <footer>
-    <a href="{{DONATE_URL}}" class="donate">{{DONATE_LABEL}}</a>
-    <p class="foot-line">
-      <span class="ball" aria-hidden="true">
-        <svg viewBox="0 0 34 22" width="22" height="14">
-          <ellipse cx="17" cy="11" rx="16" ry="10" fill="#8a4b2a"></ellipse>
-          <path d="M7 11 H27" stroke="#fff" stroke-width="1.6"></path>
-          <path d="M13 8 V14 M17 7.2 V14.8 M21 8 V14" stroke="#fff" stroke-width="1.6"></path>
-        </svg>
-      </span>
-      {{FOOTER}}
-    </p>
-  </footer>
+{{INCLUDE_FOOTER}}
 </body>
 </html>

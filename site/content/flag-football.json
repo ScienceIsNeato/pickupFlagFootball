@@ -53,5 +53,15 @@
     "seoDescription": "how MIME-FF works, what it costs, and who picks the field.",
     "heading": "faq"
   },
-  "footer": "open source."
+  "footer": {
+    "tagline": "free, open source pickup flag football. no organizer, no fees.",
+    "githubUrl": "https://github.com/ScienceIsNeato/pickupFlagFootball",
+    "note": "open source · gear links are affiliate and help cover server costs · not affiliated with the nfl or nfl flag"
+  },
+  "privacy": {
+    "seoTitle": "privacy · MIME-FF",
+    "seoDescription": "what we collect, why, and what we don't do with it.",
+    "heading": "privacy",
+    "updated": "june 2026"
+  }
 }

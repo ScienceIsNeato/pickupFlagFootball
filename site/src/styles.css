@@ -167,10 +167,15 @@ section h2::after {
 .faq-item .q { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
 .faq-item p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
 
-footer { max-width: 760px; margin: 40px auto 0; padding: 28px 20px 64px; border-top: 1px solid var(--border); }
-footer p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
-.foot-line { display: flex; align-items: center; gap: 8px; }
-.foot-line .ball { display: inline-flex; flex: none; }
+.site-footer { border-top: 1px solid var(--border); margin-top: 56px; padding: 36px 20px 52px; }
+.foot-cols { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 28px; }
+.foot-brand .brand { margin-bottom: 10px; }
+.foot-tagline { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 16px; max-width: 280px; }
+.foot-col .foot-h { font-family: "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: 1px; font-size: 13px; color: var(--faint); margin-bottom: 12px; }
+.foot-col a { display: block; font-size: 14px; color: var(--muted); margin-bottom: 9px; }
+.foot-col a:hover { color: var(--ink); }
+.foot-bar { max-width: 760px; margin: 28px auto 0; padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); line-height: 1.7; }
+@media (max-width: 560px) { .foot-cols { grid-template-columns: 1fr 1fr; } .foot-brand { grid-column: 1 / -1; } }
 .donate {
   display: inline-block;
   background: var(--green);
@@ -185,6 +190,16 @@ footer p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
 }
 .page-blurb { color: var(--muted); margin: 0 0 20px; max-width: 560px; line-height: 1.6; }
 .card a { display: inline-block; margin-top: 10px; font-size: 13px; }
+
+.prose { max-width: 680px; margin: 0 auto; padding: 40px 20px 8px; }
+.prose h1 { font-family: "Barlow Condensed", sans-serif; font-size: 32px; font-weight: 700; margin: 0 0 2px; }
+.prose .updated { color: var(--faint); font-size: 13px; margin: 0 0 22px; }
+.prose h2 { font-size: 18px; margin: 26px 0 8px; }
+.prose p { color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0 0 12px; }
+.prose ul { padding-left: 20px; margin: 0 0 12px; }
+.prose li { color: var(--muted); font-size: 15px; line-height: 1.7; margin-bottom: 6px; }
+.prose strong { color: var(--ink); font-weight: 500; }
+.prose-note { font-size: 13px; color: var(--faint); border-top: 1px solid var(--border); padding-top: 16px; margin-top: 28px; }
 .reg { max-width: 460px; margin: 0 auto; padding: 44px 20px 80px; }
 .back { display: inline-block; font-size: 13px; color: var(--muted); margin-bottom: 22px; }
 .reg-h { font-family: "Barlow Condensed", sans-serif; font-size: 34px; font-weight: 700; margin: 0 0 8px; }
