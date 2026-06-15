@@ -11,7 +11,13 @@ if (!existsSync(contentPath)) {
   process.exit(1);
 }
 
-const content = JSON.parse(readFileSync(contentPath, 'utf8'));
+let content;
+try {
+  content = JSON.parse(readFileSync(contentPath, 'utf8'));
+} catch (err) {
+  console.error(`invalid JSON in content/${activity}.json: ${err.message}`);
+  process.exit(1);
+}
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => (
@@ -23,12 +29,18 @@ const escapeHtml = (s) =>
 // flagged { raw: true } (used for the card/faq HTML we generate ourselves).
 function render(templateFile, values) {
   const html = readFileSync(join(root, 'src', templateFile), 'utf8');
-  return html.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    if (!(key in values)) return match;
+  const missing = [];
+  const out = html.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    if (!(key in values)) { missing.push(key); return match; }
     const entry = values[key];
     if (entry && typeof entry === 'object' && entry.raw) return entry.value;
     return escapeHtml(entry);
   });
+  if (missing.length) {
+    console.error(`${templateFile}: unresolved placeholder(s): ${[...new Set(missing)].join(', ')}`);
+    process.exit(1);
+  }
+  return out;
 }
 
 const howCards = content.how.map((s) => `

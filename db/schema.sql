@@ -257,7 +257,8 @@ CREATE TABLE games (
   created_at       timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id),
   -- the winning option must come from this game's originating attempt
-  FOREIGN KEY (winning_option_id, origin_attempt_id) REFERENCES formation_options(id, attempt_id)
+  FOREIGN KEY (winning_option_id, origin_attempt_id) REFERENCES formation_options(id, attempt_id),
+  CHECK (recur_dow IS NULL OR recur_dow BETWEEN 0 AND 6)
 );
 CREATE INDEX idx_games_area ON games(activity_type_id, area_id);
 
