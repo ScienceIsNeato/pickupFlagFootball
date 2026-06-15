@@ -1,31 +1,51 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  /* flag-football accents (unchanged) */
   --field: #14532d;
   --line: rgba(255, 255, 255, 0.16);
   --green: #1f8a3b;
   --green-d: #14692e;
   --yellow: #f5c518;
-  --ink: #16201a;
-  --muted: #5b6b60;
-  --faint: #8a978d;
-  --border: rgba(20, 40, 25, 0.14);
-  --bg: #ffffff;
+  --link: #6bc06b;
+  /* dark space theme */
+  --ink: #e9edf6;
+  --muted: #a3acc2;
+  --faint: #6f7891;
+  --border: rgba(255, 255, 255, 0.13);
+  --bg: #0c1326;
+  --surface: rgba(18, 26, 48, 0.6);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--ink);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* space (starfield) + map (grid) backdrop */
+  background-color: #070b1a;
+  background-image:
+    radial-gradient(1.5px 1.5px at 16% 22%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 84% 16%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1px 1px at 32% 70%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 70% 82%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 50% 40%, rgba(255, 255, 255, 0.45), transparent),
+    radial-gradient(1.5px 1.5px at 94% 60%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 6% 88%, rgba(255, 255, 255, 0.5), transparent),
+    linear-gradient(rgba(120, 170, 230, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 170, 230, 0.05) 1px, transparent 1px);
+  background-size:
+    320px 320px, 320px 320px, 260px 260px, 300px 300px,
+    240px 240px, 360px 360px, 280px 280px,
+    46px 46px, 46px 46px;
+  background-attachment: fixed;
 }
 
 h1, h2, .brand, .step-n { font-family: "Barlow Condensed", Inter, sans-serif; }
-a { color: var(--green-d); text-decoration: none; }
+a { color: var(--link); text-decoration: none; }
 
 .nav {
   max-width: 760px;
@@ -138,7 +158,7 @@ section h2::after {
 }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
-.card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
 .step-n { font-size: 40px; font-weight: 700; color: var(--green); line-height: 1; }
 .card .title { font-family: Inter, sans-serif; font-weight: 600; font-size: 15px; margin: 8px 0 4px; }
 .card p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
@@ -169,7 +189,7 @@ footer p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
   color: #fff; background: var(--green); border: none; border-radius: 8px;
 }
 .reg-note { font-size: 12px; color: var(--faint); margin: 4px 0 0; text-align: center; }
-.reg-done { font-size: 15px; color: var(--green-d); margin: 8px 0 0; line-height: 1.6; }
+.reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
 @media (max-width: 560px) {
   .hero h1 { font-size: 38px; }
