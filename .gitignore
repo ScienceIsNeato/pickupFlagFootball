@@ -14,3 +14,6 @@ AGENTS.md
 # build artifacts
 site/dist/
 node_modules/
+
+# slop-mop working directory (machine-local state)
+.slopmop/
