@@ -33,7 +33,8 @@ function render(templateFile, values) {
   const out = html.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     if (!(key in values)) { missing.push(key); return match; }
     const entry = values[key];
-    if (entry && typeof entry === 'object' && entry.raw) return entry.value;
+    if (entry === undefined || entry === null) { missing.push(key); return match; }
+    if (typeof entry === 'object' && entry.raw) return entry.value;
     return escapeHtml(entry);
   });
   if (missing.length) {
