@@ -171,6 +171,20 @@ footer { max-width: 760px; margin: 40px auto 0; padding: 28px 20px 64px; border-
 footer p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
 .foot-line { display: flex; align-items: center; gap: 8px; }
 .foot-line .ball { display: inline-flex; flex: none; }
+.donate {
+  display: inline-block;
+  background: var(--green);
+  color: #fff;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.3px;
+  padding: 10px 22px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+.page-blurb { color: var(--muted); margin: 0 0 20px; max-width: 560px; line-height: 1.6; }
+.card a { display: inline-block; margin-top: 10px; font-size: 13px; }
 .reg { max-width: 460px; margin: 0 auto; padding: 44px 20px 80px; }
 .back { display: inline-block; font-size: 13px; color: var(--muted); margin-bottom: 22px; }
 .reg-h { font-family: "Barlow Condensed", sans-serif; font-size: 34px; font-weight: 700; margin: 0 0 8px; }

@@ -23,7 +23,7 @@
     { "n": "4", "title": "enough say yes", "body": "the game gets scheduled." }
   ],
   "faq": [
-    { "q": "does it cost anything?", "a": "the web version is free. gear links are affiliate and cover hosting." },
+    { "q": "how much does this cost, and how do you make money?", "aHtml": "MIME-FF and pickupflagfootball.com are totally free, open source products. server costs are covered via <a href=\"{donate}\">donations</a> and <a href=\"gear.html\">affiliate gear</a>." },
     { "q": "what if no one's near me?", "a": "there's no game yet. you'll see the interest count. once it's high enough, the app starts putting one together." },
     { "q": "who picks the field?", "a": "whoever suggests one. people on the ground know the good spots." },
     { "q": "why show interest before i can see anything?", "a": "a count only means something if everyone in it is real. show interest, and you see the others who did the same." }
@@ -35,6 +35,23 @@
     "blurb": "tell us where you are. once you're in, you'll see how many folks nearby want the same thing.",
     "cta": "count me in",
     "note": "we ask for your email, name, and zip. that's all."
+  },
+  "donate": { "url": "#", "label": "support the project" },
+  "gear": {
+    "seoTitle": "gear · MIME-FF",
+    "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",
+    "heading": "gear",
+    "blurb": "what you need to get a game going. these are affiliate links - they help cover server costs.",
+    "items": [
+      { "name": "footballs", "desc": "game-ready, all sizes.", "url": "https://www.amazon.com" },
+      { "name": "cones", "desc": "mark your field in seconds.", "url": "https://www.amazon.com" },
+      { "name": "flag belts", "desc": "sets for a full game.", "url": "https://www.amazon.com" }
+    ]
+  },
+  "faqPage": {
+    "seoTitle": "faq · MIME-FF",
+    "seoDescription": "how MIME-FF works, what it costs, and who picks the field.",
+    "heading": "faq"
   },
   "footer": "open source."
 }
