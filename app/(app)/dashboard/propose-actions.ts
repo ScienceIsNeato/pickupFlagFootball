@@ -23,6 +23,11 @@ export async function proposeGame(formData: FormData) {
   const start = String(formData.get("start") ?? "").trim();
   if (!h3 || !place || !start) throw new Error("place and time are required");
 
+  const placeLatRaw = String(formData.get("place_lat") ?? "");
+  const placeLngRaw = String(formData.get("place_lng") ?? "");
+  const placeLat = placeLatRaw ? Number(placeLatRaw) : null;
+  const placeLng = placeLngRaw ? Number(placeLngRaw) : null;
+
   const cell = h3ToBigInt(h3);
   const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
@@ -51,7 +56,8 @@ export async function proposeGame(formData: FormData) {
   }
 
   await db.insert(suggestions).values({
-    attemptId: attempt.id, userId: session.user.id, placeText: place, proposedStart: new Date(start),
+    attemptId: attempt.id, userId: session.user.id, placeText: place,
+    placeLat, placeLng, proposedStart: new Date(start),
   });
 
   redirect("/dashboard");

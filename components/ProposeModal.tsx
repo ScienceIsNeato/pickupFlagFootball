@@ -1,9 +1,12 @@
 "use client";
 
 import { proposeGame } from "@/app/(app)/dashboard/propose-actions";
+import { LocationPicker } from "./LocationPicker";
 
-/** The suggest-a-game flow, opened from a coalesced flag pile on the map. */
-export function ProposeModal({ h3, onClose }: { h3: string; onClose: () => void }) {
+/** The suggest-a-game flow, opened from a football on the map. */
+export function ProposeModal({
+  h3, center, onClose,
+}: { h3: string; center?: { lat: number; lng: number }; onClose: () => void }) {
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -23,7 +26,7 @@ export function ProposeModal({ h3, onClose }: { h3: string; onClose: () => void 
         </p>
         <label>
           where
-          <input name="place" placeholder="e.g. North Ridge Park" autoComplete="off" required />
+          <LocationPicker bias={center} />
         </label>
         <label>
           when

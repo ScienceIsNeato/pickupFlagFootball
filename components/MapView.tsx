@@ -8,7 +8,7 @@ import { ProposeModal } from "./ProposeModal";
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
 
 const MAX_ZOOM = 11; // at/above this a football can't split → click it to propose
-const GR = 175;      // cursor gravity radius (screen px), like the background flags
+const GR = 52;       // cursor gravity radius (screen px), like the background flags
 
 type Rec = {
   ll: [number, number]; inner: HTMLElement;
@@ -70,7 +70,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const recsRef = useRef<Rec[]>([]);
-  const [propose, setPropose] = useState<{ h3: string } | null>(null);
+  const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -134,7 +134,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
       markersRef.current = cells.map((c) => {
         const { el, inner } = bubble(c);
         el.addEventListener("click", () => {
-          if (map.getZoom() >= MAX_ZOOM) setPropose({ h3: c.h3 });
+          if (map.getZoom() >= MAX_ZOOM) setPropose({ h3: c.h3, lat: c.lat, lng: c.lng });
           else map.flyTo({ center: [c.lng, c.lat], zoom: Math.min(MAX_ZOOM, map.getZoom() + 2) });
         });
         recs.push({ ll: [c.lng, c.lat], inner, ox: 0, oy: 0, rox: rand(-18, 18), roy: rand(-18, 18), energy: 0, phase: rand(0, 6.28) });
@@ -163,7 +163,13 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
-      {propose && <ProposeModal h3={propose.h3} onClose={() => setPropose(null)} />}
+      {propose && (
+        <ProposeModal
+          h3={propose.h3}
+          center={{ lat: propose.lat, lng: propose.lng }}
+          onClose={() => setPropose(null)}
+        />
+      )}
     </div>
   );
 }
