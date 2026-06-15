@@ -11,10 +11,12 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "drizzle-orm": "^0.45.2",
+    "h3-js": "^4.4.0",
     "next": "^15.5.0",
     "next-auth": "^5.0.0-beta.31",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tz-lookup": "^6.1.25",
     "zod": "^3.25.76"
   },
   "devDependencies": {
