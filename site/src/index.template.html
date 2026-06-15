@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{SEO_TITLE}}</title>
+  <meta name="description" content="{{SEO_DESC}}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <a href="index.html" class="brand">
+      <span class="ball" aria-hidden="true">
+        <svg viewBox="0 0 34 22" width="28" height="18">
+          <ellipse cx="17" cy="11" rx="16" ry="10" fill="#8a4b2a"></ellipse>
+          <path d="M7 11 H27" stroke="#fff" stroke-width="1.6"></path>
+          <path d="M13 8 V14 M17 7.2 V14.8 M21 8 V14" stroke="#fff" stroke-width="1.6"></path>
+        </svg>
+      </span>
+      {{BRAND}}
+    </a>
+    <nav>
+      <a href="#how">how it works</a>
+      <a href="#faq">faq</a>
+      <a href="#" class="signin">sign in</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <canvas class="formation" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <div class="kicker">{{BRAND}}</div>
+      <div class="acronym">{{ACRONYM}}</div>
+      <h1>{{HERO_HEADING}}</h1>
+      <p class="lead">{{HERO_BODY}}</p>
+      <p class="gate">{{GATE}}</p>
+      <a href="register.html" class="btn">{{HERO_CTA}}</a>
+      <p class="note">{{HERO_NOTE}}</p>
+    </div>
+  </section>
+
+  <main>
+    <section id="how">
+      <h2>how it works</h2>
+      <div class="cards">{{HOW_CARDS}}
+      </div>
+    </section>
+
+    <section id="faq">
+      <h2>faq</h2>
+      <div class="faq">{{FAQ_ITEMS}}
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="foot-line">
+      <span class="ball" aria-hidden="true">
+        <svg viewBox="0 0 34 22" width="22" height="14">
+          <ellipse cx="17" cy="11" rx="16" ry="10" fill="#8a4b2a"></ellipse>
+          <path d="M7 11 H27" stroke="#fff" stroke-width="1.6"></path>
+          <path d="M13 8 V14 M17 7.2 V14.8 M21 8 V14" stroke="#fff" stroke-width="1.6"></path>
+        </svg>
+      </span>
+      {{FOOTER}}
+    </p>
+  </footer>
+
+  <script>
+    (function () {
+      var c = document.querySelector('.formation');
+      if (!c) return;
+      var ctx = c.getContext('2d');
+      var hero = c.parentElement;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var W, H, cx, cy, R, parts;
+      var PI2 = Math.PI * 2;
+      var COLORS = ['#f5c518', '#e2483f', '#2fb673', '#f59e2a'];
+
+      function rand(a, b) { return a + Math.random() * (b - a); }
+
+      function spawn() {
+        var ang = rand(0, PI2);
+        var md = Math.max(W, H);
+        var r = rand(md * 0.34, md * 0.74);
+        return {
+          x: cx + Math.cos(ang) * r,
+          y: cy + Math.sin(ang) * r,
+          sp: rand(0.004, 0.012),
+          phase: rand(0, PI2),
+          flut: rand(0.12, 0.24),
+          size: rand(8, 13),
+          color: COLORS[(Math.random() * COLORS.length) | 0]
+        };
+      }
+
+      function resize() {
+        W = hero.clientWidth; H = hero.clientHeight;
+        cx = W / 2; cy = H * 0.48; R = Math.min(W, H) * 0.34;
+        c.width = W * dpr; c.height = H * dpr;
+        c.style.width = W + 'px'; c.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        parts = [];
+        for (var i = 0; i < 60; i++) parts.push(spawn());
+      }
+
+      function flag(p, a) {
+        var L = p.size * 3, h = p.size * 0.5, seg = 6, i, t, x, w;
+        var ang = Math.atan2(p.y - cy, p.x - cx);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(ang);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        for (i = 0; i <= seg; i++) {
+          t = i / seg; x = t * L;
+          w = Math.sin(p.phase + t * 6) * h * 1.1 * t;
+          if (i === 0) ctx.moveTo(x, w - h / 2); else ctx.lineTo(x, w - h / 2);
+        }
+        for (i = seg; i >= 0; i--) {
+          t = i / seg; x = t * L;
+          w = Math.sin(p.phase + t * 6) * h * 1.1 * t;
+          ctx.lineTo(x, w + h / 2);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+        g.addColorStop(0, 'rgba(245,197,24,0.50)');
+        g.addColorStop(0.22, 'rgba(60,180,90,0.26)');
+        g.addColorStop(1, 'rgba(20,83,45,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, PI2); ctx.fill();
+
+        var md = Math.max(W, H);
+        for (var i = 0; i < parts.length; i++) {
+          var p = parts[i];
+          var dx = cx - p.x, dy = cy - p.y, d = Math.sqrt(dx * dx + dy * dy);
+          var a = Math.max(0.12, Math.min(0.9, 1 - d / (md * 0.72)));
+          flag(p, a);
+          if (!reduce) {
+            p.x += dx * p.sp; p.y += dy * p.sp;
+            p.phase += p.flut;
+            if (d < 14) parts[i] = spawn();
+          }
+        }
+        if (!reduce) requestAnimationFrame(draw);
+      }
+
+      resize();
+      window.addEventListener('resize', resize);
+      draw();
+    })();
+  </script>
+</body>
+</html>
