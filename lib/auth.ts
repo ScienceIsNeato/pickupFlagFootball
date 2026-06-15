@@ -34,6 +34,10 @@ if (process.env.DEV_LOGIN === "true") {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
+  // Auth.js auto-trusts the host in dev and on Vercel, but a self-hosted
+  // `next start` does not — without this it throws UntrustedHost on every
+  // auth() call ("problem with the server configuration").
+  trustHost: true,
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user }) {
