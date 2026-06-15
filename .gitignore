@@ -1,0 +1,16 @@
+# pre-existing agent-ops scaffolding (not part of this project)
+cursor-rules/
+AGENTS.md
+.windsurfrules
+.agent/
+.github/
+.cursor
+.envrc
+
+# local dev / editor
+.claude/
+.DS_Store
+
+# build artifacts
+site/dist/
+node_modules/
