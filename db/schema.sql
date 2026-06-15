@@ -170,7 +170,9 @@ CREATE TABLE formation_attempts (
   failure_reason   text,
   created_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (area_id, attempt_number),
-  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id)
+  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id),
+  -- a confirmed attempt must point at the game it produced
+  CHECK (status <> 'CONFIRMED' OR scheduled_game_id IS NOT NULL)
 );
 -- at most one live attempt per area
 CREATE UNIQUE INDEX uq_one_live_attempt ON formation_attempts(area_id)
@@ -253,7 +255,9 @@ CREATE TABLE games (
   recur_dow        int,        -- 0-6
   recur_time       time,
   created_at       timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id)
+  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id),
+  -- the winning option must come from this game's originating attempt
+  FOREIGN KEY (winning_option_id, origin_attempt_id) REFERENCES formation_options(id, attempt_id)
 );
 CREATE INDEX idx_games_area ON games(activity_type_id, area_id);
 
