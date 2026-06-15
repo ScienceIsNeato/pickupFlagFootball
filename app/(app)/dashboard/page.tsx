@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, interestSignals, activityTypes, mapAggregates } from "@/lib/db/schema";
+import { users, interestSignals } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { MapView } from "@/components/MapView";
 
 export const metadata = { title: "Dashboard — MIME-FF" };
 
@@ -11,16 +12,13 @@ export default async function DashboardPage() {
   const session = await auth();
   const uid = session?.user?.id!;
 
-  // Load user + check for active interest signal (server-enforced gate)
-  const [userRows, signalRows, activityRows] = await Promise.all([
-    db.select({ city: users.city, zip: users.zip, h3R7: users.h3R7 })
+  const [userRows, signalRows] = await Promise.all([
+    db.select({ city: users.city, zip: users.zip, homeLat: users.homeLat, homeLng: users.homeLng })
       .from(users).where(eq(users.id, uid)).limit(1),
-    db.select({ id: interestSignals.id, areaId: interestSignals.areaId, h3Base: interestSignals.h3Base })
+    db.select({ id: interestSignals.id })
       .from(interestSignals)
       .where(and(eq(interestSignals.userId, uid), eq(interestSignals.active, true)))
       .limit(1),
-    db.select({ id: activityTypes.id })
-      .from(activityTypes).where(eq(activityTypes.slug, "flag-football")).limit(1),
   ]);
 
   const u = userRows[0];
@@ -29,45 +27,32 @@ export default async function DashboardPage() {
   // Gate: no active signal → send to show-interest
   if (!signal) redirect("/show-interest");
 
-  // Nearby count from map_aggregates at r7 resolution
-  let nearbyCount = 0;
-  if (signal.h3Base && activityRows.length) {
-    const agg = await db
-      .select({ interestCount: mapAggregates.interestCount })
-      .from(mapAggregates)
-      .where(
-        and(
-          eq(mapAggregates.activityTypeId, activityRows[0].id),
-          eq(mapAggregates.resolution, 7),
-          eq(mapAggregates.h3Cell, signal.h3Base)
-        )
-      )
-      .limit(1);
-    nearbyCount = agg[0]?.interestCount ?? 0;
-  }
-
   const location = u?.city && u?.zip ? `${u.city}, ${u.zip}` : u?.zip ?? "your area";
+  const center: [number, number] = [u?.homeLng ?? -91.6, u?.homeLat ?? 41.69];
 
   return (
-    <main className="reg">
-      <h1 className="reg-h">you&apos;re in</h1>
-      <p className="reg-blurb">
-        you&apos;re signed up for pickup flag football near <strong>{location}</strong>.
-        when enough people in your area show interest, we&apos;ll reach out.
-      </p>
-
-      {nearbyCount > 0 ? (
-        <p className="reg-blurb">
-          <strong>{nearbyCount}</strong> {nearbyCount === 1 ? "person" : "people"} interested in your area so far.
+    <main style={{ maxWidth: 1100, margin: "0 auto", padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+        <h1 style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 30, fontWeight: 700, margin: 0 }}>
+          you&apos;re in
+        </h1>
+        <p style={{ color: "var(--muted)", margin: 0, fontSize: 15 }}>
+          pickup flag football near <strong style={{ color: "var(--ink)" }}>{location}</strong>.
+          when enough people nearby show interest, we&apos;ll reach out.
         </p>
-      ) : (
-        <p className="reg-blurb" style={{ color: "var(--muted)" }}>
-          you&apos;re the first in your area — spread the word.
-        </p>
-      )}
+        <Link href="/account" style={{ marginLeft: "auto", fontSize: 14 }}>account →</Link>
+      </div>
 
-      <p className="reg-blurb" style={{ marginTop: 32 }}>
-        <Link href="/account">update your location or name →</Link>
+      <div style={{
+        height: "68vh", minHeight: 420, borderRadius: 14, overflow: "hidden",
+        border: "1px solid var(--border)",
+      }}>
+        <MapView center={center} zoom={9} />
+      </div>
+
+      <p style={{ color: "var(--faint)", fontSize: 13, marginTop: 12 }}>
+        each bubble is interested players in an area — zoom out and they merge, zoom in and they split.
+        gold is gathering interest; green means a game is on.
       </p>
     </main>
   );
