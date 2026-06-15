@@ -25,15 +25,18 @@ mkdir -p "$DEPLOY_DIR"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/deploy_app.sh            Build and start the production server
+  scripts/deploy_app.sh            Build and start the production server (detached)
+  scripts/deploy_app.sh serve      Build and run in the FOREGROUND on a fixed
+                                   port (used by the editor preview)
   scripts/deploy_app.sh --status   Show running deployment(s)
   scripts/deploy_app.sh --logs     Tail this repo's server log
   scripts/deploy_app.sh --stop     Stop this repo's server
   scripts/deploy_app.sh --help     Show this help
 
 Environment:
-  PORT       Preferred starting port (default 3000). A free port at or above
-             this is selected automatically.
+  PORT         Detached: preferred starting port (default 3000), a free port at
+               or above it is chosen. serve: the exact port to bind (default 3000).
+  SKIP_BUILD=1 serve: skip `next build` and serve the existing .next bundle.
 EOF
 }
 
@@ -131,6 +134,7 @@ show_logs() {
 ACTION="deploy"
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    serve|--foreground) ACTION="serve"; shift ;;
     --stop) ACTION="stop"; shift ;;
     --status) ACTION="status"; shift ;;
     --logs) ACTION="logs"; shift ;;
@@ -147,6 +151,22 @@ case "$ACTION" in
   stop) ensure_prerequisites; stop_deployment "$ROOT"; exit 0 ;;
   status) ensure_prerequisites; echo "MIME-FF deployments:"; cleanup_stale; show_status; exit 0 ;;
   logs) ensure_prerequisites; show_logs "$ROOT"; exit 0 ;;
+  serve)
+    # Foreground production server on a fixed port — the editor preview owns the
+    # process lifecycle, so no nohup/lockfile. exec replaces this shell so the
+    # preview tracks `next start` directly.
+    ensure_prerequisites
+    cd "$ROOT"
+    NEXT_BIN="$ROOT/node_modules/.bin/next"
+    [[ -x "$NEXT_BIN" ]] || die "next is not installed. Run npm install first."
+    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      echo "Building (set SKIP_BUILD=1 to skip)..."
+      npm run build
+    fi
+    SERVE_PORT="${PORT:-3000}"
+    echo "Serving MIME-FF in the foreground on 0.0.0.0:$SERVE_PORT"
+    exec "$NEXT_BIN" start -p "$SERVE_PORT" -H 0.0.0.0
+    ;;
 esac
 
 ensure_prerequisites
