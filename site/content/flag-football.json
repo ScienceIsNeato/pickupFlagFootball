@@ -1,0 +1,40 @@
+{
+  "slug": "flag-football",
+  "brandName": "MIME-FF",
+  "acronym": "massive interests matching engine · flag football",
+  "activity": "flag football",
+  "event": "game",
+  "participant": "player",
+  "seo": {
+    "title": "MIME-FF · pickup flag football that forms itself",
+    "description": "a free, open source platform that connects people with the same interest. when enough gather in one area, a game is born."
+  },
+  "hero": {
+    "heading": "massive interests attract. a game is born.",
+    "body": "MIME-FF is a free, open source platform for community organization and engagement. it connects people who want the same thing - and when enough gather in one area, a regular flag football game can be born into being.",
+    "gate": "show interest to see interest. tell us where you are, and we'll show how many like-minded folks are nearby.",
+    "cta": "show interest near you",
+    "note": "free on the web. location is your zip and city."
+  },
+  "how": [
+    { "n": "1", "title": "say you're in", "body": "pick your area. one tap." },
+    { "n": "2", "title": "others do too", "body": "the app counts people nearby." },
+    { "n": "3", "title": "someone names a spot", "body": "a local suggests place and time." },
+    { "n": "4", "title": "enough say yes", "body": "the game gets scheduled." }
+  ],
+  "faq": [
+    { "q": "does it cost anything?", "a": "the web version is free. gear links are affiliate and cover hosting." },
+    { "q": "what if no one's near me?", "a": "there's no game yet. you'll see the interest count. once it's high enough, the app starts putting one together." },
+    { "q": "who picks the field?", "a": "whoever suggests one. people on the ground know the good spots." },
+    { "q": "why show interest before i can see anything?", "a": "a count only means something if everyone in it is real. show interest, and you see the others who did the same." }
+  ],
+  "register": {
+    "seoTitle": "show interest · MIME-FF",
+    "seoDescription": "tell us where you are and we'll show how many folks nearby want a flag football game going.",
+    "heading": "show interest",
+    "blurb": "tell us where you are. once you're in, you'll see how many folks nearby want the same thing.",
+    "cta": "count me in",
+    "note": "we ask for your email, name, and zip. that's all."
+  },
+  "footer": "open source."
+}
