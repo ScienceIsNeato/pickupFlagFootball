@@ -143,7 +143,7 @@
         "short_test_severity": "fail"
       },
       "gate-dodging": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
@@ -216,7 +216,7 @@
         "src_dirs": []
       },
       "dead-code.py": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
@@ -264,14 +264,14 @@
         "exclude_dirs": []
       },
       "silenced-gates": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
         "include_paths": []
       },
       "broken-templates.py": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
@@ -358,7 +358,7 @@
         "run_actionlint": true
       },
       "ambiguity-mines.py": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
@@ -377,7 +377,7 @@
         "exclude_dirs": []
       },
       "string-duplication.py": {
-        "enabled": false,
+        "enabled": true,
         "auto_fix": false,
         "run_on": null,
         "extra_exclude_paths": [],
@@ -430,5 +430,6 @@
         "fail_on_unresolved": false
       }
     }
-  }
+  },
+  "disabled_gates": []
 }
