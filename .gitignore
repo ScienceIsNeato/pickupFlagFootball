@@ -17,3 +17,11 @@ node_modules/
 
 # slop-mop working directory (machine-local state)
 .slopmop/
+
+# next.js app
+/.next/
+/out/
+next-env.d.ts
+.vercel
+*.tsbuildinfo
+.env*.local
