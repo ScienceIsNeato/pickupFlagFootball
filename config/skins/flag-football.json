@@ -10,11 +10,12 @@
     "description": "a free, open source platform that connects people with the same interest. when enough gather in one area, a game is born."
   },
   "hero": {
-    "heading": "massive interests attract. a game is born.",
-    "body": "MIME-FF is a free, open source platform for community organization and engagement. it connects people who want the same thing - and when enough gather in one area, a regular flag football game can be born into being.",
-    "gate": "show interest to see interest. tell us where you are, and we'll show how many like-minded folks are nearby.",
+    "heading": "find your local flag football game, or help it find you",
+    "body": "while there may not be a standing local game in your area at the moment, don't you think there should be? this site makes that happen.",
+    "body2": "just let us know your general area, name and email and we'll take care of the rest. when enough people in your area show interest, MIME-FF coordinates and facilitates organic community organized games with little to no effort on your part.",
+    "gate": "",
     "cta": "show interest near you",
-    "note": "free on the web. location is your zip and city."
+    "note": ""
   },
   "how": [
     { "n": "1", "title": "say you're in", "body": "pick your area. one tap." },

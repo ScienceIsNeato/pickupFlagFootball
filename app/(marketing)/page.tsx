@@ -10,9 +10,8 @@ export default function Home() {
           <div className="acronym">{skin.acronym}</div>
           <h1>{skin.hero.heading}</h1>
           <p className="lead">{skin.hero.body}</p>
-          <p className="gate">{skin.hero.gate}</p>
+          {skin.hero.body2 && <p className="lead">{skin.hero.body2}</p>}
           <Link href="/show-interest" className="btn">{skin.hero.cta}</Link>
-          <p className="note">{skin.hero.note}</p>
         </div>
       </section>
 

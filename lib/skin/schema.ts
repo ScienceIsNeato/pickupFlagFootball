@@ -16,6 +16,7 @@ export const SkinSchema = z.object({
   hero: z.object({
     heading: z.string(),
     body: z.string(),
+    body2: z.string().optional(),
     gate: z.string(),
     cta: z.string(),
     note: z.string(),
