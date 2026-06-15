@@ -74,6 +74,10 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     mapRef.current = map;
     // guard against the container sizing after init (flex/vh layouts)
     map.on("load", () => map.resize());
+    // the map canvas can mount before the container has its final size (vh/flex
+    // layouts hydrate late) — keep it filling the box whenever the box resizes.
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(ref.current);
 
     let aborted = false;
     async function refresh() {
@@ -93,6 +97,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
 
     return () => {
       aborted = true;
+      ro.disconnect();
       markersRef.current.forEach((m) => m.remove());
       map.remove();
       mapRef.current = null;
