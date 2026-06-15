@@ -27,6 +27,7 @@ const escapeHtml = (s) =>
 const part = (name) => readFileSync(join(root, 'src', 'partials', `${name}.html`), 'utf8');
 const partials = {
   '{{INCLUDE_HEAD}}': part('head'),
+  '{{INCLUDE_BG}}': part('bg'),
   '{{INCLUDE_NAV}}': part('nav'),
   '{{INCLUDE_FOOTER}}': part('footer'),
 };

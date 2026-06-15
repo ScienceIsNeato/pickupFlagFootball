@@ -26,23 +26,17 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   /* space (starfield) + map (grid) backdrop */
+  /* deep space + a faint map grid; the scattered flags live on the #bg canvas */
   background-color: #070b1a;
   background-image:
-    radial-gradient(1.5px 1.5px at 16% 22%, rgba(255, 255, 255, 0.7), transparent),
-    radial-gradient(1.5px 1.5px at 84% 16%, rgba(255, 255, 255, 0.55), transparent),
-    radial-gradient(1px 1px at 32% 70%, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(1px 1px at 70% 82%, rgba(255, 255, 255, 0.5), transparent),
-    radial-gradient(1px 1px at 50% 40%, rgba(255, 255, 255, 0.45), transparent),
-    radial-gradient(1.5px 1.5px at 94% 60%, rgba(255, 255, 255, 0.5), transparent),
-    radial-gradient(1px 1px at 6% 88%, rgba(255, 255, 255, 0.5), transparent),
-    linear-gradient(rgba(120, 170, 230, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 170, 230, 0.05) 1px, transparent 1px);
-  background-size:
-    320px 320px, 320px 320px, 260px 260px, 300px 300px,
-    240px 240px, 360px 360px, 280px 280px,
-    46px 46px, 46px 46px;
+    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(31, 138, 59, 0.16), transparent 62%),
+    linear-gradient(rgba(120, 170, 230, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 170, 230, 0.045) 1px, transparent 1px);
+  background-size: auto, 46px 46px, 46px 46px;
   background-attachment: fixed;
 }
+
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 
 h1, h2, .brand, .step-n { font-family: "Barlow Condensed", Inter, sans-serif; }
 a { color: var(--link); text-decoration: none; }
@@ -70,13 +64,10 @@ a { color: var(--link); text-decoration: none; }
 .hero {
   position: relative;
   overflow: hidden;
-  background-color: #0a1c10;
-  border-bottom: 6px solid var(--yellow);
   color: #fff;
   padding: 92px 20px 80px;
   text-align: center;
 }
-.hero .formation { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
 .hero-inner { position: relative; z-index: 2; max-width: 700px; margin: 0 auto; }
 .hero::before {
   content: "";

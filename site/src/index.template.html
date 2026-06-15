@@ -1,9 +1,9 @@
 {{INCLUDE_HEAD}}
 <body>
+{{INCLUDE_BG}}
 {{INCLUDE_NAV}}
 
   <section class="hero">
-    <canvas class="formation" aria-hidden="true"></canvas>
     <div class="hero-inner">
       <div class="kicker">{{BRAND}}</div>
       <div class="acronym">{{ACRONYM}}</div>
@@ -24,99 +24,5 @@
   </main>
 
 {{INCLUDE_FOOTER}}
-
-  <script>
-    (function () {
-      var c = document.querySelector('.formation');
-      if (!c) return;
-      var ctx = c.getContext('2d');
-      var hero = c.parentElement;
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
-      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var W, H, cx, cy, R, parts;
-      var PI2 = Math.PI * 2;
-      var COLORS = ['#f5c518', '#e2483f', '#2fb673', '#f59e2a'];
-
-      function rand(a, b) { return a + Math.random() * (b - a); }
-
-      function spawn() {
-        var ang = rand(0, PI2);
-        var md = Math.max(W, H);
-        var r = rand(md * 0.34, md * 0.74);
-        return {
-          x: cx + Math.cos(ang) * r,
-          y: cy + Math.sin(ang) * r,
-          sp: rand(0.004, 0.012),
-          phase: rand(0, PI2),
-          flut: rand(0.12, 0.24),
-          size: rand(8, 13),
-          color: COLORS[(Math.random() * COLORS.length) | 0]
-        };
-      }
-
-      function resize() {
-        W = hero.clientWidth; H = hero.clientHeight;
-        cx = W / 2; cy = H * 0.48; R = Math.min(W, H) * 0.34;
-        c.width = W * dpr; c.height = H * dpr;
-        c.style.width = W + 'px'; c.style.height = H + 'px';
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        parts = [];
-        for (var i = 0; i < 60; i++) parts.push(spawn());
-        if (reduce) draw();
-      }
-
-      function flag(p, a) {
-        var L = p.size * 3, h = p.size * 0.5, seg = 6, i, t, x, w;
-        var ang = Math.atan2(p.y - cy, p.x - cx);
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(ang);
-        ctx.globalAlpha = a;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        for (i = 0; i <= seg; i++) {
-          t = i / seg; x = t * L;
-          w = Math.sin(p.phase + t * 6) * h * 1.1 * t;
-          if (i === 0) ctx.moveTo(x, w - h / 2); else ctx.lineTo(x, w - h / 2);
-        }
-        for (i = seg; i >= 0; i--) {
-          t = i / seg; x = t * L;
-          w = Math.sin(p.phase + t * 6) * h * 1.1 * t;
-          ctx.lineTo(x, w + h / 2);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-
-      function draw() {
-        ctx.clearRect(0, 0, W, H);
-        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-        g.addColorStop(0, 'rgba(245,197,24,0.50)');
-        g.addColorStop(0.22, 'rgba(60,180,90,0.26)');
-        g.addColorStop(1, 'rgba(20,83,45,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(cx, cy, R, 0, PI2); ctx.fill();
-
-        var md = Math.max(W, H);
-        for (var i = 0; i < parts.length; i++) {
-          var p = parts[i];
-          var dx = cx - p.x, dy = cy - p.y, d = Math.sqrt(dx * dx + dy * dy);
-          var a = Math.max(0.12, Math.min(0.9, 1 - d / (md * 0.72)));
-          flag(p, a);
-          if (!reduce) {
-            p.x += dx * p.sp; p.y += dy * p.sp;
-            p.phase += p.flut;
-            if (d < 14) parts[i] = spawn();
-          }
-        }
-        if (!reduce) requestAnimationFrame(draw);
-      }
-
-      resize();
-      window.addEventListener('resize', resize);
-      draw();
-    })();
-  </script>
 </body>
 </html>
