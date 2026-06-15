@@ -26,7 +26,6 @@
     <nav>
       <a href="#how">how it works</a>
       <a href="#faq">faq</a>
-      <a href="#" class="signin">sign in</a>
     </nav>
   </header>
 
@@ -107,6 +106,7 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         parts = [];
         for (var i = 0; i < 60; i++) parts.push(spawn());
+        if (reduce) draw();
       }
 
       function flag(p, a) {

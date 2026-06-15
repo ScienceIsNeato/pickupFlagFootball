@@ -63,7 +63,11 @@ CREATE TABLE activity_types (
   ignore_decay_windows int  NOT NULL DEFAULT 3,      -- auto-snooze after N ignored
   gear_catalog         jsonb NOT NULL DEFAULT '[]',  -- affiliate links
   seo_copy             jsonb NOT NULL DEFAULT '{}',  -- page title/description templates
-  created_at           timestamptz NOT NULL DEFAULT now()
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  CHECK (n_spark > 0 AND n_warm >= 0 AND p_min > 0 AND options_cap > 0
+         AND restall_interest >= 0 AND restall_days >= 0 AND max_time_retries >= 0
+         AND max_catchment_km > 0 AND base_h3_res BETWEEN 0 AND 15
+         AND per_user_weekly_cap >= 0 AND ignore_decay_windows >= 0)
 );
 
 -- ============================================================ users
@@ -88,7 +92,9 @@ CREATE TABLE users (
   push_subscription jsonb, -- Web Push subscription
   email_opt_in  boolean NOT NULL DEFAULT true,
   created_at    timestamptz NOT NULL DEFAULT now(),
-  updated_at    timestamptz NOT NULL DEFAULT now()
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),
+  CHECK (home_lng IS NULL OR home_lng BETWEEN -180 AND 180)
 );
 CREATE INDEX idx_users_zip    ON users(zip);
 CREATE INDEX idx_users_h3_r7  ON users(h3_r7);
@@ -116,7 +122,10 @@ CREATE TABLE areas (
   n_spark_override int,
   p_min_override   int,
   created_at       timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (activity_type_id, h3_cell)
+  UNIQUE (activity_type_id, h3_cell),
+  -- composite-FK target so child rows can't mismatch area <-> activity
+  UNIQUE (id, activity_type_id),
+  CHECK (center_lat BETWEEN -90 AND 90 AND center_lng BETWEEN -180 AND 180)
 );
 CREATE INDEX idx_areas_status ON areas(activity_type_id, status);
 
@@ -125,7 +134,7 @@ CREATE TABLE interest_signals (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_type_id uuid NOT NULL REFERENCES activity_types(id),
   user_id          uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  area_id          uuid NOT NULL REFERENCES areas(id),
+  area_id          uuid NOT NULL,
   h3_base          bigint NOT NULL,            -- denormalized for ring counting
   time_prefs       time_slot[] NOT NULL DEFAULT '{}',
   active           boolean NOT NULL DEFAULT true,
@@ -136,7 +145,9 @@ CREATE TABLE interest_signals (
   created_at       timestamptz NOT NULL DEFAULT now(),
   -- multiple interests allowed: a user can care about several areas (home, work, ...)
   -- for the same activity. One row per (user, activity, area).
-  UNIQUE (activity_type_id, user_id, area_id)
+  UNIQUE (activity_type_id, user_id, area_id),
+  -- the area must belong to the same activity as the signal
+  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id)
 );
 CREATE INDEX idx_interest_ring ON interest_signals(activity_type_id, h3_base) WHERE active;
 CREATE INDEX idx_interest_area ON interest_signals(area_id) WHERE active;
@@ -146,7 +157,7 @@ CREATE INDEX idx_interest_area ON interest_signals(area_id) WHERE active;
 CREATE TABLE formation_attempts (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_type_id uuid NOT NULL REFERENCES activity_types(id),
-  area_id          uuid NOT NULL REFERENCES areas(id),
+  area_id          uuid NOT NULL,
   attempt_number   int NOT NULL,
   status           attempt_status NOT NULL DEFAULT 'SUGGESTING',
   catchment_cells  bigint[] NOT NULL DEFAULT '{}',  -- claimed cells → overlap dedup
@@ -158,7 +169,8 @@ CREATE TABLE formation_attempts (
   scheduled_game_id uuid,                           -- set on CONFIRMED
   failure_reason   text,
   created_at       timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (area_id, attempt_number)
+  UNIQUE (area_id, attempt_number),
+  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id)
 );
 -- at most one live attempt per area
 CREATE UNIQUE INDEX uq_one_live_attempt ON formation_attempts(area_id)
@@ -197,19 +209,28 @@ CREATE TABLE formation_options (
   proposed_start timestamptz NOT NULL,
   first_suggested_at timestamptz NOT NULL,  -- earliest source suggestion → TIE-BREAK key
   promise_count int NOT NULL DEFAULT 0,     -- denormalized tally
-  created_at    timestamptz NOT NULL DEFAULT now()
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  -- composite-FK target so promises/suggestions can't cross attempts
+  UNIQUE (id, attempt_id)
 );
 CREATE INDEX idx_options_attempt ON formation_options(attempt_id);
+
+-- suggestions.option_id is assigned during COMPILING; tie it to the same attempt
+ALTER TABLE suggestions
+  ADD CONSTRAINT fk_suggestion_option
+  FOREIGN KEY (option_id, attempt_id) REFERENCES formation_options(id, attempt_id);
 
 -- ============================================================ soft_promises
 -- "If it's on, I'll be there" — recorded per option; a user may promise several.
 CREATE TABLE soft_promises (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   attempt_id  uuid NOT NULL REFERENCES formation_attempts(id) ON DELETE CASCADE,
-  option_id   uuid NOT NULL REFERENCES formation_options(id) ON DELETE CASCADE,
+  option_id   uuid NOT NULL,
   user_id     uuid NOT NULL REFERENCES users(id),
   created_at  timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (option_id, user_id)
+  UNIQUE (option_id, user_id),
+  -- the option must belong to this same attempt
+  FOREIGN KEY (option_id, attempt_id) REFERENCES formation_options(id, attempt_id) ON DELETE CASCADE
 );
 CREATE INDEX idx_promises_option ON soft_promises(option_id);
 
@@ -218,7 +239,7 @@ CREATE INDEX idx_promises_option ON soft_promises(option_id);
 CREATE TABLE games (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_type_id uuid NOT NULL REFERENCES activity_types(id),
-  area_id          uuid NOT NULL REFERENCES areas(id),
+  area_id          uuid NOT NULL,
   origin_attempt_id uuid REFERENCES formation_attempts(id),
   winning_option_id uuid REFERENCES formation_options(id),
   place_text       text NOT NULL,
@@ -231,7 +252,8 @@ CREATE TABLE games (
   is_standing      boolean NOT NULL DEFAULT false,
   recur_dow        int,        -- 0-6
   recur_time       time,
-  created_at       timestamptz NOT NULL DEFAULT now()
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (area_id, activity_type_id) REFERENCES areas(id, activity_type_id)
 );
 CREATE INDEX idx_games_area ON games(activity_type_id, area_id);
 
@@ -254,7 +276,7 @@ CREATE TABLE game_roster (
 CREATE TABLE notifications_sent (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  attempt_id  uuid REFERENCES formation_attempts(id) ON DELETE CASCADE,
+  attempt_id  uuid NOT NULL REFERENCES formation_attempts(id) ON DELETE CASCADE,
   game_id     uuid REFERENCES games(id) ON DELETE CASCADE,
   kind        notification_kind NOT NULL,
   channel     notification_channel NOT NULL,

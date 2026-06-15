@@ -33,7 +33,7 @@
     <a href="index.html" class="back">&larr; back</a>
     <h1 class="reg-h">{{REG_HEADING}}</h1>
     <p class="reg-blurb">{{REG_BLURB}}</p>
-    <form class="reg-form" onsubmit="return false">
+    <form class="reg-form" id="reg-form">
       <label>name
         <input type="text" name="name" placeholder="your name" autocomplete="name" required>
       </label>
@@ -46,6 +46,20 @@
       <button type="submit" class="btn-green">{{REG_CTA}}</button>
       <p class="reg-note">{{REG_NOTE}}</p>
     </form>
+    <p class="reg-done" id="reg-done" hidden>thanks - you're on the list. we'll let you know when your area's active.</p>
   </main>
+
+  <script>
+    (function () {
+      var f = document.getElementById('reg-form');
+      if (!f) return;
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!f.reportValidity()) return;
+        f.hidden = true;
+        document.getElementById('reg-done').hidden = false;
+      });
+    })();
+  </script>
 </body>
 </html>
