@@ -7,8 +7,8 @@
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var COLORS = ['#f5c518', '#e2483f', '#2fb673', '#f59e2a'];
-      var R = 150;
-      var W, H, flags, mx = -9999, my = -9999, raf = null;
+      var GR = 240;            // gravity radius - flags inside get pulled in
+      var W, H, flags, mx = -99999, my = -99999, raf = null;
 
       function rand(a, b) { return a + Math.random() * (b - a); }
 
@@ -20,8 +20,11 @@
         var n = Math.max(24, Math.min(90, Math.round((W * H) / 26000)));
         flags = [];
         for (var i = 0; i < n; i++) {
+          var hx = rand(0, W), hy = rand(0, H);
           flags.push({
-            x: rand(0, W), y: rand(0, H),
+            hx: hx, hy: hy,            // home (original dispersed spot)
+            x: hx, y: hy,              // current
+            ox: rand(-26, 26), oy: rand(-26, 26), // offset so the pile has spread
             size: rand(7, 13),
             rot: rand(0, Math.PI * 2),
             phase: rand(0, Math.PI * 2),
@@ -57,14 +60,29 @@
       function frame() {
         ctx.clearRect(0, 0, W, H);
         var active = false;
+        var on = !reduce && mx > -9000;
         for (var i = 0; i < flags.length; i++) {
           var f = flags[i];
-          var dx = f.x - mx, dy = f.y - my, d = Math.sqrt(dx * dx + dy * dy);
-          var target = (!reduce && d < R) ? (1 - d / R) : 0;
-          f.energy += (target - f.energy) * 0.12;
+          var dx = mx - f.x, dy = my - f.y;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          var near = on && d < GR;
+          if (near) {
+            var closeness = 1 - d / GR;
+            var pull = 0.03 + 0.18 * closeness;       // gravity: stronger up close
+            f.x += (mx + f.ox - f.x) * pull;
+            f.y += (my + f.oy - f.y) * pull;
+            var etarget = 0.4 + 0.6 * closeness;       // flutter while in the field
+            f.energy += (etarget - f.energy) * 0.14;
+          } else {
+            f.x += (f.hx - f.x) * 0.06;                // drift home
+            f.y += (f.hy - f.y) * 0.06;
+            f.energy += (0 - f.energy) * 0.12;
+          }
           if (f.energy < 0.004) f.energy = 0;
-          if (f.energy > 0.004) { f.phase += 0.25; active = true; }
+          if (f.energy > 0.004) f.phase += 0.25;
           drawFlag(f);
+          if (f.energy > 0.004) active = true;
+          if (Math.abs(f.x - f.hx) > 0.4 || Math.abs(f.y - f.hy) > 0.4) active = true;
         }
         raf = active ? requestAnimationFrame(frame) : null;
       }
@@ -72,7 +90,7 @@
       function wake() { if (!raf) raf = requestAnimationFrame(frame); }
 
       window.addEventListener('pointermove', function (e) { mx = e.clientX; my = e.clientY; wake(); });
-      window.addEventListener('pointerleave', function () { mx = -9999; my = -9999; wake(); });
+      window.addEventListener('pointerleave', function () { mx = -99999; my = -99999; wake(); });
       window.addEventListener('resize', function () { build(); frame(); });
 
       build();
