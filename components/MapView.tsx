@@ -6,7 +6,26 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
 
-const STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+// CARTO's keyless *raster* dark basemap. (Their keyless vector tiles were
+// retired, which is why the vector gl-style rendered black.) Raster is a single
+// self-contained style — no sprite/glyph/vector-tile dependencies to fail.
+const STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    carto: {
+      type: "raster",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+      ],
+      tileSize: 256,
+      attribution: '© <a href="https://carto.com/">CARTO</a> © OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: "carto-dark", type: "raster", source: "carto" }],
+};
 
 /** map zoom → H3 resolution. Coarser when zoomed out (cells merge), finer when
  *  zoomed in (cells split) — the "groups collapse in and out" effect. */
@@ -53,6 +72,8 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
+    // guard against the container sizing after init (flex/vh layouts)
+    map.on("load", () => map.resize());
 
     let aborted = false;
     async function refresh() {
