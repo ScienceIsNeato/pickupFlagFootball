@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { FlagBurst } from "./FlagBurst";
+import { ProposeModal } from "./ProposeModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
+
+const MAX_ZOOM = 11; // at/above this, a football can't split → it bursts into flags
+
+type Burst = { x: number; y: number; count: number; h3: string };
 
 // CARTO's keyless *raster* dark basemap. (Their keyless vector tiles were
 // retired, which is why the vector gl-style rendered black.) Raster is a single
@@ -63,6 +69,8 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const [burst, setBurst] = useState<Burst | null>(null);
+  const [propose, setPropose] = useState<{ h3: string } | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -91,9 +99,19 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
       if (aborted || !r.ok) return;
       const { cells } = (await r.json()) as { cells: Cell[] };
       markersRef.current.forEach((m) => m.remove());
-      markersRef.current = cells.map((c) =>
-        new maplibregl.Marker({ element: bubble(c) }).setLngLat([c.lng, c.lat]).addTo(map)
-      );
+      markersRef.current = cells.map((c) => {
+        const el = bubble(c);
+        el.addEventListener("click", () => {
+          if (map.getZoom() >= MAX_ZOOM) {
+            const p = map.project([c.lng, c.lat]);
+            setBurst({ x: p.x, y: p.y, count: c.count, h3: c.h3 });
+          } else {
+            // drill in like Zillow — clusters split as you go
+            map.flyTo({ center: [c.lng, c.lat], zoom: Math.min(MAX_ZOOM, map.getZoom() + 2) });
+          }
+        });
+        return new maplibregl.Marker({ element: el }).setLngLat([c.lng, c.lat]).addTo(map);
+      });
     }
 
     // markers are DOM overlays — fetch immediately, don't wait on tile load
@@ -110,5 +128,18 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={ref} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div ref={ref} style={{ width: "100%", height: "100%" }} />
+      {burst && (
+        <FlagBurst
+          origin={{ x: burst.x, y: burst.y }}
+          count={burst.count}
+          onClose={() => setBurst(null)}
+          onPropose={() => { setPropose({ h3: burst.h3 }); setBurst(null); }}
+        />
+      )}
+      {propose && <ProposeModal h3={propose.h3} onClose={() => setPropose(null)} />}
+    </div>
+  );
 }
