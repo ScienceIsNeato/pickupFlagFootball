@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { users, activityTypes, interestSignals } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
+import { evaluate } from "@/lib/mime/engine";
+import type { EngineDb } from "@/lib/mime/engine";
 
 export async function setLocationAndInterest(formData: FormData) {
   const session = await auth();
@@ -71,7 +73,8 @@ export async function setLocationAndInterest(formData: FormData) {
       set: { active: true },
     });
 
-  // TODO Phase 5: evaluate(activityTypeId, areaId) here
+  // run the engine: this new interest may cross n_spark and open a window
+  await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
 
   redirect("/dashboard");
 }

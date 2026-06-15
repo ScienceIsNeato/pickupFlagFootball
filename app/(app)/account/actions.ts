@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { users, interestSignals, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
+import { evaluate } from "@/lib/mime/engine";
+import type { EngineDb } from "@/lib/mime/engine";
 
 export async function updateAccount(formData: FormData) {
   const session = await auth();
@@ -47,19 +49,23 @@ export async function updateAccount(formData: FormData) {
 
       if (activity.length) {
         const activityTypeId = activity[0].id;
-        await ensureArea(activityTypeId, r7, {
+        const areaId = await ensureArea(activityTypeId, r7, {
           city: displayCity,
           zip,
           centerLat: snapLat,
           centerLng: snapLng,
         });
-        // If the user already has an interest signal, update its h3Base for the new location
+        // Move the user's interest signal to the new area + cell
         await db
           .update(interestSignals)
-          .set({ h3Base: r7 })
+          .set({ areaId, h3Base: r7 })
           .where(
             eq(interestSignals.userId, session.user.id!)
           );
+        await db.update(users).set(update).where(eq(users.id, session.user.id!));
+        // the move may spark the new area
+        await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
+        redirect("/account");
       }
     }
   } else if (city) {

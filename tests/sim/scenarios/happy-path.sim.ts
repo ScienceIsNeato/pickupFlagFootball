@@ -1,11 +1,10 @@
 import { scenario } from "../harness/registry";
 
 /**
- * The full formation loop, end to end. PENDING until the engine lands (Phase 5)
- * — this file is the executable spec the engine must satisfy. Drop `.pending`
- * once sim.evaluate()/sim.tick() drive the real lib/mime + cron handlers.
+ * The full formation loop, end to end — driven by the real lib/mime engine
+ * (sim.evaluate / sim.tick) on the pglite world.
  */
-scenario.pending(
+scenario(
   "happy path — Coralville sparks and schedules",
   "eight interested residents in 52241; one game scheduled at City Park",
   async (sim) => {

@@ -1,4 +1,4 @@
-import { latLngToCell, cellToLatLng, cellToParent } from "h3-js";
+import { latLngToCell, cellToLatLng, cellToParent, gridDisk } from "h3-js";
 
 export type H3Cells = {
   r5: bigint;
@@ -14,6 +14,12 @@ export function h3ToBigInt(cell: string): bigint {
 
 export function bigIntToH3(n: bigint): string {
   return n.toString(16).padStart(15, "0");
+}
+
+/** The catchment for a base cell: the cell plus its k-ring of neighbors, as
+ *  bigints. v1 counts interest over this disk to decide critical mass. */
+export function diskCells(cell: bigint, k = 1): bigint[] {
+  return gridDisk(bigIntToH3(cell), k).map(h3ToBigInt);
 }
 
 export function cellsForPoint(

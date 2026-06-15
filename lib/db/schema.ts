@@ -76,9 +76,14 @@ export const areas = pgTable("areas", {
   displayZip:     text("display_zip"),
   centerLat:      doublePrecision("center_lat").notNull(),
   centerLng:      doublePrecision("center_lng").notNull(),
-  status:         areaStatusEnum("status").notNull().default("DORMANT"),
-  stallCount:     integer("stall_count").notNull().default(0),
-  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  status:              areaStatusEnum("status").notNull().default("DORMANT"),
+  stallCount:          integer("stall_count").notNull().default(0),
+  lastRoundAt:         timestamp("last_round_at", { withTimezone: true }),
+  nextTriggerAt:       timestamp("next_trigger_at", { withTimezone: true }),
+  nextTriggerInterest: integer("next_trigger_interest"),
+  nSparkOverride:      integer("n_spark_override"),
+  pMinOverride:        integer("p_min_override"),
+  createdAt:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_areas_activity_cell").on(t.activityTypeId, t.h3Cell),
 ]);

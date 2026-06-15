@@ -5,6 +5,8 @@ import {
   games, notificationsSent,
 } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
+import { evaluate, tick } from "@/lib/mime/engine";
+import type { EngineDb } from "@/lib/mime/engine";
 import type { World } from "./world";
 import { Clock } from "./clock";
 import type { BeatResult, Perspective, AssertionResult } from "./types";
@@ -80,13 +82,15 @@ export class Sim {
     }
   }
 
-  // ── engine drivers (wired in Phase 5; throw until then) ────────────────────
-  async evaluate(_zip: string): Promise<void> {
-    throw new Error("sim.evaluate: engine not wired yet (Phase 5) — scenario should be .pending");
+  // ── engine drivers (the REAL lib/mime, injected onto the pglite db) ─────────
+  async evaluate(zip: string): Promise<void> {
+    const area = await this.areaForZip(zip);
+    if (!area) throw new Error(`evaluate: no area for ${zip}`);
+    await evaluate(this.db as unknown as EngineDb, this.activityTypeId, area.id, this.clock.now());
   }
 
   async tick(): Promise<void> {
-    throw new Error("sim.tick: engine not wired yet (Phase 5) — scenario should be .pending");
+    await tick(this.db as unknown as EngineDb, this.clock.now());
   }
 
   // ── formation inputs (used once an attempt is live) ────────────────────────
