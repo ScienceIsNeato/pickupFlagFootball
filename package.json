@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sim": "tsx tests/sim/run.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -20,12 +21,14 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.2",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "drizzle-kit": "^0.31.10",
     "pg": "^8.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.0"
   }
 }

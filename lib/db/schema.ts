@@ -1,12 +1,25 @@
 import {
   pgTable, pgEnum, uuid, text, doublePrecision, bigint, jsonb, boolean,
-  timestamp, integer, primaryKey, index, uniqueIndex,
+  timestamp, integer, time, primaryKey, index, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ── enums ──────────────────────────────────────────────────────────────────
 export const areaStatusEnum = pgEnum("area_status", [
   "DORMANT", "PRIMED", "IN_FORMATION", "SCHEDULED", "STALLED",
 ]);
+export const attemptStatusEnum = pgEnum("attempt_status", [
+  "SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING",
+  "CONFIRMED", "FAILED", "CANCELLED",
+]);
+export const gameStatusEnum = pgEnum("game_status", [
+  "STAGED", "STANDING", "CANCELLED", "COMPLETED",
+]);
+export const notificationKindEnum = pgEnum("notification_kind", [
+  "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
+  "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
+  "GAME_ON", "STALLED_NOTICE",
+]);
+export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
 
 // ── zip_centroids ──────────────────────────────────────────────────────────
 export const zipCentroids = pgTable("zip_centroids", {
@@ -88,6 +101,105 @@ export const interestSignals = pgTable("interest_signals", {
 ]);
 
 export type InterestSignal = typeof interestSignals.$inferSelect;
+
+// ── formation_attempts ─────────────────────────────────────────────────────
+export const formationAttempts = pgTable("formation_attempts", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  activityTypeId:       uuid("activity_type_id").notNull().references(() => activityTypes.id),
+  areaId:               uuid("area_id").notNull().references(() => areas.id),
+  attemptNumber:        integer("attempt_number").notNull(),
+  status:               attemptStatusEnum("status").notNull().default("SUGGESTING"),
+  catchmentCells:       bigint("catchment_cells", { mode: "bigint" }).array().notNull().default([]),
+  cohortUserIds:        uuid("cohort_user_ids").array().notNull().default([]),
+  suggestionOpenedAt:   timestamp("suggestion_opened_at", { withTimezone: true }),
+  suggestionClosesAt:   timestamp("suggestion_closes_at", { withTimezone: true }),
+  availabilityOpenedAt: timestamp("availability_opened_at", { withTimezone: true }),
+  availabilityClosesAt: timestamp("availability_closes_at", { withTimezone: true }),
+  scheduledGameId:      uuid("scheduled_game_id"),
+  failureReason:        text("failure_reason"),
+  createdAt:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type FormationAttempt = typeof formationAttempts.$inferSelect;
+
+// ── suggestions ────────────────────────────────────────────────────────────
+export const suggestions = pgTable("suggestions", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  attemptId:     uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  userId:        uuid("user_id").notNull().references(() => users.id),
+  placeText:     text("place_text").notNull(),
+  placeLat:      doublePrecision("place_lat"),
+  placeLng:      doublePrecision("place_lng"),
+  proposedStart: timestamp("proposed_start", { withTimezone: true }).notNull(),
+  optionId:      uuid("option_id"),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── formation_options ──────────────────────────────────────────────────────
+export const formationOptions = pgTable("formation_options", {
+  id:               uuid("id").primaryKey().defaultRandom(),
+  attemptId:        uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  placeText:        text("place_text").notNull(),
+  placeLat:         doublePrecision("place_lat"),
+  placeLng:         doublePrecision("place_lng"),
+  proposedStart:    timestamp("proposed_start", { withTimezone: true }).notNull(),
+  firstSuggestedAt: timestamp("first_suggested_at", { withTimezone: true }).notNull(),
+  promiseCount:     integer("promise_count").notNull().default(0),
+  createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── soft_promises ──────────────────────────────────────────────────────────
+export const softPromises = pgTable("soft_promises", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  attemptId: uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  optionId:  uuid("option_id").notNull(),
+  userId:    uuid("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── games ──────────────────────────────────────────────────────────────────
+export const games = pgTable("games", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  activityTypeId:  uuid("activity_type_id").notNull().references(() => activityTypes.id),
+  areaId:          uuid("area_id").notNull().references(() => areas.id),
+  originAttemptId: uuid("origin_attempt_id"),
+  winningOptionId: uuid("winning_option_id"),
+  placeText:       text("place_text").notNull(),
+  placeLat:        doublePrecision("place_lat"),
+  placeLng:        doublePrecision("place_lng"),
+  scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
+  status:          gameStatusEnum("status").notNull().default("STAGED"),
+  confirmedCount:  integer("confirmed_count").notNull().default(0),
+  isStanding:      boolean("is_standing").notNull().default(false),
+  recurDow:        integer("recur_dow"),
+  recurTime:       time("recur_time"),
+  createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Game = typeof games.$inferSelect;
+
+// ── game_roster ────────────────────────────────────────────────────────────
+export const gameRoster = pgTable("game_roster", {
+  gameId:    uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  userId:    uuid("user_id").notNull().references(() => users.id),
+  source:    text("source").notNull().default("soft_promise"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.gameId, t.userId] }),
+]);
+
+// ── notifications_sent ─────────────────────────────────────────────────────
+export const notificationsSent = pgTable("notifications_sent", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  userId:    uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  attemptId: uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  gameId:    uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
+  kind:      notificationKindEnum("kind").notNull(),
+  channel:   notificationChannelEnum("channel").notNull(),
+  sentAt:    timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
+]);
 
 // ── map_aggregates ─────────────────────────────────────────────────────────
 export const mapAggregates = pgTable("map_aggregates", {
