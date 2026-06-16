@@ -33,10 +33,14 @@ export const DEFAULT_TUNABLES: Tunables = {
   ignoreDecayWindows: 3,
 };
 
-/** Activity defaults + optional per-area overrides → effective tunables. */
+/** Activity defaults + optional per-area overrides → effective tunables.
+ *  `undefined` values are dropped so a missing DB column can't clobber a
+ *  default with undefined. */
 export function resolveTunables(
   activity: Partial<Tunables>,
   overrides: Partial<Tunables> = {}
 ): Tunables {
-  return { ...DEFAULT_TUNABLES, ...activity, ...overrides };
+  const defined = (o: Partial<Tunables>) =>
+    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+  return { ...DEFAULT_TUNABLES, ...defined(activity), ...defined(overrides) };
 }

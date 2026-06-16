@@ -29,7 +29,8 @@ export function AccountMenu() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("signin") === "1") {
-      setCallbackUrl(p.get("next") || undefined);
+      const next = p.get("next");
+      setCallbackUrl(next && /^\/(?![/\\])/.test(next) ? next : undefined);
       setAuthOpen(true);
       const url = new URL(window.location.href);
       url.searchParams.delete("signin"); url.searchParams.delete("next");

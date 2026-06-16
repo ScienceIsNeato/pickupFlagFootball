@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, interestSignals, activityTypes } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -55,13 +55,24 @@ export async function updateAccount(formData: FormData) {
           centerLat: snapLat,
           centerLng: snapLng,
         });
-        // Move the user's interest signal to the new area + cell
+        // Account location is the user's home: move interest here. Deactivate
+        // any existing signals for this activity, then (re)activate the new
+        // area's — a blanket areaId update would collide on the
+        // (activity, user, area) unique index when a user has several.
         await db
           .update(interestSignals)
-          .set({ areaId, h3Base: r7 })
-          .where(
-            eq(interestSignals.userId, session.user.id!)
-          );
+          .set({ active: false })
+          .where(and(
+            eq(interestSignals.userId, session.user.id!),
+            eq(interestSignals.activityTypeId, activityTypeId),
+          ));
+        await db
+          .insert(interestSignals)
+          .values({ activityTypeId, userId: session.user.id!, areaId, h3Base: r7, active: true })
+          .onConflictDoUpdate({
+            target: [interestSignals.activityTypeId, interestSignals.userId, interestSignals.areaId],
+            set: { active: true, h3Base: r7 },
+          });
         await db.update(users).set(update).where(eq(users.id, session.user.id!));
         // the move may spark the new area
         await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());

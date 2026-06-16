@@ -13,11 +13,13 @@ export const dynamic = "force-dynamic";
  */
 async function handle(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  // Fail closed: if no secret is configured, never run — otherwise anyone could
+  // POST here and advance/stall every formation.
+  if (!secret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+  }
+  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   await tick(db as unknown as EngineDb, new Date());
   return NextResponse.json({ ok: true, ranAt: new Date().toISOString() });

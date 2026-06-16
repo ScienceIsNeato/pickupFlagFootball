@@ -18,6 +18,34 @@ type NotifKind =
   | "SPARK_ASK" | "OPTIONS_AVAILABLE" | "GAME_ON"
   | "SUGGEST_NUDGE" | "SUGGEST_LASTCALL" | "AVAIL_NUDGE" | "AVAIL_LASTCALL" | "STALLED_NOTICE";
 
+type AreaOverrides = { nSparkOverride: number | null; pMinOverride: number | null };
+
+/** Effective tunables = activity_types row values (windows extracted to hours)
+ *  layered with per-area overrides — never just code defaults. */
+async function loadTunables(db: EngineDb, activityTypeId: string, area?: AreaOverrides) {
+  const res = await db.execute(sql`
+    select n_spark, n_warm, p_min, options_cap,
+      extract(epoch from suggest_window) / 3600 as suggest_h,
+      extract(epoch from avail_window) / 3600 as avail_h,
+      restall_interest, restall_days, max_time_retries,
+      per_user_weekly_cap, ignore_decay_windows
+    from activity_types where id = ${activityTypeId} limit 1`);
+  const r = ((res as { rows?: Record<string, unknown>[] }).rows ?? [])[0];
+  const num = (v: unknown) => (v == null ? undefined : Number(v));
+  const base = r ? {
+    nSpark: num(r.n_spark), nWarm: num(r.n_warm), pMin: num(r.p_min), optionsCap: num(r.options_cap),
+    suggestWindowH: num(r.suggest_h), availWindowH: num(r.avail_h),
+    restallInterest: num(r.restall_interest), restallDays: num(r.restall_days),
+    maxTimeRetries: num(r.max_time_retries), perUserWeeklyCap: num(r.per_user_weekly_cap),
+    ignoreDecayWindows: num(r.ignore_decay_windows),
+  } : {};
+  const overrides = {
+    ...(area?.nSparkOverride != null ? { nSpark: area.nSparkOverride } : {}),
+    ...(area?.pMinOverride != null ? { pMin: area.pMinOverride } : {}),
+  };
+  return resolveTunables(base, overrides);
+}
+
 // ── evaluate: user-event entry point ─────────────────────────────────────────
 /** Called on interest change (registration / toggle / location move). Sparks a
  *  formation if the area crossed n_spark. Idempotent under the one-live-attempt
@@ -25,9 +53,9 @@ type NotifKind =
 export async function evaluate(
   db: EngineDb, activityTypeId: string, areaId: string, now: Date
 ): Promise<Decision> {
-  const t = resolveTunables({});
   const [area] = await db.select().from(areas).where(eq(areas.id, areaId)).limit(1);
   if (!area) return { kind: "NOOP", reason: "no area" };
+  const t = await loadTunables(db, activityTypeId, area);
 
   const disk = diskCells(area.h3Cell, 1);
   const interestCount = await catchmentCount(db, activityTypeId, disk);
@@ -76,8 +104,8 @@ export async function tick(db: EngineDb, now: Date): Promise<void> {
 
 // ── window closers ───────────────────────────────────────────────────────────
 async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  const t = resolveTunables({});
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
+  const t = await loadTunables(db, att.activityTypeId, area);
   const rows = await db.select().from(suggestions)
     .where(eq(suggestions.attemptId, att.id)).orderBy(suggestions.createdAt);
   const inputs: SuggestionInput[] = rows.map((s) => ({
@@ -108,8 +136,8 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
 }
 
 async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  const t = resolveTunables({});
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
+  const t = await loadTunables(db, att.activityTypeId, area);
 
   const optRows = await db.select({
     id: formationOptions.id,

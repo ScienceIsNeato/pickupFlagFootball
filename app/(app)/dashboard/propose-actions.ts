@@ -35,10 +35,21 @@ export async function proposeGame(formData: FormData) {
     .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
   if (!area) throw new Error("no area for this spot yet");
 
-  let [attempt] = await db.select().from(formationAttempts)
-    .where(and(eq(formationAttempts.areaId, area.id), eq(formationAttempts.status, "SUGGESTING")))
-    .limit(1);
+  // A game is already scheduled here — don't undo it by spawning a new attempt.
+  if (area.status === "SCHEDULED") redirect("/dashboard?propose=scheduled");
 
+  // Find any LIVE attempt (not just SUGGESTING) so we don't collide with the
+  // one-live-attempt index or demote an in-flight formation.
+  const [live] = await db.select().from(formationAttempts)
+    .where(and(
+      eq(formationAttempts.areaId, area.id),
+      inArray(formationAttempts.status, ["SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING"]),
+    )).limit(1);
+
+  // Suggestions are only accepted during the suggestion window.
+  if (live && live.status !== "SUGGESTING") redirect("/dashboard?propose=closed");
+
+  let attempt = live;
   if (!attempt) {
     const disk = diskCells(area.h3Cell, 1);
     const cohort = await db.selectDistinct({ u: interestSignals.userId }).from(interestSignals)
@@ -54,6 +65,7 @@ export async function proposeGame(formData: FormData) {
     }).returning();
     await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
   }
+  if (!attempt) throw new Error("could not open a suggestion window");
 
   await db.insert(suggestions).values({
     attemptId: attempt.id, userId: session.user.id, placeText: place,

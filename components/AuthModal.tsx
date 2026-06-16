@@ -37,7 +37,9 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
   const [googleOff, setGoogleOff] = useState(false);
   const gbtn = useRef<HTMLDivElement>(null);
 
-  const dest = callbackUrl || "/dashboard";
+  // only same-origin relative paths — never an absolute/protocol-relative URL
+  const safe = callbackUrl && /^\/(?![/\\])/.test(callbackUrl) ? callbackUrl : null;
+  const dest = safe || "/dashboard";
 
   // Google Identity Services popup
   useEffect(() => {
