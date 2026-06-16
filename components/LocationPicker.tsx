@@ -16,6 +16,15 @@ export function LocationPicker({ bias }: { bias?: { lat: number; lng: number } }
   const [picked, setPicked] = useState<Result | null>(null);
   const [open, setOpen] = useState(false);
   const skipNext = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // A suggestion needs real coordinates, which only exist once a result is
+  // chosen from the list. Free-typed text submits null coords, so block the
+  // form via constraint validation until a row is picked (and re-block if the
+  // user edits the text afterward, since the coords would no longer match).
+  useEffect(() => {
+    inputRef.current?.setCustomValidity(picked ? "" : "Pick a spot from the list");
+  }, [picked]);
 
   useEffect(() => {
     if (skipNext.current) { skipNext.current = false; return; }
@@ -56,6 +65,7 @@ export function LocationPicker({ bias }: { bias?: { lat: number; lng: number } }
   return (
     <div style={{ position: "relative" }}>
       <input
+        ref={inputRef}
         name="place"
         autoComplete="off"
         required

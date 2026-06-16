@@ -108,7 +108,29 @@ export async function tick(db: EngineDb, now: Date): Promise<void> {
 }
 
 // ── window closers ───────────────────────────────────────────────────────────
+/** Atomically claim a due attempt for processing: move it out of its open state
+ *  `from` into the processing state `to`, only if it's still in `from`. Returns
+ *  false when a concurrent tick already claimed it, so the loser bails before
+ *  inserting any options/games/roster rows (prevents double-scheduling). The
+ *  conditional UPDATE…WHERE status RETURNING is a single statement, so it's
+ *  atomic even on the one-shot neon-http client. */
+async function claimAttempt(
+  db: EngineDb,
+  attemptId: string,
+  from: "SUGGESTING" | "AVAILABILITY",
+  to: "COMPILING" | "ADJUDICATING",
+): Promise<boolean> {
+  const claimed = await db.update(formationAttempts)
+    .set({ status: to })
+    .where(and(eq(formationAttempts.id, attemptId), eq(formationAttempts.status, from)))
+    .returning({ id: formationAttempts.id });
+  return claimed.length > 0;
+}
+
 async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
+  // Claim before doing any work — a concurrent tick that already picked up this
+  // same due row will lose the race here and return without double-processing.
+  if (!(await claimAttempt(db, att.id, "SUGGESTING", "COMPILING"))) return;
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
   const rows = await db.select().from(suggestions)
@@ -142,6 +164,9 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
 }
 
 async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
+  // Claim before scheduling — a concurrent tick on the same due row bails here
+  // rather than inserting a second game/roster.
+  if (!(await claimAttempt(db, att.id, "AVAILABILITY", "ADJUDICATING"))) return;
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
 

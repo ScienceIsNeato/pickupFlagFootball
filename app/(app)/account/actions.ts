@@ -57,12 +57,14 @@ export async function updateAccount(formData: FormData) {
           centerLat: snapLat,
           centerLng: snapLng,
         });
-        // Account location is the user's home: move interest here — (re)activate
-        // the new area's signal and deactivate the others in a single atomic
-        // statement so neon-http (no transactions) can't strand the user with
-        // zero active interest mid-save.
-        await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
+        // Save the profile (home/ZIP/center) first, then move interest. neon-http
+        // has no transaction, so order matters: writing the home before pointing
+        // interest at the new area means a failure can't leave interest at the new
+        // spot while the profile still shows the old one. The interest move itself
+        // is a single atomic statement, so it can't strand the user with zero
+        // active interest either.
         await db.update(users).set(update).where(eq(users.id, session.user.id!));
+        await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
         // the move may spark the new area
         await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
         redirect("/account");
