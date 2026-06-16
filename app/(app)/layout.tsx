@@ -6,7 +6,7 @@ import { skin } from "@/lib/skin";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <header className="nav">
+      <header className="nav nav-float">
         <Link href="/dashboard" className="brand">
           <Ball />
           {skin.brandName}
@@ -19,7 +19,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <AccountMenu />
         </div>
       </header>
-      {children}
+
+      <div className="app-body">{children}</div>
+
+      <footer className="app-foot">
+        <span>{skin.brandName}</span>
+        <span className="app-foot-sep">·</span>
+        <Link href="/faq">faq</Link>
+        <Link href="/privacy">privacy</Link>
+        <a href={skin.footer.githubUrl} target="_blank" rel="noopener noreferrer">github</a>
+      </footer>
     </>
   );
 }

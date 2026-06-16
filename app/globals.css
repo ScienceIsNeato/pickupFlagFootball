@@ -155,6 +155,31 @@ a { color: var(--link); text-decoration: none; }
   .nav nav { display: none; }
 }
 
+/* fullscreen dashboard map with floating header/footer banners */
+.dash-map { position: fixed; inset: 0; z-index: 0; }
+body:has(.dash-map) #bg { display: none; }             /* the map's flags take over */
+.app-body { min-height: 100vh; padding-top: 64px; }
+
+.nav-float {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30; max-width: none;
+  padding: 14px 22px;
+  background: linear-gradient(to bottom, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.35) 70%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.app-foot {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 10px 20px; font-size: 13px; color: var(--muted);
+  background: linear-gradient(to top, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.3) 70%, transparent);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.app-foot a { color: var(--muted); }
+.app-foot a:hover { color: var(--ink); }
+.app-foot-sep { color: var(--faint); }
+/* keep the map's zoom control clear of the floating header/footer */
+.maplibregl-ctrl-top-right { top: 58px; }
+.maplibregl-ctrl-bottom-right { bottom: 42px; }
+
 .hero {
   position: relative;
   overflow: hidden;
