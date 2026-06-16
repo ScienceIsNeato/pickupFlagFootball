@@ -83,16 +83,17 @@ test("adjudicate: no options stalls", () => {
 });
 
 // ── backoff ──────────────────────────────────────────────────────────────────
-test("backoff: 14 → 30 → 60 days, then interest-only", () => {
-  const d1 = backoff(1, 8, now, T, "x").nextTriggerAt!;
-  const d2 = backoff(2, 8, now, T, "x").nextTriggerAt!;
-  const d3 = backoff(3, 8, now, T, "x").nextTriggerAt!;
+test("backoff: timed cooldowns up to max_time_retries, then interest-only", () => {
   const days = (d: Date) => Math.round((d.getTime() - now.getTime()) / 86_400_000);
-  assert.equal(days(d1), 14);
-  assert.equal(days(d2), 30);
-  assert.equal(days(d3), 60);
-  // past max_time_retries (2) + 1 → dormant, no time trigger
-  assert.equal(backoff(4, 8, now, T, "x").nextTriggerAt, null);
+  // default max_time_retries = 2 → exactly two timed cooldowns, then dormant
+  assert.equal(days(backoff(1, 8, now, T, "x").nextTriggerAt!), 14);
+  assert.equal(days(backoff(2, 8, now, T, "x").nextTriggerAt!), 30);
+  assert.equal(backoff(3, 8, now, T, "x").nextTriggerAt, null); // 3rd stall → interest-only
+
+  // an area that allows 3 timed retries reaches the 60-day rung before dormant
+  const t3 = resolveTunables({ maxTimeRetries: 3 });
+  assert.equal(days(backoff(3, 8, now, t3, "x").nextTriggerAt!), 60);
+  assert.equal(backoff(4, 8, now, t3, "x").nextTriggerAt, null);
 });
 
 test("backoff: re-prime always demands fresh interest", () => {

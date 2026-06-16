@@ -20,7 +20,7 @@ export function backoff(
   const nextTriggerInterest = currentInterest + t.restallInterest;
 
   // time retries exhausted → interest-only wake
-  if (stallCount > t.maxTimeRetries + 1) {
+  if (stallCount > t.maxTimeRetries) {
     return { kind: "STALL", reason, nextTriggerAt: null, nextTriggerInterest };
   }
 
