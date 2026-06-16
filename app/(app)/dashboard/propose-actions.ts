@@ -8,6 +8,7 @@ import {
   activityTypes, areas, interestSignals, formationAttempts, suggestions,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
+import { shouldRetrigger } from "@/lib/mime";
 import { loadTunables } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 
@@ -76,9 +77,15 @@ export async function proposeGame(formData: FormData) {
     const cohort = await db.selectDistinct({ u: interestSignals.userId }).from(interestSignals)
       .where(and(eq(interestSignals.activityTypeId, act.id), eq(interestSignals.active, true),
         inArray(interestSignals.h3Base, disk)));
+    const now = new Date();
+    // A stalled area is in cooldown — respect the backoff like the engine does,
+    // don't let a manual propose re-open it early.
+    if (area.status === "STALLED" &&
+        !shouldRetrigger(now, area.nextTriggerAt ?? null, area.nextTriggerInterest ?? null, cohort.length)) {
+      redirect("/dashboard?propose=cooldown");
+    }
     const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}),0)::int` })
       .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
-    const now = new Date();
     try {
       [attempt] = await db.insert(formationAttempts).values({
         activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "SUGGESTING",

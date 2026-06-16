@@ -3,3 +3,9 @@
 -- only a code default.
 
 ALTER TABLE activity_types ADD COLUMN IF NOT EXISTS s_min int NOT NULL DEFAULT 1;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_activity_s_min') THEN
+    ALTER TABLE activity_types ADD CONSTRAINT chk_activity_s_min CHECK (s_min > 0);
+  END IF;
+END $$;

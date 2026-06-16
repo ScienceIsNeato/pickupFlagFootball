@@ -189,7 +189,13 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     }
 
     void refresh();
-    map.on("moveend", refresh);
+    // debounce: don't hit /api/map on every moveend frame of a pan/zoom
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { void refresh(); }, 250);
+    };
+    map.on("moveend", debouncedRefresh);
     map.on("click", (e) => {
       if (map.getZoom() < MAX_ZOOM) return;
       let best: Cluster | null = null, bestD = 60;
@@ -204,6 +210,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
 
     return () => {
       aborted = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
       cancelAnimationFrame(raf);
       ro.disconnect();
       container.removeEventListener("pointermove", onMove);
