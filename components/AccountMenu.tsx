@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
+import { AuthModal } from "./AuthModal";
 
 /**
- * Site-wide account control for the upper-right, like ganglia-ai.com: signed
- * out shows log in / sign up; signed in shows an avatar with a dropdown
- * (name, email, dashboard, account, sign out). Client-side via useSession so
- * the static marketing pages stay static.
+ * Site-wide account control for the upper-right, like ganglia-ai.com: a single
+ * "sign in" button opens a modal (Google + email/password); signed in shows an
+ * avatar with a dropdown (name, email, dashboard, account, sign out).
  */
 export function AccountMenu() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState<string | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,13 +25,25 @@ export function AccountMenu() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  if (status === "loading") return <div className="acct" style={{ width: 70 }} aria-hidden />;
+  // middleware bounces gated routes to /?signin=1&next=… — auto-open the modal
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("signin") === "1") {
+      setCallbackUrl(p.get("next") || undefined);
+      setAuthOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("signin"); url.searchParams.delete("next");
+      window.history.replaceState({}, "", url);
+    }
+  }, []);
+
+  if (status === "loading") return <div className="acct" style={{ width: 64 }} aria-hidden />;
 
   if (!session?.user) {
     return (
       <div className="acct">
-        <button className="acct-link" onClick={() => signIn()}>log in</button>
-        <button className="acct-cta" onClick={() => signIn()}>sign up</button>
+        <button className="acct-cta" onClick={() => { setCallbackUrl(undefined); setAuthOpen(true); }}>sign in</button>
+        {authOpen && <AuthModal callbackUrl={callbackUrl} onClose={() => setAuthOpen(false)} />}
       </div>
     );
   }

@@ -1,52 +1,57 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-
-/** Upsert into our bespoke users table by email; returns the user id. */
-async function upsertUser(email: string, name: string | null): Promise<string> {
-  const rows = await db
-    .insert(users)
-    .values({ email, displayName: name ?? email.split("@")[0] })
-    .onConflictDoUpdate({ target: users.email, set: { updatedAt: new Date() } })
-    .returning({ id: users.id });
-  return rows[0].id;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const providers: any[] = [];
-if (process.env.AUTH_GOOGLE_ID) providers.push(Google);
-if (process.env.DEV_LOGIN === "true") {
-  providers.push(
-    Credentials({
-      id: "dev",
-      name: "Dev login",
-      credentials: { email: { label: "email", type: "email" }, name: { label: "name", type: "text" } },
-      authorize: (c) => {
-        const email = c?.email ? String(c.email) : "";
-        if (!email) return null;
-        return { email, name: c?.name ? String(c.name) : email.split("@")[0] };
-      },
-    })
-  );
-}
+import bcrypt from "bcryptjs";
+import { OAuth2Client } from "google-auth-library";
+import { eq } from "drizzle-orm";
+import { authConfig } from "./auth.config";
+import { db } from "./db";
+import { users } from "./db/schema";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers,
-  // Auth.js auto-trusts the host in dev and on Vercel, but a self-hosted
-  // `next start` does not — without this it throws UntrustedHost on every
-  // auth() call ("problem with the server configuration").
-  trustHost: true,
-  session: { strategy: "jwt" },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user?.email) token.uid = await upsertUser(user.email, user.name ?? null);
-      return token;
-    },
-    async session({ session, token }) {
-      if (token.uid && session.user) session.user.id = token.uid as string;
-      return session;
-    },
-  },
+  ...authConfig,
+  providers: [
+    // ── email + password ────────────────────────────────────────────────────
+    Credentials({
+      id: "password",
+      name: "Email and password",
+      credentials: { email: {}, password: {} },
+      authorize: async (c) => {
+        const email = String(c?.email ?? "").toLowerCase().trim();
+        const password = String(c?.password ?? "");
+        if (!email || !password) return null;
+        const [u] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        if (!u?.passwordHash) return null;
+        if (!(await bcrypt.compare(password, u.passwordHash))) return null;
+        return { id: u.id, email: u.email, name: u.displayName };
+      },
+    }),
+    // ── Google Identity Services (popup → ID token, verified here) ────────────
+    Credentials({
+      id: "google-onetap",
+      name: "Google",
+      credentials: { credential: {} },
+      authorize: async (c) => {
+        const idToken = String(c?.credential ?? "");
+        const clientId = process.env.AUTH_GOOGLE_ID;
+        if (!idToken || !clientId) return null;
+        const client = new OAuth2Client(clientId);
+        const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+        const p = ticket.getPayload();
+        if (!p?.email) return null;
+        const [u] = await db
+          .insert(users)
+          .values({
+            email: p.email,
+            displayName: p.name ?? p.email.split("@")[0],
+            emailVerified: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: users.email,
+            set: { emailVerified: new Date(), updatedAt: new Date() },
+          })
+          .returning();
+        return { id: u.id, email: u.email, name: u.displayName, image: p.picture };
+      },
+    }),
+  ],
 });

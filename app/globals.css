@@ -107,6 +107,54 @@ a { color: var(--link); text-decoration: none; }
 .acct-menu a:hover, .acct-signout:hover { background: var(--bg); color: var(--ink); }
 .acct-signout { color: var(--link); }
 
+/* auth modal (Google + email/password) */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 1000; padding: 16px;
+  background: rgba(6, 10, 8, 0.72); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-card {
+  width: 380px; max-width: 100%; position: relative;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 26px 24px 22px; backdrop-filter: blur(10px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+}
+.auth-close {
+  position: absolute; top: 12px; right: 14px; background: none; border: 0;
+  color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1;
+}
+.auth-title { font-family: var(--font-barlow), sans-serif; font-size: 26px; font-weight: 700; margin: 0 0 4px; }
+.auth-sub { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+.auth-google { display: flex; justify-content: center; min-height: 40px; }
+.auth-or { display: flex; align-items: center; text-align: center; color: var(--faint); font-size: 12px; margin: 16px 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-or span { padding: 0 12px; }
+.auth-error {
+  background: rgba(226, 72, 63, 0.15); color: #ff8b84; border: 1px solid rgba(226, 72, 63, 0.3);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;
+}
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.auth-form input {
+  height: 44px; padding: 0 12px; font-size: 15px; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.auth-form input:focus { outline: none; border-color: var(--green); }
+.auth-form .btn-green {
+  height: 46px; margin-top: 4px; cursor: pointer; font-family: var(--font-barlow), sans-serif;
+  font-weight: 700; font-size: 16px; color: #fff; background: var(--green); border: none; border-radius: 8px;
+}
+.auth-form .btn-green:disabled { opacity: 0.6; cursor: default; }
+.auth-switch { text-align: center; font-size: 13px; color: var(--muted); margin: 16px 0 0; }
+.auth-link { background: none; border: 0; color: var(--link); cursor: pointer; font-size: 13px; font-family: inherit; padding: 0; }
+.auth-note { color: var(--faint); font-size: 13px; text-align: center; margin: 0; }
+@media (max-width: 560px) {
+  .auth-card { padding: 22px 18px 20px; }
+  .auth-title { font-size: 23px; }
+  /* mobile: drop the secondary nav links so the account control has room */
+  .nav nav { display: none; }
+}
+
 .hero {
   position: relative;
   overflow: hidden;

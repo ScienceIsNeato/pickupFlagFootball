@@ -59,6 +59,8 @@ export const users = pgTable("users", {
   h3R8:             bigint("h3_r8", { mode: "bigint" }),
   h3R9:             bigint("h3_r9", { mode: "bigint" }),
   timezone:         text("timezone"),
+  passwordHash:     text("password_hash"),
+  emailVerified:    timestamp("email_verified", { withTimezone: true }),
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
