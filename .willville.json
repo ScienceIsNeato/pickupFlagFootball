@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Built the MIME-FF concept site and a first cut of the database schema. Opening the first PR.",
-    "direction": "Wire up signups and start on the matching engine that forms games.",
-    "last_update": "2026-06-15T00:00:00Z"
+    "status": "Adding home-address collection at signup, a privacy promise about it, and a travel-distance setting that controls what the map highlights",
+    "direction": "Wire it through, then open a PR and work the review",
+    "last_update": "2026-06-16T00:00:00Z"
   }
 }

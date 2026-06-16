@@ -22,22 +22,25 @@ export default function PrivacyPage() {
       <ul>
         <li><strong>your email</strong> - to tell you when a game is forming or happening in your area.</li>
         <li><strong>your name</strong> - so other players know who&apos;s coming.</li>
-        <li><strong>your zip and city</strong> - to group you with people nearby. that&apos;s the only location we ask for.</li>
+        <li><strong>your zip</strong> (required) - to group you with people nearby.</li>
+        <li><strong>your home address</strong> (optional) - if you give it, we use it to measure how far games are from you so we only surface ones you&apos;d actually travel to. it is the only thing we use it for.</li>
         <li><strong>what you&apos;re into</strong> - which area(s) you&apos;re interested in and roughly which times work.</li>
       </ul>
 
+      <h2>how we handle your address</h2>
+      <p>this is the important part: <strong>we never sell, rent, or give out your address or precise location to anyone</strong> - not other players, not advertisers, not third parties. it stays on our server and is used for exactly one thing: computing the distance from you to a game. the map only ever shows a general area (a neighborhood-sized cell), never your address or an exact point.</p>
+
       <h2>what we don&apos;t collect</h2>
       <ul>
-        <li>your street address or precise gps location.</li>
         <li>payment info - the site is free.</li>
         <li>anything from ad networks or third-party trackers.</li>
       </ul>
 
       <h2>what other players see</h2>
-      <p>when a game is forming, the others in your area see your name and that you&apos;re in. they do not see your email or your zip.</p>
+      <p>when a game is forming, the others in your area see your name and that you&apos;re in. they never see your email, your zip, your address, or how far you are from anything.</p>
 
       <h2>what we do with it</h2>
-      <p>only what the product needs: count interest near you, help the group form a game, and notify you about it. nothing else. we don&apos;t sell or rent your data, and we don&apos;t share it except where it&apos;s part of the game forming (above).</p>
+      <p>only what the product needs: count interest near you, measure your distance to games, help the group form one, and notify you about it. nothing else. we don&apos;t sell or rent your data, and we don&apos;t share it except where it&apos;s part of the game forming (above).</p>
 
       <h2>gear links</h2>
       <p>the gear page links to amazon and are affiliate links. if you click one, amazon&apos;s own privacy policy covers what happens on their site. the affiliate cut helps cover server costs.</p>

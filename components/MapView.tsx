@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { haversineKm } from "@/lib/geo/distance";
 import { ProposeModal } from "./ProposeModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
@@ -49,9 +50,16 @@ type Flag = {
   size: number; rot: number; phase: number; energy: number; color: string;
   init: boolean;                  // seeded its first live position yet?
 };
-type Cluster = { ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[] };
+type Cluster = {
+  ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[];
+  inRange: boolean;               // within the viewer's travel radius of home?
+};
 
-export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?: number }) {
+type Home = { lat: number; lng: number; maxTravelKm: number };
+
+export function MapView({
+  center, zoom = 9, home = null,
+}: { center: [number, number]; zoom?: number; home?: Home | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -123,7 +131,11 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
             energy: 0, color: COLORS[(Math.random() * COLORS.length) | 0], init: false,
           });
         }
-        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
+        // A cluster is "in range" when its general-area centroid is within the
+        // viewer's travel radius of home. With no home set, everything is in
+        // range. This gates the cursor pull below.
+        const inRange = !home || haversineKm(home.lat, home.lng, c.lat, c.lng) <= home.maxTravelKm;
+        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags, inRange };
       });
       dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
@@ -167,7 +179,9 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
           }
           if (!f.init) { f.init = true; f.x = tx; f.y = ty; } // seed once; (0,0) is a valid target
           const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
-          if (on && d < GR) {
+          // Out-of-range clusters (beyond the viewer's travel radius) ignore the
+          // cursor — they're games you wouldn't go to, so they don't get pulled.
+          if (on && cl.inRange && d < GR) {
             const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
             f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
             f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;

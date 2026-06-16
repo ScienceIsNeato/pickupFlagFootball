@@ -5,12 +5,28 @@ import { useEffect, useRef, useState } from "react";
 type Result = { name: string; detail: string; lat: number; lng: number };
 
 /**
- * Place autocomplete for picking a public spot. Queries Photon (Komoot's free,
- * keyless OpenStreetMap geocoder), biased toward the area's center so nearby
- * parks/fields surface first. Emits the chosen name + lat/lng as form fields
- * (place / place_lat / place_lng).
+ * Place autocomplete. Queries Photon (Komoot's free, keyless OpenStreetMap
+ * geocoder), optionally biased toward a point so nearby results surface first.
+ * Emits the chosen name + lat/lng as form fields `${name}` / `${name}_lat` /
+ * `${name}_lng`.
+ *
+ * `required` (default true) blocks submit until a real result is picked — for
+ * the propose-a-spot flow, where a free-typed string would persist null coords.
+ * Set it false for an optional picker (e.g. a home address): typing nothing is
+ * fine, but a half-typed entry that was never picked from the list still can't
+ * submit, so we never store text without matching coordinates.
  */
-export function LocationPicker({ bias }: { bias?: { lat: number; lng: number } }) {
+export function LocationPicker({
+  bias,
+  name = "place",
+  required = true,
+  placeholder = "search a park, field, school…",
+}: {
+  bias?: { lat: number; lng: number };
+  name?: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [picked, setPicked] = useState<Result | null>(null);
@@ -18,13 +34,13 @@ export function LocationPicker({ bias }: { bias?: { lat: number; lng: number } }
   const skipNext = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // A suggestion needs real coordinates, which only exist once a result is
-  // chosen from the list. Free-typed text submits null coords, so block the
-  // form via constraint validation until a row is picked (and re-block if the
-  // user edits the text afterward, since the coords would no longer match).
+  // Real coordinates only exist once a result is chosen from the list. If the
+  // field has text that wasn't picked, block submit (the coords wouldn't match);
+  // when not required, an empty field is allowed through.
   useEffect(() => {
-    inputRef.current?.setCustomValidity(picked ? "" : "Pick a spot from the list");
-  }, [picked]);
+    const ok = picked !== null || (!required && q.trim() === "");
+    inputRef.current?.setCustomValidity(ok ? "" : "Pick a spot from the list");
+  }, [picked, required, q]);
 
   useEffect(() => {
     if (skipNext.current) { skipNext.current = false; return; }
@@ -66,17 +82,17 @@ export function LocationPicker({ bias }: { bias?: { lat: number; lng: number } }
     <div style={{ position: "relative" }}>
       <input
         ref={inputRef}
-        name="place"
+        name={name}
         autoComplete="off"
-        required
-        placeholder="search a park, field, school…"
+        required={required}
+        placeholder={placeholder}
         value={q}
         onChange={(e) => { setQ(e.target.value); setPicked(null); }}
         onFocus={() => results.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
       />
-      <input type="hidden" name="place_lat" value={picked?.lat ?? ""} />
-      <input type="hidden" name="place_lng" value={picked?.lng ?? ""} />
+      <input type="hidden" name={`${name}_lat`} value={picked?.lat ?? ""} />
+      <input type="hidden" name={`${name}_lng`} value={picked?.lng ?? ""} />
       {open && results.length > 0 && (
         <ul style={{
           position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, margin: "4px 0 0",

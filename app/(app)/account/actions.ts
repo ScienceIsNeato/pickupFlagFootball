@@ -5,11 +5,17 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
+import { lookupZip, cellsForPoint, ensureArea, milesToKm } from "@/lib/geo";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
+
+function coord(raw: FormDataEntryValue | null, lo: number, hi: number): number | null {
+  const s = String(raw ?? "").trim();
+  const n = Number(s);
+  return s && Number.isFinite(n) && n >= lo && n <= hi ? n : null;
+}
 
 export async function updateAccount(formData: FormData) {
   const session = await auth();
@@ -24,18 +30,30 @@ export async function updateAccount(formData: FormData) {
     updatedAt: new Date(),
   };
 
+  // Travel radius — entered in miles, stored in km. Updatable on its own.
+  const miles = Number(String(formData.get("max_travel_miles") ?? "").trim());
+  if (Number.isFinite(miles) && miles > 0) update.maxTravelKm = milesToKm(miles);
+
   if (zip && /^\d{5}$/.test(zip)) {
     const centroid = await lookupZip(zip);
     if (!centroid) throw new Error("ZIP code not found");
     {
-      const { r5, r6, r7, r8, r9, snapLat, snapLng } = cellsForPoint(centroid.lat, centroid.lng);
+      // Optional precise address: key home + cells off it when given, else the
+      // ZIP centroid. The shared area always uses the r7 cell centroid.
+      const addrLat = coord(formData.get("home_addr_lat"), -90, 90);
+      const addrLng = coord(formData.get("home_addr_lng"), -180, 180);
+      const hasAddr = addrLat !== null && addrLng !== null;
+      const baseLat = hasAddr ? addrLat : centroid.lat;
+      const baseLng = hasAddr ? addrLng : centroid.lng;
+
+      const { r5, r6, r7, r8, r9, snapLat, snapLng } = cellsForPoint(baseLat, baseLng);
       const displayCity = city || centroid.city || zip;
 
       Object.assign(update, {
         city: displayCity,
         zip,
-        homeLat: snapLat,
-        homeLng: snapLng,
+        homeLat: hasAddr ? addrLat : snapLat,
+        homeLng: hasAddr ? addrLng : snapLng,
         h3R5: r5,
         h3R6: r6,
         h3R7: r7,

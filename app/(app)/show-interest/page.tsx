@@ -4,6 +4,7 @@ import { skin } from "@/lib/skin";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { LocationPicker } from "@/components/LocationPicker";
 import { setLocationAndInterest } from "./actions";
 
 export const metadata = {
@@ -56,6 +57,14 @@ export default async function ShowInterestPage() {
             defaultValue={currentZip}
           />
         </label>
+        <label>
+          your address <span className="reg-optional">(optional)</span>
+          <LocationPicker name="home_addr" required={false} placeholder="search where you actually live" />
+        </label>
+        <p className="reg-hint">
+          we only use your address to measure how far games are from you. we never
+          show it to anyone or sell it — see our <Link href="/privacy">privacy page</Link>.
+        </p>
         <button type="submit" className="btn-green">{skin.register.cta}</button>
         <p className="reg-note">{skin.register.note}</p>
       </form>
