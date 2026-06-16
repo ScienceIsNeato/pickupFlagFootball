@@ -7,7 +7,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="nav nav-float">
-        <Link href="/dashboard" className="brand">
+        <Link href="/" className="brand">
           <Ball />
           {skin.brandName}
         </Link>
