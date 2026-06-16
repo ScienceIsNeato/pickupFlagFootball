@@ -38,6 +38,7 @@ export const activityTypes = pgTable("activity_types", {
   nSpark:      integer("n_spark").notNull().default(8),
   nWarm:       integer("n_warm").notNull().default(5),
   pMin:        integer("p_min").notNull().default(6),
+  sMin:        integer("s_min").notNull().default(1),
   baseH3Res:   integer("base_h3_res").notNull().default(7),
   createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

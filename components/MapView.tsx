@@ -47,6 +47,7 @@ type Flag = {
   x: number; y: number;           // live position
   ox: number; oy: number;         // gather jitter
   size: number; rot: number; phase: number; energy: number; color: string;
+  init: boolean;                  // seeded its first live position yet?
 };
 type Cluster = { ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[] };
 
@@ -119,7 +120,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
             sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
             x: 0, y: 0, ox: rand(-10, 10), oy: rand(-10, 10),
             size: rand(8, 13), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
-            energy: 0, color: COLORS[(Math.random() * COLORS.length) | 0],
+            energy: 0, color: COLORS[(Math.random() * COLORS.length) | 0], init: false,
           });
         }
         return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
@@ -164,7 +165,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
             const e = easeOut(morph);
             tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
           }
-          if (!f.x && !f.y) { f.x = tx; f.y = ty; }
+          if (!f.init) { f.init = true; f.x = tx; f.y = ty; } // seed once; (0,0) is a valid target
           const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
           if (on && d < GR) {
             const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
