@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
+import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
 
 export async function updateAccount(formData: FormData) {
@@ -65,8 +66,8 @@ export async function updateAccount(formData: FormData) {
         // active interest either.
         await db.update(users).set(update).where(eq(users.id, session.user.id!));
         await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
-        // the move may spark the new area
-        await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
+        // the move may spark the new area (transactional — needs the pooled client)
+        await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
         redirect("/account");
       } else {
         // A valid ZIP was given but the activity isn't configured. Don't write

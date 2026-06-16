@@ -73,24 +73,29 @@ export async function evaluate(
   const cohort = await catchmentUsers(db, activityTypeId, disk);
   const attemptNumber = await nextAttemptNumber(db, areaId);
 
-  let attemptId: string;
+  // Spark atomically: the attempt insert, the area → IN_FORMATION flip and the
+  // SPARK_ASK notifications commit together. Otherwise a failure after the
+  // insert could leave a live attempt occupying the one-live-attempt slot while
+  // the area still reads DORMANT/STALLED.
   try {
-    const [att] = await db.insert(formationAttempts).values({
-      activityTypeId, areaId, attemptNumber, status: "SUGGESTING",
-      catchmentCells: disk, cohortUserIds: cohort,
-      suggestionOpenedAt: now, suggestionClosesAt: decision.suggestionClosesAt,
-    }).returning({ id: formationAttempts.id });
-    attemptId = att.id;
+    await db.transaction(async (tx) => {
+      const [att] = await tx.insert(formationAttempts).values({
+        activityTypeId, areaId, attemptNumber, status: "SUGGESTING",
+        catchmentCells: disk, cohortUserIds: cohort,
+        suggestionOpenedAt: now, suggestionClosesAt: decision.suggestionClosesAt,
+      }).returning({ id: formationAttempts.id });
+      await tx.update(areas).set({ status: "IN_FORMATION", lastRoundAt: now }).where(eq(areas.id, areaId));
+      await enqueue(tx as unknown as EngineDb,
+        cohort.map((userId) => ({ userId, attemptId: att.id, kind: "SPARK_ASK" as NotifKind })), now);
+    });
   } catch (e) {
     // Only the one-live-attempt unique conflict is an expected NOOP (a spark
-    // race). Any other DB error must surface, not be hidden as success.
+    // race) — the whole transaction rolls back. Any other DB error must surface,
+    // not be hidden as success.
     const msg = e instanceof Error ? e.message : String(e);
     if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
     return { kind: "NOOP", reason: "already sparked (lost the one-live-attempt race)" };
   }
-
-  await db.update(areas).set({ status: "IN_FORMATION", lastRoundAt: now }).where(eq(areas.id, areaId));
-  await enqueue(db, cohort.map((userId) => ({ userId, attemptId, kind: "SPARK_ASK" as NotifKind })), now);
   return decision;
 }
 
@@ -98,13 +103,33 @@ export async function evaluate(
 /** Closes due windows: suggestion → compile/stall, availability → schedule/stall.
  *  Idempotent — only acts on rows whose close time has passed. */
 export async function tick(db: EngineDb, now: Date): Promise<void> {
+  // Each window closer runs in its own transaction: the multi-step writes commit
+  // all-or-nothing, so a failure can't leave a half-scheduled game or an orphan
+  // area status. One bad attempt rolls back cleanly and is retried next tick
+  // without blocking the others — we surface the first error after the sweep.
+  let firstErr: unknown;
+  const sweep = async (
+    rows: (typeof formationAttempts.$inferSelect)[],
+    close: (tx: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) => Promise<void>,
+  ) => {
+    for (const att of rows) {
+      try {
+        await db.transaction((tx) => close(tx as unknown as EngineDb, att, now));
+      } catch (e) {
+        firstErr ??= e;
+      }
+    }
+  };
+
   const dueSuggest = await db.select().from(formationAttempts)
     .where(and(eq(formationAttempts.status, "SUGGESTING"), lte(formationAttempts.suggestionClosesAt, now)));
-  for (const att of dueSuggest) await closeSuggestion(db, att, now);
+  await sweep(dueSuggest, closeSuggestion);
 
   const dueAvail = await db.select().from(formationAttempts)
     .where(and(eq(formationAttempts.status, "AVAILABILITY"), lte(formationAttempts.availabilityClosesAt, now)));
-  for (const att of dueAvail) await closeAvailability(db, att, now);
+  await sweep(dueAvail, closeAvailability);
+
+  if (firstErr) throw firstErr;
 }
 
 // ── window closers ───────────────────────────────────────────────────────────
@@ -127,138 +152,102 @@ async function claimAttempt(
   return claimed.length > 0;
 }
 
-/** Roll a claimed-but-failed attempt back to its open state so the next cron
- *  tick retries it cleanly — otherwise an error after the claim would strand it
- *  in COMPILING/ADJUDICATING, which tick never closes and which keeps blocking
- *  new sparks via uq_one_live_attempt. Returns true only when this call actually
- *  reverted (the attempt was still in the claimed state `from`), so the caller
- *  knows it's safe to delete the partial writes from this pass. */
-async function revertClaim(
-  db: EngineDb,
-  attemptId: string,
-  from: "COMPILING" | "ADJUDICATING",
-  to: "SUGGESTING" | "AVAILABILITY",
-): Promise<boolean> {
-  const reverted = await db.update(formationAttempts)
-    .set({ status: to })
-    .where(and(eq(formationAttempts.id, attemptId), eq(formationAttempts.status, from)))
-    .returning({ id: formationAttempts.id });
-  return reverted.length > 0;
-}
-
 async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  // Claim before doing any work — a concurrent tick that already picked up this
-  // same due row will lose the race here and return without double-processing.
+  // Runs inside a tick() transaction, so every write below is atomic: a failure
+  // rolls the whole thing back (claim included) and the attempt is retried next
+  // tick from a clean SUGGESTING state — no partial options, no wedge. The claim
+  // is the concurrency gate: a second tick that already grabbed this row loses
+  // the row-lock race and returns without double-processing.
   if (!(await claimAttempt(db, att.id, "SUGGESTING", "COMPILING"))) return;
-  try {
-    const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
-    const t = await loadTunables(db, att.activityTypeId, area);
-    const rows = await db.select().from(suggestions)
-      .where(eq(suggestions.attemptId, att.id)).orderBy(suggestions.createdAt);
-    const inputs: SuggestionInput[] = rows.map((s) => ({
-      id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
-      proposedStart: s.proposedStart, createdAt: s.createdAt,
-    }));
-    const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
+  const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
+  const t = await loadTunables(db, att.activityTypeId, area);
+  const rows = await db.select().from(suggestions)
+    .where(eq(suggestions.attemptId, att.id)).orderBy(suggestions.createdAt);
+  const inputs: SuggestionInput[] = rows.map((s) => ({
+    id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
+    proposedStart: s.proposedStart, createdAt: s.createdAt,
+  }));
+  const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
 
-    const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
+  const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
 
-    if (d.kind === "STALL") {
-      await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
-      return;
-    }
-
-    for (const opt of d.options) {
-      const [o] = await db.insert(formationOptions).values({
-        attemptId: att.id, placeText: opt.placeText, placeLat: opt.placeLat, placeLng: opt.placeLng,
-        proposedStart: opt.proposedStart, firstSuggestedAt: opt.firstSuggestedAt,
-      }).returning({ id: formationOptions.id });
-      if (opt.sourceIds.length)
-        await db.update(suggestions).set({ optionId: o.id })
-          .where(inArray(suggestions.id, opt.sourceIds));
-    }
-    await db.update(formationAttempts).set({
-      status: "AVAILABILITY", availabilityOpenedAt: now, availabilityClosesAt: d.availabilityClosesAt,
-    }).where(eq(formationAttempts.id, att.id));
-    await enqueue(db, att.cohortUserIds.map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
-  } catch (e) {
-    // Failed mid-compile: revert to SUGGESTING and drop this pass's partial
-    // options (and their suggestion links) so the retry starts clean. The
-    // conditional revert no-ops if we already reached AVAILABILITY/FAILED, so a
-    // late error (e.g. the notify) can't undo a committed transition.
-    if (await revertClaim(db, att.id, "COMPILING", "SUGGESTING")) {
-      await db.delete(formationOptions).where(eq(formationOptions.attemptId, att.id));
-      await db.update(suggestions).set({ optionId: null }).where(eq(suggestions.attemptId, att.id));
-    }
-    throw e;
+  if (d.kind === "STALL") {
+    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
+    return;
   }
+
+  for (const opt of d.options) {
+    const [o] = await db.insert(formationOptions).values({
+      attemptId: att.id, placeText: opt.placeText, placeLat: opt.placeLat, placeLng: opt.placeLng,
+      proposedStart: opt.proposedStart, firstSuggestedAt: opt.firstSuggestedAt,
+    }).returning({ id: formationOptions.id });
+    if (opt.sourceIds.length)
+      await db.update(suggestions).set({ optionId: o.id })
+        .where(inArray(suggestions.id, opt.sourceIds));
+  }
+  await db.update(formationAttempts).set({
+    status: "AVAILABILITY", availabilityOpenedAt: now, availabilityClosesAt: d.availabilityClosesAt,
+  }).where(eq(formationAttempts.id, att.id));
+  await enqueue(db, att.cohortUserIds.map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
 }
 
 async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  // Claim before scheduling — a concurrent tick on the same due row bails here
-  // rather than inserting a second game/roster.
+  // Runs inside a tick() transaction: the game insert, roster, attempt CONFIRMED,
+  // area SCHEDULED and notifications all commit together or not at all — so the
+  // area can't end up IN_FORMATION next to a committed game (which would let
+  // proposeGame open a fresh formation on the same spot). The claim is the
+  // concurrency gate against a second tick double-scheduling.
   if (!(await claimAttempt(db, att.id, "AVAILABILITY", "ADJUDICATING"))) return;
-  try {
-    const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
-    const t = await loadTunables(db, att.activityTypeId, area);
+  const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
+  const t = await loadTunables(db, att.activityTypeId, area);
 
-    const optRows = await db.select({
-      id: formationOptions.id,
-      placeText: formationOptions.placeText,
-      placeLat: formationOptions.placeLat,
-      placeLng: formationOptions.placeLng,
-      proposedStart: formationOptions.proposedStart,
-      firstSuggestedAt: formationOptions.firstSuggestedAt,
-      promiseCount: sql<number>`count(${softPromises.id})::int`,
-    }).from(formationOptions)
-      .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
-      .where(eq(formationOptions.attemptId, att.id))
-      .groupBy(formationOptions.id)
-      .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
+  const optRows = await db.select({
+    id: formationOptions.id,
+    placeText: formationOptions.placeText,
+    placeLat: formationOptions.placeLat,
+    placeLng: formationOptions.placeLng,
+    proposedStart: formationOptions.proposedStart,
+    firstSuggestedAt: formationOptions.firstSuggestedAt,
+    promiseCount: sql<number>`count(${softPromises.id})::int`,
+  }).from(formationOptions)
+    .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
+    .where(eq(formationOptions.attemptId, att.id))
+    .groupBy(formationOptions.id)
+    .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
 
-    const tallies = optRows.map((o) => ({
-      optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
-      proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
-    }));
-    const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
+  const tallies = optRows.map((o) => ({
+    optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
+    proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
+  }));
+  const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
 
-    const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
+  const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
 
-    if (d.kind === "STALL") {
-      await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
-      return;
-    }
-
-    const winner = d.winner as OptionTally & { optionId: string };
-    const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
-      .where(eq(softPromises.optionId, winner.optionId));
-    const roster = promisers.map((p) => p.userId);
-
-    const [game] = await db.insert(games).values({
-      activityTypeId: att.activityTypeId, areaId: att.areaId,
-      originAttemptId: att.id, winningOptionId: winner.optionId,
-      placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
-      scheduledStart: winner.proposedStart,
-      status: "STAGED", confirmedCount: roster.length,
-    }).returning({ id: games.id });
-
-    if (roster.length)
-      await db.insert(gameRoster).values(roster.map((userId) => ({ gameId: game.id, userId })));
-
-    await db.update(formationAttempts).set({ status: "CONFIRMED", scheduledGameId: game.id })
-      .where(eq(formationAttempts.id, att.id));
-    await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, att.areaId));
-    await enqueue(db, roster.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
-  } catch (e) {
-    // Failed mid-schedule: revert to AVAILABILITY and drop any game from this
-    // pass (roster + notifs cascade off the game) so the retry starts clean. The
-    // conditional revert no-ops once we've reached CONFIRMED, so a late error
-    // (e.g. the area update or notify) can't tear down a committed game.
-    if (await revertClaim(db, att.id, "ADJUDICATING", "AVAILABILITY")) {
-      await db.delete(games).where(eq(games.originAttemptId, att.id));
-    }
-    throw e;
+  if (d.kind === "STALL") {
+    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
+    return;
   }
+
+  const winner = d.winner as OptionTally & { optionId: string };
+  const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
+    .where(eq(softPromises.optionId, winner.optionId));
+  const roster = promisers.map((p) => p.userId);
+
+  const [game] = await db.insert(games).values({
+    activityTypeId: att.activityTypeId, areaId: att.areaId,
+    originAttemptId: att.id, winningOptionId: winner.optionId,
+    placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
+    scheduledStart: winner.proposedStart,
+    status: "STAGED", confirmedCount: roster.length,
+  }).returning({ id: games.id });
+
+  if (roster.length)
+    await db.insert(gameRoster).values(roster.map((userId) => ({ gameId: game.id, userId })));
+
+  await db.update(formationAttempts).set({ status: "CONFIRMED", scheduledGameId: game.id })
+    .where(eq(formationAttempts.id, att.id));
+  await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, att.areaId));
+  await enqueue(db, roster.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
 }
 
 async function stall(

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import {
   activityTypes, areas, interestSignals, formationAttempts, notificationsSent,
 } from "@/lib/db/schema";
@@ -87,18 +88,23 @@ export async function proposeGame(formData: FormData) {
     const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}),0)::int` })
       .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
     try {
-      [attempt] = await db.insert(formationAttempts).values({
-        activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "SUGGESTING",
-        catchmentCells: disk, cohortUserIds: cohort.map((r) => r.u),
-        suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
-      }).returning();
-      await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
-      // notify the catchment, same as an engine-driven spark (claim-before-send)
-      if (cohort.length) {
-        await db.insert(notificationsSent).values(cohort.map((r) => ({
-          userId: r.u, attemptId: attempt!.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
-        }))).onConflictDoNothing();
-      }
+      // Manual spark, same atomicity as the engine's: the attempt insert, the
+      // area → IN_FORMATION flip and the SPARK_ASK rows commit together (pooled
+      // client) so we can't leave a live attempt next to a DORMANT/STALLED area.
+      attempt = await txnDb.transaction(async (tx) => {
+        const [a] = await tx.insert(formationAttempts).values({
+          activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "SUGGESTING",
+          catchmentCells: disk, cohortUserIds: cohort.map((r) => r.u),
+          suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
+        }).returning();
+        await tx.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
+        if (cohort.length) {
+          await tx.insert(notificationsSent).values(cohort.map((r) => ({
+            userId: r.u, attemptId: a.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
+          }))).onConflictDoNothing();
+        }
+        return a;
+      });
     } catch (e) {
       // Only the one-live-attempt conflict is expected (a concurrent propose).
       const msg = e instanceof Error ? e.message : String(e);

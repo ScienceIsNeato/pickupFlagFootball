@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import { tick } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 
@@ -21,7 +21,7 @@ async function handle(req: Request) {
   if (req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await tick(db as unknown as EngineDb, new Date());
+  await tick(txnDb as unknown as EngineDb, new Date());
   return NextResponse.json({ ok: true, ranAt: new Date().toISOString() });
 }
 

@@ -4,22 +4,37 @@ import { games, gameRoster, formationAttempts } from "@/lib/db/schema";
 import type { EngineDb } from "@/lib/mime/engine";
 
 /**
- * Recovery guard: if a window closer fails after claiming its attempt, it must
- * revert the claim (and drop any partial writes) so the attempt doesn't wedge in
- * COMPILING/ADJUDICATING — a state tick never closes and that blocks new sparks
- * via uq_one_live_attempt. The very next tick must then schedule cleanly.
+ * Recovery guard: each window closer runs inside a tick() transaction, so a
+ * failure partway through must roll the whole thing back — leaving no orphan
+ * game and the attempt back in its open state (never wedged in COMPILING/
+ * ADJUDICATING, which tick never closes and which would block new sparks via
+ * uq_one_live_attempt). The very next tick must then schedule cleanly.
  */
 
-// A db proxy that throws when inserting into `failTable`, to simulate a failure
-// partway through scheduling (here: after the game row, on the roster insert).
+// Proxy the db so that inside a transaction, inserting into `failTable` throws —
+// simulating a failure partway through scheduling (here: after the game row, on
+// the roster insert). We have to intercept at the transaction boundary because
+// the closer runs against the transaction handle, not the outer db.
 function failingOn(realDb: unknown, failTable: unknown): EngineDb {
+  const wrapTx = (tx: unknown) =>
+    new Proxy(tx as object, {
+      get(target, prop, recv) {
+        if (prop === "insert") {
+          return (table: unknown) => {
+            if (table === failTable) throw new Error("injected failure mid-schedule");
+            return (target as { insert: (t: unknown) => unknown }).insert(table);
+          };
+        }
+        const v = Reflect.get(target, prop, recv);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
   return new Proxy(realDb as object, {
     get(target, prop, recv) {
-      if (prop === "insert") {
-        return (table: unknown) => {
-          if (table === failTable) throw new Error("injected failure mid-schedule");
-          return (target as { insert: (t: unknown) => unknown }).insert(table);
-        };
+      if (prop === "transaction") {
+        return (cb: (tx: unknown) => unknown, ...rest: unknown[]) =>
+          (target as { transaction: (c: (tx: unknown) => unknown, ...r: unknown[]) => unknown })
+            .transaction((tx: unknown) => cb(wrapTx(tx)), ...rest);
       }
       const v = Reflect.get(target, prop, recv);
       return typeof v === "function" ? v.bind(target) : v;
@@ -28,7 +43,7 @@ function failingOn(realDb: unknown, failTable: unknown): EngineDb {
 }
 
 scenario(
-  "recovery — a closer that fails after claiming reverts, then the next tick schedules",
+  "recovery — a closer that fails mid-schedule rolls back, then the next tick schedules",
   "an injected mid-schedule failure leaves no wedged attempt and no orphan game; the retry succeeds",
   async (sim) => {
     const dana = await sim.participant("Dana", { zip: "52241" });
@@ -44,7 +59,7 @@ scenario(
     });
 
     sim.clock.advance("48h"); // availability due
-    await sim.beat("tick fails mid-schedule → attempt reverts, no orphan game", async () => {
+    await sim.beat("tick fails mid-schedule → transaction rolls back, no orphan game", async () => {
       const edb = failingOn(sim.database, gameRoster);
       let threw = false;
       try { await tick(edb, sim.clock.now()); } catch { threw = true; }

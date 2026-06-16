@@ -7,6 +7,7 @@ import { users, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
+import { txnDb } from "@/lib/db/pool";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 
@@ -65,7 +66,8 @@ export async function setLocationAndInterest(formData: FormData) {
   await setActiveInterest(activityTypeId, session.user.id, areaId, r7);
 
   // run the engine: this new interest may cross n_spark and open a window
-  await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
+  // (transactional spark — needs the pooled client)
+  await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
 
   redirect("/dashboard");
 }
