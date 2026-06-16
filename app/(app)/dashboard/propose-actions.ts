@@ -5,7 +5,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  activityTypes, areas, interestSignals, formationAttempts, suggestions, notificationsSent,
+  activityTypes, areas, interestSignals, formationAttempts, notificationsSent,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { shouldRetrigger } from "@/lib/mime";
@@ -111,10 +111,21 @@ export async function proposeGame(formData: FormData) {
   }
   if (!attempt) redirect("/dashboard?propose=retry");
 
-  await db.insert(suggestions).values({
-    attemptId: attempt.id, userId: session.user.id, placeText: place,
-    placeLat, placeLng, proposedStart: when,
-  });
+  // The SUGGESTING check above is a read; a concurrent tick (or the window
+  // closing right after the unique-conflict reload) could move the attempt to
+  // AVAILABILITY before this insert lands. Gate the insert on the attempt still
+  // being SUGGESTING in the same statement so we never record a suggestion
+  // against a closed window. neon-http is one-shot (no txn), so this conditional
+  // INSERT…SELECT is the atomic unit.
+  const inserted = await db.execute(sql`
+    insert into suggestions (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start)
+    select ${attempt.id}, ${session.user.id}, ${place}, ${placeLat}, ${placeLng}, ${when.toISOString()}
+    where exists (
+      select 1 from formation_attempts where id = ${attempt.id} and status = 'SUGGESTING'
+    )
+    returning id
+  `);
+  if (inserted.rows.length === 0) redirect("/dashboard?propose=closed");
 
   redirect("/dashboard");
 }
