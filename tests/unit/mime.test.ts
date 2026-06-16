@@ -11,9 +11,10 @@ import type { SuggestionInput, OptionTally } from "@/lib/mime";
 
 const now = new Date("2026-06-01T12:00:00Z");
 const sug = (id: string, place: string, start: string, created: string): SuggestionInput =>
-  ({ id, placeText: place, proposedStart: new Date(start), createdAt: new Date(created) });
+  ({ id, placeText: place, placeLat: null, placeLng: null,
+     proposedStart: new Date(start), createdAt: new Date(created) });
 const tally = (place: string, promiseCount: number, firstSuggestedAt: string): OptionTally =>
-  ({ placeText: place, proposedStart: new Date("2026-06-07T15:00:00Z"),
+  ({ placeText: place, placeLat: null, placeLng: null, proposedStart: new Date("2026-06-07T15:00:00Z"),
      firstSuggestedAt: new Date(firstSuggestedAt), promiseCount });
 
 // ── critical ─────────────────────────────────────────────────────────────────

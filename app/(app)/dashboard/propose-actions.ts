@@ -5,7 +5,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  activityTypes, areas, interestSignals, formationAttempts, suggestions,
+  activityTypes, areas, interestSignals, formationAttempts, suggestions, notificationsSent,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { shouldRetrigger } from "@/lib/mime";
@@ -93,6 +93,12 @@ export async function proposeGame(formData: FormData) {
         suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
       }).returning();
       await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
+      // notify the catchment, same as an engine-driven spark (claim-before-send)
+      if (cohort.length) {
+        await db.insert(notificationsSent).values(cohort.map((r) => ({
+          userId: r.u, attemptId: attempt!.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
+        }))).onConflictDoNothing();
+      }
     } catch (e) {
       // Only the one-live-attempt conflict is expected (a concurrent propose).
       const msg = e instanceof Error ? e.message : String(e);

@@ -46,11 +46,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // require a Google-verified email so we don't link by an unverified
         // address that collides with an existing account
         if (!p?.email || p.email_verified !== true) return null;
+        const email = p.email.toLowerCase().trim(); // match password-reg normalization
         const [u] = await db
           .insert(users)
           .values({
-            email: p.email,
-            displayName: p.name ?? p.email.split("@")[0],
+            email,
+            displayName: p.name ?? email.split("@")[0],
             emailVerified: new Date(),
           })
           .onConflictDoUpdate({

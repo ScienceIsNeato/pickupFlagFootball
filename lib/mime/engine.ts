@@ -114,7 +114,8 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
   const rows = await db.select().from(suggestions)
     .where(eq(suggestions.attemptId, att.id)).orderBy(suggestions.createdAt);
   const inputs: SuggestionInput[] = rows.map((s) => ({
-    id: s.id, placeText: s.placeText, proposedStart: s.proposedStart, createdAt: s.createdAt,
+    id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
+    proposedStart: s.proposedStart, createdAt: s.createdAt,
   }));
   const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
 
@@ -127,8 +128,8 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
 
   for (const opt of d.options) {
     const [o] = await db.insert(formationOptions).values({
-      attemptId: att.id, placeText: opt.placeText, proposedStart: opt.proposedStart,
-      firstSuggestedAt: opt.firstSuggestedAt,
+      attemptId: att.id, placeText: opt.placeText, placeLat: opt.placeLat, placeLng: opt.placeLng,
+      proposedStart: opt.proposedStart, firstSuggestedAt: opt.firstSuggestedAt,
     }).returning({ id: formationOptions.id });
     if (opt.sourceIds.length)
       await db.update(suggestions).set({ optionId: o.id })
@@ -147,6 +148,8 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   const optRows = await db.select({
     id: formationOptions.id,
     placeText: formationOptions.placeText,
+    placeLat: formationOptions.placeLat,
+    placeLng: formationOptions.placeLng,
     proposedStart: formationOptions.proposedStart,
     firstSuggestedAt: formationOptions.firstSuggestedAt,
     promiseCount: sql<number>`count(${softPromises.id})::int`,
@@ -157,8 +160,8 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
 
   const tallies = optRows.map((o) => ({
-    optionId: o.id, placeText: o.placeText, proposedStart: o.proposedStart,
-    firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
+    optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
+    proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
   }));
   const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
 
@@ -177,7 +180,8 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   const [game] = await db.insert(games).values({
     activityTypeId: att.activityTypeId, areaId: att.areaId,
     originAttemptId: att.id, winningOptionId: winner.optionId,
-    placeText: winner.placeText, scheduledStart: winner.proposedStart,
+    placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
+    scheduledStart: winner.proposedStart,
     status: "STAGED", confirmedCount: roster.length,
   }).returning({ id: games.id });
 

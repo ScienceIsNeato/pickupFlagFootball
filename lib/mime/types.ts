@@ -10,12 +10,16 @@ export type AttemptStatus =
 export type SuggestionInput = {
   id: string;
   placeText: string;
+  placeLat: number | null;
+  placeLng: number | null;
   proposedStart: Date;
   createdAt: Date;
 };
 
 export type CompiledOption = {
   placeText: string;
+  placeLat: number | null;
+  placeLng: number | null;
   proposedStart: Date;
   firstSuggestedAt: Date;   // earliest source suggestion → tiebreak key
   sourceIds: string[];      // suggestions folded into this option
@@ -23,6 +27,8 @@ export type CompiledOption = {
 
 export type OptionTally = {
   placeText: string;
+  placeLat: number | null;
+  placeLng: number | null;
   proposedStart: Date;
   firstSuggestedAt: Date;
   promiseCount: number;

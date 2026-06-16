@@ -31,6 +31,8 @@ export function compileOptions(suggestions: SuggestionInput[], t: Tunables): Com
     const earliest = sorted[0];
     options.push({
       placeText: earliest.placeText,
+      placeLat: earliest.placeLat,
+      placeLng: earliest.placeLng,
       proposedStart: earliest.proposedStart,
       firstSuggestedAt: earliest.createdAt,
       sourceIds: sorted.map((s) => s.id),
