@@ -78,6 +78,11 @@ export async function updateAccount(formData: FormData) {
         // the move may spark the new area
         await evaluate(db as unknown as EngineDb, activityTypeId, areaId, new Date());
         redirect("/account");
+      } else {
+        // A valid ZIP was given but the activity isn't configured. Don't write
+        // the new home while leaving interest_signals pointed at the old area —
+        // that desyncs the profile from the map. Fail the whole save instead.
+        throw new Error("activity not configured");
       }
     }
   } else if (city) {

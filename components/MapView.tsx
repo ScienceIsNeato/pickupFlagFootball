@@ -8,6 +8,7 @@ import { ProposeModal } from "./ProposeModal";
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
+const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
 const GR = 120;          // cursor gravity radius — the background flag physics
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
 const COLORS = ["#f5c518", "#e2483f", "#2fb673", "#f59e2a"];
@@ -95,6 +96,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     let first = true;
     let morphStart = 0;
     let aborted = false;
+    let dataRes = 0; // resolution the current clustersRef was fetched at
     async function refresh() {
       const res = resForZoom(map.getZoom());
       let cells: Cell[];
@@ -122,6 +124,7 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
         }
         return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
       });
+      dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
     }
 
@@ -196,8 +199,13 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
       refreshTimer = setTimeout(() => { void refresh(); }, 250);
     };
     map.on("moveend", debouncedRefresh);
-    map.on("click", (e) => {
+    map.on("click", async (e) => {
       if (map.getZoom() < MAX_ZOOM) return;
+      // Cluster refresh is debounced on moveend, so right after a zoom-in
+      // clustersRef can still hold coarser cells while proposeGame resolves
+      // areas at r7. Pull fresh r7 clusters before matching the click so we
+      // never submit a stale, wrong-resolution cell.
+      if (dataRes < PROPOSE_RES) await refresh();
       let best: Cluster | null = null, bestD = 60;
       for (const cl of clustersRef.current) {
         const p = map.project(cl.ll);
