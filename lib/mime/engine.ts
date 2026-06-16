@@ -24,7 +24,7 @@ type AreaOverrides = { nSparkOverride: number | null; pMinOverride: number | nul
  *  layered with per-area overrides — never just code defaults. */
 export async function loadTunables(db: EngineDb, activityTypeId: string, area?: AreaOverrides) {
   const res = await db.execute(sql`
-    select n_spark, n_warm, p_min, options_cap,
+    select n_spark, n_warm, p_min, s_min, options_cap,
       extract(epoch from suggest_window) / 3600 as suggest_h,
       extract(epoch from avail_window) / 3600 as avail_h,
       restall_interest, restall_days, max_time_retries,
@@ -33,7 +33,8 @@ export async function loadTunables(db: EngineDb, activityTypeId: string, area?: 
   const r = ((res as { rows?: Record<string, unknown>[] }).rows ?? [])[0];
   const num = (v: unknown) => (v == null ? undefined : Number(v));
   const base = r ? {
-    nSpark: num(r.n_spark), nWarm: num(r.n_warm), pMin: num(r.p_min), optionsCap: num(r.options_cap),
+    nSpark: num(r.n_spark), nWarm: num(r.n_warm), pMin: num(r.p_min), sMin: num(r.s_min),
+    optionsCap: num(r.options_cap),
     suggestWindowH: num(r.suggest_h), availWindowH: num(r.avail_h),
     restallInterest: num(r.restall_interest), restallDays: num(r.restall_days),
     maxTimeRetries: num(r.max_time_retries), perUserWeeklyCap: num(r.per_user_weekly_cap),

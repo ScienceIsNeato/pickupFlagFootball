@@ -51,6 +51,7 @@ CREATE TABLE activity_types (
   n_spark              int  NOT NULL DEFAULT 8,      -- interested to open first window
   n_warm               int  NOT NULL DEFAULT 5,      -- "almost there" UI
   p_min                int  NOT NULL DEFAULT 6,      -- soft-promises to confirm a game
+  s_min                int  NOT NULL DEFAULT 1,      -- min suggestions to advance the window
   options_cap          int  NOT NULL DEFAULT 6,      -- max options in availability msg
   suggest_window       interval NOT NULL DEFAULT '48 hours',
   avail_window         interval NOT NULL DEFAULT '48 hours',
@@ -64,7 +65,7 @@ CREATE TABLE activity_types (
   gear_catalog         jsonb NOT NULL DEFAULT '[]',  -- affiliate links
   seo_copy             jsonb NOT NULL DEFAULT '{}',  -- page title/description templates
   created_at           timestamptz NOT NULL DEFAULT now(),
-  CHECK (n_spark > 0 AND n_warm >= 0 AND p_min > 0 AND options_cap > 0
+  CHECK (n_spark > 0 AND n_warm >= 0 AND p_min > 0 AND s_min > 0 AND options_cap > 0
          AND restall_interest >= 0 AND restall_days >= 0 AND max_time_retries >= 0
          AND max_catchment_km > 0 AND base_h3_res BETWEEN 0 AND 15
          AND per_user_weekly_cap >= 0 AND ignore_decay_windows >= 0)
