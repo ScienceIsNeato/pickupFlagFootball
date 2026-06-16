@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Ball } from "./Ball";
+import { AccountMenu } from "./AccountMenu";
 import { skin } from "@/lib/skin";
 
 export function SiteNav() {
@@ -9,11 +10,14 @@ export function SiteNav() {
         <Ball />
         {skin.brandName}
       </Link>
-      <nav>
-        <Link href="/#how">how it works</Link>
-        <Link href="/gear">gear</Link>
-        <Link href="/faq">faq</Link>
-      </nav>
+      <div className="nav-right">
+        <nav>
+          <Link href="/#how">how it works</Link>
+          <Link href="/gear">gear</Link>
+          <Link href="/faq">faq</Link>
+        </nav>
+        <AccountMenu />
+      </div>
     </header>
   );
 }

@@ -65,8 +65,47 @@ a { color: var(--link); text-decoration: none; }
   color: var(--ink);
 }
 .brand .ball { display: inline-flex; }
+.nav nav { display: inline-flex; }
 .nav nav a { color: var(--muted); margin-left: 18px; font-size: 14px; }
 .nav nav a.signin { color: var(--ink); font-weight: 500; }
+.nav-right { display: flex; align-items: center; gap: 18px; }
+
+/* account control (upper-right) */
+.acct { display: flex; align-items: center; gap: 12px; }
+.acct-link {
+  background: none; border: 0; color: var(--muted); font-size: 14px;
+  cursor: pointer; font-family: inherit; padding: 0;
+}
+.acct-link:hover { color: var(--ink); }
+.acct-cta {
+  background: var(--yellow); color: #1a1407; border: 0; border-radius: 6px;
+  padding: 7px 14px; font-weight: 700; font-size: 14px; cursor: pointer;
+  font-family: var(--font-barlow), sans-serif;
+}
+.acct-avatar {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--green);
+  color: #fff; border: 0; font-weight: 700; font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-barlow), sans-serif;
+}
+.acct-avatar:hover { filter: brightness(1.1); }
+.acct-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 210px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px; backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55); z-index: 50;
+  display: flex; flex-direction: column;
+}
+.acct-id { padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.acct-name { font-weight: 600; font-size: 14px; color: var(--ink); }
+.acct-email { font-size: 12px; color: var(--faint); }
+.acct-menu a, .acct-signout {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border-radius: 6px; font-size: 14px; color: var(--muted);
+  background: none; border: 0; cursor: pointer; font-family: inherit;
+}
+.acct-menu a:hover, .acct-signout:hover { background: var(--bg); color: var(--ink); }
+.acct-signout { color: var(--link); }
 
 .hero {
   position: relative;

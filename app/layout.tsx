@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SessionProvider } from "next-auth/react";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import { FlagFieldCanvas } from "@/components/FlagFieldCanvas";
 import { skin } from "@/lib/skin";
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${barlow.variable}`}>
       <body>
         <FlagFieldCanvas />
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );
