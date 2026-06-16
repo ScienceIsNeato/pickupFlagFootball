@@ -55,7 +55,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           })
           .onConflictDoUpdate({
             target: users.email,
-            set: { emailVerified: new Date(), updatedAt: new Date() },
+            // Google proves ownership of this address. Any pre-existing password
+            // is unverified (no verification flow yet) and could have been set by
+            // an attacker who pre-registered the email — clear it so it can't be
+            // used to log into this now-Google-owned account.
+            set: { emailVerified: new Date(), passwordHash: null, updatedAt: new Date() },
           })
           .returning();
         return { id: u.id, email: u.email, name: u.displayName, image: p.picture };

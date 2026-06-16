@@ -85,13 +85,18 @@ export async function proposeGame(formData: FormData) {
         catchmentCells: disk, cohortUserIds: cohort.map((r) => r.u),
         suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
       }).returning();
-    } catch {
-      // a concurrent propose just opened the window — try again, it'll attach
-      redirect("/dashboard?propose=retry");
+      await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
+    } catch (e) {
+      // Only the one-live-attempt conflict is expected (a concurrent propose).
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
+      // attach to the window the winner just opened
+      [attempt] = await db.select().from(formationAttempts)
+        .where(and(eq(formationAttempts.areaId, area.id), eq(formationAttempts.status, "SUGGESTING")))
+        .limit(1);
     }
-    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
   }
-  if (!attempt) throw new Error("could not open a suggestion window");
+  if (!attempt) redirect("/dashboard?propose=retry");
 
   await db.insert(suggestions).values({
     attemptId: attempt.id, userId: session.user.id, placeText: place,
