@@ -1,0 +1,39 @@
+{
+  "name": "mime-ff",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "node --import tsx --test tests/unit/*.test.ts",
+    "sim": "tsx tests/sim/run.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.45.2",
+    "google-auth-library": "^10.7.0",
+    "h3-js": "^4.4.0",
+    "maplibre-gl": "^5.24.0",
+    "next": "^15.5.0",
+    "next-auth": "5.0.0-beta.31",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tz-lookup": "^6.1.25",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "drizzle-kit": "^0.31.10",
+    "pg": "^8.21.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.0"
+  }
+}

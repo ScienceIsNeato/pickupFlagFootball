@@ -1,0 +1,74 @@
+{
+  "slug": "flag-football",
+  "brandName": "MIME-FF",
+  "acronym": "massive interests matching engine · flag football",
+  "activity": "flag football",
+  "event": "game",
+  "participant": "player",
+  "seo": {
+    "title": "MIME-FF · pickup flag football that forms itself",
+    "description": "a free, open source platform that connects people with the same interest. when enough gather in one area, a game is born."
+  },
+  "hero": {
+    "heading": "find your local flag football game, or help it find you",
+    "body": "while there may not be a standing local game in your area at the moment, don't you think there should be? this site makes that happen.",
+    "body2": "just let us know your general area, name and email and we'll take care of the rest. when enough people in your area show interest, MIME-FF coordinates and facilitates organic community organized games with little to no effort on your part.",
+    "gate": "",
+    "cta": "show interest near you",
+    "note": ""
+  },
+  "how": [
+    { "n": "1", "title": "say you're in", "body": "pick your area. one tap." },
+    { "n": "2", "title": "others do too", "body": "the app counts people nearby." },
+    { "n": "3", "title": "someone names a spot", "body": "a local suggests place and time." },
+    { "n": "4", "title": "enough say yes", "body": "the game gets scheduled." }
+  ],
+  "faq": [
+    { "q": "who picks where and when you play?", "a": "you do - whoever wants to play suggests a spot and a time, and that's the seed that gets a game going nearby. we do it this way on purpose: picking a good pickup field is genuinely hard. you need somewhere good for football, free, open to the public, and not already taken by a league or a party. middle school fields tend to work well - but a web search or an AI can't know that the way someone who lives in the neighborhood can. the downside is real: nothing happens until a person steps up to suggest something, and if everyone waits on everyone else, a game can stall. but whoever suggests it usually shows up and takes a little ownership, which is exactly what a new game needs." },
+    { "q": "who's in charge? who runs the game?", "a": "nobody, really - and that's the point. most pickup dies when the one organizer burns out or moves away. here the app handles the boring parts (counting interest, asking the group, tallying who's coming) so it doesn't all sit on one set of shoulders. the trade-off: with no official organizer, there's no one whose job it is to make sure every week goes smoothly. it leans on the group, and on whoever suggested the game showing a bit of leadership. some weeks that's great, some weeks it's loose." },
+    { "q": "why do i have to show interest before i can see who's around?", "a": "because a count only means something if everyone in it is real. if anyone could just browse, most people would lurk, the numbers would be noise, and you'd never know if a game could actually happen. so we ask you to say you're in first - then you see the others who did too. the cost: it's a small ask up front (an email and a zip), and some people will bounce rather than commit before they see anything. we think that's a fair trade for numbers you can trust." },
+    { "q": "what if there aren't enough players near me yet?", "a": "then there's no game yet, and we won't pretend otherwise. you'll see the interest count where you are - no fake events, no empty page dressed up to look alive. once enough people nearby have shown interest, the app starts trying to get a game together. the honest downside: if your area is thin, it might sit a while, or never get there. this works where there's real demand waiting to be connected - it can't manufacture players who aren't there." },
+    { "q": "will a game actually happen, or will everyone flake?", "a": "flaking is the hardest part of pickup, so we plan for it. you don't just RSVP - you make a soft promise ('if it's on, i'll be there') and can set a condition ('only if at least 6 are in'). the app only calls a game on when enough have committed that it'll still work after the usual drop-off. the cons: it's pickup, so weather, work, and saturday nights still happen, and some games fizzle anyway - and early on, when numbers are thin, it's bumpier. the buffer helps most once a game is established." },
+    { "q": "why a weekly standing game instead of one-off events?", "a": "because a standing game is what lasts. once it's 'sunday at noon,' nobody re-negotiates every week - people just know, and showing up becomes a habit. one-off events make you start from zero every time. the catch: getting that first game to form is the hard part, and a standing game only sticks if a core group keeps coming back. the app is built to get you over that first hump and then hold the weekly rhythm - but it takes a little while to build." },
+    { "q": "what happens once a game forms - does it just keep going?", "a": "that's the goal. once a game exists, the app keeps the rhythm: each week it asks if you're coming, and the night before it sends everyone the list of who's in, so you're not herding a group chat. you can set a default ('i'm usually in') so it only bugs you when something changes. what it can't do is make people show up - it nudges and organizes, but the game still lives or dies on the people. it's a tool for a community, not a substitute for one." },
+    { "q": "why flag football, specifically?", "a": "two reasons. one, it's underserved - there's plenty of software for youth leagues and tournaments, but almost nothing for adults who just want a regular pickup game. two, it's easy to start: small-sided 5v5, non-contact, no pads; a dozen people and a couple cones and you're playing. the downside is it's a smaller crowd than pickup soccer or basketball, so some areas take longer to reach enough people. we'd rather do one underserved thing well than be a generic 'find any sport' app." },
+    { "q": "what do you actually do with my info?", "aHtml": "as little as we can. we ask for your email, your name, and your zip - never your street address. the zip groups you with people nearby, the email is how we tell you a game is forming, and your name is so others know who's coming. we don't sell it, and we don't share it beyond what a game needs to form. the honest trade-off: to connect you with local players we do need some location and a way to reach you, so this isn't a zero-data, no-signup tool. full details on the <a href=\"privacy.html\">privacy page</a>." },
+    { "q": "how much does this cost, and how do you make money?", "aHtml": "MIME-FF and pickupflagfootball.com are totally free, and always will be - no fees, no upgrades, no paywall. server costs are covered by <a href=\"{donate}\">donations</a> and <a href=\"gear.html\">affiliate gear</a> (buy a ball or cones through our links and we get a small cut). the honest part: that's thin, unglamorous money, so the whole thing has to stay cheap and lean to run - no expensive features that would tempt us to start charging you. free forever is a constraint we design around, on purpose." }
+  ],
+  "register": {
+    "seoTitle": "show interest · MIME-FF",
+    "seoDescription": "tell us where you are and we'll show how many folks nearby want a flag football game going.",
+    "heading": "show interest",
+    "blurb": "tell us where you are. once you're in, you'll see how many folks nearby want the same thing.",
+    "cta": "count me in",
+    "note": "we ask for your email, name, and zip. that's all."
+  },
+  "donate": { "url": "https://github.com/ScienceIsNeato/pickupFlagFootball", "label": "support the project" },
+  "gear": {
+    "seoTitle": "gear · MIME-FF",
+    "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",
+    "heading": "gear",
+    "blurb": "what you need to get a game going. these are affiliate links - they help cover server costs.",
+    "items": [
+      { "name": "footballs", "desc": "game-ready, all sizes.", "url": "https://www.amazon.com" },
+      { "name": "cones", "desc": "mark your field in seconds.", "url": "https://www.amazon.com" },
+      { "name": "flag belts", "desc": "sets for a full game.", "url": "https://www.amazon.com" }
+    ]
+  },
+  "faqPage": {
+    "seoTitle": "faq · MIME-FF",
+    "seoDescription": "how MIME-FF works, what it costs, and who picks the field.",
+    "heading": "faq"
+  },
+  "footer": {
+    "tagline": "free, open source pickup flag football. no organizer, no fees.",
+    "githubUrl": "https://github.com/ScienceIsNeato/pickupFlagFootball",
+    "note": "open source · gear links are affiliate and help cover server costs · not affiliated with the nfl or nfl flag"
+  },
+  "privacy": {
+    "seoTitle": "privacy · MIME-FF",
+    "seoDescription": "what we collect, why, and what we don't do with it.",
+    "heading": "privacy",
+    "updated": "june 2026"
+  }
+}
