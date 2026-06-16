@@ -34,10 +34,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const idToken = String(c?.credential ?? "");
         const clientId = process.env.AUTH_GOOGLE_ID;
         if (!idToken || !clientId) return null;
-        const client = new OAuth2Client(clientId);
-        const ticket = await client.verifyIdToken({ idToken, audience: clientId });
-        const p = ticket.getPayload();
-        if (!p?.email) return null;
+        let p;
+        try {
+          // a malformed/expired token is an auth failure, not a 500
+          const ticket = await new OAuth2Client(clientId)
+            .verifyIdToken({ idToken, audience: clientId });
+          p = ticket.getPayload();
+        } catch {
+          return null;
+        }
+        // require a Google-verified email so we don't link by an unverified
+        // address that collides with an existing account
+        if (!p?.email || p.email_verified !== true) return null;
         const [u] = await db
           .insert(users)
           .values({

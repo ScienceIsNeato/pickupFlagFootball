@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, activityTypes, interestSignals } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { lookupZip, cellsForPoint, ensureArea } from "@/lib/geo";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -58,19 +58,22 @@ export async function setLocationAndInterest(formData: FormData) {
     centerLng: snapLng,
   });
 
-  // Upsert interest signal
+  // One active location per user: deactivate any prior signals for this
+  // activity, then (re)activate this area's — avoids over-counting interest
+  // and duplicate active rows.
+  await db
+    .update(interestSignals)
+    .set({ active: false })
+    .where(and(
+      eq(interestSignals.userId, session.user.id),
+      eq(interestSignals.activityTypeId, activityTypeId),
+    ));
   await db
     .insert(interestSignals)
-    .values({
-      activityTypeId,
-      userId: session.user.id,
-      areaId,
-      h3Base: r7,
-      active: true,
-    })
+    .values({ activityTypeId, userId: session.user.id, areaId, h3Base: r7, active: true })
     .onConflictDoUpdate({
       target: [interestSignals.activityTypeId, interestSignals.userId, interestSignals.areaId],
-      set: { active: true },
+      set: { active: true, h3Base: r7 },
     });
 
   // run the engine: this new interest may cross n_spark and open a window

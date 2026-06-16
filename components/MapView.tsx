@@ -97,9 +97,14 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     let aborted = false;
     async function refresh() {
       const res = resForZoom(map.getZoom());
-      const r = await fetch(`/api/map?res=${res}`, { cache: "no-store" });
-      if (aborted || !r.ok) return;
-      const { cells } = (await r.json()) as { cells: Cell[] };
+      let cells: Cell[];
+      try {
+        const r = await fetch(`/api/map?res=${res}`, { cache: "no-store" });
+        if (aborted || !r.ok) return;
+        ({ cells } = (await r.json()) as { cells: Cell[] });
+      } catch {
+        return; // transient/offline — keep the current flags, try again on next move
+      }
       const W = container.clientWidth, H = container.clientHeight;
       clustersRef.current = cells.map((c) => {
         const n = Math.max(1, Math.min(12, c.count));

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -9,7 +10,8 @@ export const metadata = { title: "Account — MIME-FF" };
 
 export default async function AccountPage() {
   const session = await auth();
-  const uid = session?.user?.id!;
+  if (!session?.user?.id) redirect("/?signin=1&next=/account");
+  const uid = session.user.id;
 
   const rows = await db
     .select({ displayName: users.displayName, city: users.city, zip: users.zip })

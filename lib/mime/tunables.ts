@@ -42,5 +42,8 @@ export function resolveTunables(
 ): Tunables {
   const defined = (o: Partial<Tunables>) =>
     Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-  return { ...DEFAULT_TUNABLES, ...defined(activity), ...defined(overrides) };
+  const t = { ...DEFAULT_TUNABLES, ...defined(activity), ...defined(overrides) };
+  // warmth ("almost there") can't sit at or above the spark threshold
+  if (t.nWarm > t.nSpark) t.nWarm = t.nSpark;
+  return t;
 }

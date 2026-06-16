@@ -9,6 +9,7 @@ export class Clock {
 
   constructor(startIso: string) {
     this.ms = Date.parse(startIso);
+    if (Number.isNaN(this.ms)) throw new Error(`Clock: invalid start "${startIso}"`);
     this.startMs = this.ms;
   }
 

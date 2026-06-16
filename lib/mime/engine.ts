@@ -22,7 +22,7 @@ type AreaOverrides = { nSparkOverride: number | null; pMinOverride: number | nul
 
 /** Effective tunables = activity_types row values (windows extracted to hours)
  *  layered with per-area overrides — never just code defaults. */
-async function loadTunables(db: EngineDb, activityTypeId: string, area?: AreaOverrides) {
+export async function loadTunables(db: EngineDb, activityTypeId: string, area?: AreaOverrides) {
   const res = await db.execute(sql`
     select n_spark, n_warm, p_min, options_cap,
       extract(epoch from suggest_window) / 3600 as suggest_h,
@@ -80,7 +80,11 @@ export async function evaluate(
       suggestionOpenedAt: now, suggestionClosesAt: decision.suggestionClosesAt,
     }).returning({ id: formationAttempts.id });
     attemptId = att.id;
-  } catch {
+  } catch (e) {
+    // Only the one-live-attempt unique conflict is an expected NOOP (a spark
+    // race). Any other DB error must surface, not be hidden as success.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
     return { kind: "NOOP", reason: "already sparked (lost the one-live-attempt race)" };
   }
 
@@ -148,7 +152,8 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   }).from(formationOptions)
     .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
     .where(eq(formationOptions.attemptId, att.id))
-    .groupBy(formationOptions.id);
+    .groupBy(formationOptions.id)
+    .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
 
   const tallies = optRows.map((o) => ({
     optionId: o.id, placeText: o.placeText, proposedStart: o.proposedStart,

@@ -9,7 +9,8 @@ export const metadata = { title: "Dashboard — MIME-FF" };
 
 export default async function DashboardPage() {
   const session = await auth();
-  const uid = session?.user?.id!;
+  if (!session?.user?.id) redirect("/?signin=1&next=/dashboard");
+  const uid = session.user.id;
 
   const [userRows, signalRows] = await Promise.all([
     db.select({ homeLat: users.homeLat, homeLng: users.homeLng })

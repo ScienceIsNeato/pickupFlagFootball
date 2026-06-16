@@ -75,23 +75,31 @@ function parseCensus(tsv) {
 async function seed(rows) {
   const client = new pg.Client({ connectionString: DB_URL });
   await client.connect();
-  await client.query("TRUNCATE zip_centroids");
-
-  const BATCH = 1000;
-  let inserted = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    const vals = batch.map((_, j) => `($${j*3+1}, $${j*3+2}, $${j*3+3})`).join(", ");
-    const params = batch.flatMap(r => [r.zip, r.lat, r.lng]);
-    await client.query(
-      `INSERT INTO zip_centroids (zip, lat, lng) VALUES ${vals} ON CONFLICT DO NOTHING`,
-      params
-    );
-    inserted += batch.length;
-    process.stdout.write(`\r  seeded ${inserted}/${rows.length}`);
+  try {
+    // one transaction: never leave zip_centroids truncated-but-empty on failure
+    await client.query("BEGIN");
+    await client.query("TRUNCATE zip_centroids");
+    const BATCH = 1000;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const vals = batch.map((_, j) => `($${j*3+1}, $${j*3+2}, $${j*3+3})`).join(", ");
+      const params = batch.flatMap(r => [r.zip, r.lat, r.lng]);
+      await client.query(
+        `INSERT INTO zip_centroids (zip, lat, lng) VALUES ${vals} ON CONFLICT DO NOTHING`,
+        params
+      );
+      inserted += batch.length;
+      process.stdout.write(`\r  seeded ${inserted}/${rows.length}`);
+    }
+    await client.query("COMMIT");
+    console.log(`\n  done: ${inserted} rows`);
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    await client.end();
   }
-  console.log(`\n  done: ${inserted} rows`);
-  await client.end();
 }
 
 (async () => {

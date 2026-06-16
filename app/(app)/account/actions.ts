@@ -24,7 +24,8 @@ export async function updateAccount(formData: FormData) {
 
   if (zip && /^\d{5}$/.test(zip)) {
     const centroid = await lookupZip(zip);
-    if (centroid) {
+    if (!centroid) throw new Error("ZIP code not found");
+    {
       const { r5, r6, r7, r8, r9, snapLat, snapLng } = cellsForPoint(centroid.lat, centroid.lng);
       const displayCity = city || centroid.city || zip;
 

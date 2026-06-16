@@ -6,7 +6,7 @@
  *   node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts
  *   node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts --clean
  */
-import { eq, like } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, areas, interestSignals, games, activityTypes } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
@@ -65,7 +65,8 @@ async function main() {
   // mark one cluster as having a scheduled game (green accent)
   const sched = CLUSTERS.find((c) => c.scheduled)!;
   const cell = cellsForPoint(sched.lat, sched.lng).r7;
-  const [area] = await db.select({ id: areas.id }).from(areas).where(eq(areas.h3Cell, cell)).limit(1);
+  const [area] = await db.select({ id: areas.id }).from(areas)
+    .where(and(eq(areas.activityTypeId, activity.id), eq(areas.h3Cell, cell))).limit(1);
   if (area) {
     await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, area.id));
     await db.insert(games).values({

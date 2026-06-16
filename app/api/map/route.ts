@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const res = Math.max(3, Math.min(7, Number(url.searchParams.get("res") ?? 5)));
+  const reqRes = Number(url.searchParams.get("res"));
+  const res = Number.isFinite(reqRes) ? Math.max(3, Math.min(7, reqRes)) : 5;
 
   const signals = await db
     .select({ h3Base: interestSignals.h3Base, userId: interestSignals.userId })

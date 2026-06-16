@@ -86,14 +86,14 @@ stop_deployment() {
   if [[ ! -f "$lockfile" ]]; then echo "No active deployment for $root"; return 0; fi
   local data pid port; data=$(cat "$lockfile")
   pid=$(jq_field "$data" "pid"); port=$(jq_field "$data" "port")
+  # Only stop the tracked process (+ its children) — never blanket-kill by port,
+  # which could terminate an unrelated service that reused the port.
   if [[ -n "$pid" ]] && is_pid_alive "$pid"; then
     echo "Stopping server on :$port (pid $pid)"
-    kill "$pid" 2>/dev/null || true; pkill -P "$pid" 2>/dev/null || true
-  fi
-  if [[ -n "$port" ]]; then
-    while IFS= read -r listener; do
-      [[ -n "$listener" ]] && kill "$listener" 2>/dev/null || true
-    done < <(lsof -ti :"$port" 2>/dev/null || true)
+    pkill -P "$pid" 2>/dev/null || true
+    kill "$pid" 2>/dev/null || true
+  else
+    echo "No tracked process for :$port"
   fi
   rm -f "$lockfile"; echo "Stopped."
 }

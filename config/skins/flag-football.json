@@ -43,7 +43,7 @@
     "cta": "count me in",
     "note": "we ask for your email, name, and zip. that's all."
   },
-  "donate": { "url": "#", "label": "support the project" },
+  "donate": { "url": "https://github.com/ScienceIsNeato/pickupFlagFootball", "label": "support the project" },
   "gear": {
     "seoTitle": "gear · MIME-FF",
     "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",

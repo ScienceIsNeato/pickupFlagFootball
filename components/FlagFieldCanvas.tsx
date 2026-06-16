@@ -17,7 +17,7 @@ export function FlagFieldCanvas() {
     const ctx = c.getContext("2d");
     if (!ctx) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
     const reduce =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const COLORS = ["#f5c518", "#e2483f", "#2fb673", "#f59e2a"];
@@ -33,6 +33,7 @@ export function FlagFieldCanvas() {
     const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
     function build() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2); // refresh on resize / DPR change
       W = window.innerWidth; H = window.innerHeight;
       c!.width = W * dpr; c!.height = H * dpr;
       c!.style.width = W + "px"; c!.style.height = H + "px";

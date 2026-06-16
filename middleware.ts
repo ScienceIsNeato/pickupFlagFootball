@@ -10,7 +10,7 @@ export default auth((req) => {
     // opens the sign-in modal, and remember where they were headed.
     const url = new URL("/", req.nextUrl.origin);
     url.searchParams.set("signin", "1");
-    url.searchParams.set("next", req.nextUrl.pathname);
+    url.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
     return Response.redirect(url);
   }
 });

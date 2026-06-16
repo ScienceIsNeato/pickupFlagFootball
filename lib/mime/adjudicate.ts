@@ -13,7 +13,9 @@ export function adjudicate(
 
   const ranked = [...options].sort((a, b) => {
     if (b.promiseCount !== a.promiseCount) return b.promiseCount - a.promiseCount;
-    return a.firstSuggestedAt.getTime() - b.firstSuggestedAt.getTime();
+    const ta = a.firstSuggestedAt.getTime(), tb = b.firstSuggestedAt.getTime();
+    if (ta !== tb) return ta - tb;
+    return a.placeText.localeCompare(b.placeText); // fully deterministic on exact ties
   });
 
   const winner = ranked[0];

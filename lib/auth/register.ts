@@ -20,18 +20,19 @@ export async function registerWithPassword(input: {
   if (password.length < 8) return { ok: false, error: "password must be at least 8 characters" };
   if (!name) return { ok: false, error: "enter your name" };
 
-  const hash = await bcrypt.hash(password, 10);
-  const [existing] = await db.select({ id: users.id, passwordHash: users.passwordHash })
+  const exists = "an account with that email already exists — log in instead";
+  const [existing] = await db.select({ id: users.id })
     .from(users).where(eq(users.email, email)).limit(1);
+  // Never attach a password to a pre-existing account (e.g. a Google account):
+  // that would be an account-takeover path. Existing email → must log in.
+  if (existing) return { ok: false, error: exists };
 
-  if (existing?.passwordHash) return { ok: false, error: "an account with that email already exists — log in instead" };
-
-  if (existing) {
-    // account exists from Google with no password — attach one
-    await db.update(users).set({ passwordHash: hash, displayName: name, updatedAt: new Date() })
-      .where(eq(users.id, existing.id));
-  } else {
+  const hash = await bcrypt.hash(password, 10);
+  try {
     await db.insert(users).values({ email, displayName: name, passwordHash: hash });
+  } catch {
+    // concurrent insert lost the race on the unique email index
+    return { ok: false, error: exists };
   }
   return { ok: true };
 }

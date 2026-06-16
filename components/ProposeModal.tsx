@@ -1,12 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { proposeGame } from "@/app/(app)/dashboard/propose-actions";
 import { LocationPicker } from "./LocationPicker";
 
-/** The suggest-a-game flow, opened from a football on the map. */
+/** The suggest-a-game flow, opened from a cluster on the map. */
 export function ProposeModal({
   h3, center, onClose,
 }: { h3: string; center?: { lat: number; lng: number }; onClose: () => void }) {
+  // datetime-local has no timezone — convert the local wall time to an
+  // offset-aware ISO instant here, where the browser TZ is known.
+  const [local, setLocal] = useState("");
+  const iso = local ? new Date(local).toISOString() : "";
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -30,8 +35,10 @@ export function ProposeModal({
         </label>
         <label>
           when
-          <input name="start" type="datetime-local" required />
+          <input type="datetime-local" required value={local}
+            onChange={(e) => setLocal(e.target.value)} />
         </label>
+        <input type="hidden" name="start" value={iso} />
         <button className="btn-green" type="submit">propose it</button>
         <button type="button" onClick={onClose}
           style={{ background: "none", border: 0, color: "var(--muted)", cursor: "pointer",
