@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { kmToMiles } from "@/lib/geo";
-import { LocationPicker } from "@/components/LocationPicker";
 import { updateAccount } from "./actions";
 
 export const metadata = { title: "Account — MIME-FF" };
@@ -16,11 +15,18 @@ export default async function AccountPage() {
   const uid = session.user.id;
 
   const rows = await db
-    .select({ displayName: users.displayName, city: users.city, zip: users.zip, maxTravelKm: users.maxTravelKm })
+    .select({
+      displayName: users.displayName,
+      addressLine1: users.addressLine1, addressLine2: users.addressLine2,
+      city: users.city, state: users.state, zip: users.zip,
+      maxTravelKm: users.maxTravelKm,
+    })
     .from(users)
     .where(eq(users.id, uid))
     .limit(1);
-  const u = rows[0] ?? { displayName: "", city: "", zip: "", maxTravelKm: 40 };
+  const u = rows[0] ?? {
+    displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 40,
+  };
   const travelMiles = Math.round(kmToMiles(u.maxTravelKm ?? 40));
 
   return (
@@ -43,16 +49,6 @@ export default async function AccountPage() {
           />
         </label>
         <label>
-          city
-          <input
-            type="text"
-            name="city"
-            placeholder="Coralville"
-            defaultValue={u.city ?? ""}
-            autoComplete="address-level2"
-          />
-        </label>
-        <label>
           zip code
           <input
             type="text"
@@ -64,10 +60,50 @@ export default async function AccountPage() {
             defaultValue={u.zip ?? ""}
           />
         </label>
+        <p className="reg-section">your address <span className="reg-optional">(optional — sharpens distance to games)</span></p>
         <label>
-          your address <span className="reg-optional">(optional)</span>
-          <LocationPicker name="home_addr" required={false} placeholder="update where you actually live" />
+          street address
+          <input
+            type="text"
+            name="address_line1"
+            placeholder="1806 Brown Deer Trail"
+            autoComplete="address-line1"
+            defaultValue={u.addressLine1 ?? ""}
+          />
         </label>
+        <label>
+          apt / suite / unit
+          <input
+            type="text"
+            name="address_line2"
+            placeholder="Apt 4"
+            autoComplete="address-line2"
+            defaultValue={u.addressLine2 ?? ""}
+          />
+        </label>
+        <div className="reg-row">
+          <label>
+            city
+            <input
+              type="text"
+              name="city"
+              placeholder="Coralville"
+              defaultValue={u.city ?? ""}
+              autoComplete="address-level2"
+            />
+          </label>
+          <label className="reg-state">
+            state
+            <input
+              type="text"
+              name="state"
+              placeholder="IA"
+              maxLength={20}
+              defaultValue={u.state ?? ""}
+              autoComplete="address-level1"
+            />
+          </label>
+        </div>
         <label>
           how far will you travel? (miles)
           <input

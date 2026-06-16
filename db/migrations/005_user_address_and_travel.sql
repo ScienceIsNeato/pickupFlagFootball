@@ -8,6 +8,12 @@
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS max_travel_km double precision NOT NULL DEFAULT 40;
 
+-- structured home address (optional beyond ZIP; server-only, used to geocode a
+-- precise home point). city/zip already exist on users.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address_line1 text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address_line2 text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS state text;
+
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint

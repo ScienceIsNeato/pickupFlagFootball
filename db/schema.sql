@@ -78,10 +78,14 @@ CREATE TABLE users (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email         text UNIQUE NOT NULL,
   display_name  text,
+  -- structured home address (optional beyond ZIP; server-only, used to geocode)
+  address_line1 text,
+  address_line2 text,
   city          text,
+  state         text,
   zip           text,
-  -- home point: the user's actual picked address when they give one, else the
-  -- ZIP centroid. Server-only — the map exposes only H3-cell centroids.
+  -- home point: the geocoded address when given, else the ZIP centroid.
+  -- Server-only — the map exposes only H3-cell centroids.
   home_lat      double precision,
   home_lng      double precision,
   -- how far the user will travel for a game (km); gates the map's cursor pull

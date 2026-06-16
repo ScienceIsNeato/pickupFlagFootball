@@ -50,11 +50,16 @@ export const users = pgTable("users", {
   id:               uuid("id").primaryKey().defaultRandom(),
   email:            text("email").notNull().unique(),
   displayName:      text("display_name"),
+  // structured home address. Optional beyond ZIP; server-only (used to geocode
+  // a precise home point for distance, never shown to anyone).
+  addressLine1:     text("address_line1"),
+  addressLine2:     text("address_line2"),
   city:             text("city"),
+  state:            text("state"),
   zip:              text("zip"),
-  // home point — may be the user's actual picked address (precise) or, when they
-  // only give a ZIP, that ZIP's centroid. Server-only: the map never exposes it,
-  // it only emits H3-cell centroids. Used to measure distance to games.
+  // home point — the geocoded address when given, else that ZIP's centroid.
+  // Server-only: the map never exposes it, it only emits H3-cell centroids.
+  // Used to measure distance to games.
   homeLat:          doublePrecision("home_lat"),
   homeLng:          doublePrecision("home_lng"),
   // how far the user will travel for a game (km). Gates the map's cursor pull.

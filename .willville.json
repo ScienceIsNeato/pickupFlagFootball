@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Adding home-address collection at signup, a privacy promise about it, and a travel-distance setting that controls what the map highlights",
-    "direction": "Wire it through, then open a PR and work the review",
+    "status": "Swapped the address autocomplete for a real fill-in address form (street, apt, city, state, zip) and geocode it behind the scenes for distance",
+    "direction": "Push the update to the open PR and work the review",
     "last_update": "2026-06-16T00:00:00Z"
   }
 }

@@ -5,25 +5,24 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { lookupZip, cellsForPoint, ensureArea, milesToKm } from "@/lib/geo";
+import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
 
-function coord(raw: FormDataEntryValue | null, lo: number, hi: number): number | null {
-  const s = String(raw ?? "").trim();
-  const n = Number(s);
-  return s && Number.isFinite(n) && n >= lo && n <= hi ? n : null;
-}
+const str = (v: FormDataEntryValue | null) => String(v ?? "").trim();
 
 export async function updateAccount(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
-  const displayName = (formData.get("displayName") as string ?? "").trim() || null;
-  const city = (formData.get("city") as string ?? "").trim();
-  const zip = (formData.get("zip") as string ?? "").trim();
+  const displayName = str(formData.get("displayName")) || null;
+  const city = str(formData.get("city"));
+  const zip = str(formData.get("zip"));
+  const line1 = str(formData.get("address_line1"));
+  const line2 = str(formData.get("address_line2"));
+  const state = str(formData.get("state"));
 
   const update: Record<string, unknown> = {
     displayName,
@@ -35,25 +34,19 @@ export async function updateAccount(formData: FormData) {
   if (Number.isFinite(miles) && miles > 0) update.maxTravelKm = milesToKm(miles);
 
   if (zip && /^\d{5}$/.test(zip)) {
-    const centroid = await lookupZip(zip);
-    if (!centroid) throw new Error("ZIP code not found");
+    const home = await resolveHome({ zip, line1, line2, city, state });
+    if (!home) throw new Error("ZIP code not found");
     {
-      // Optional precise address: key home + cells off it when given, else the
-      // ZIP centroid. The shared area always uses the r7 cell centroid.
-      const addrLat = coord(formData.get("home_addr_lat"), -90, 90);
-      const addrLng = coord(formData.get("home_addr_lng"), -180, 180);
-      const hasAddr = addrLat !== null && addrLng !== null;
-      const baseLat = hasAddr ? addrLat : centroid.lat;
-      const baseLng = hasAddr ? addrLng : centroid.lng;
-
-      const { r5, r6, r7, r8, r9, snapLat, snapLng } = cellsForPoint(baseLat, baseLng);
-      const displayCity = city || centroid.city || zip;
+      const { displayCity, homeLat, homeLng, snapLat, snapLng, r5, r6, r7, r8, r9 } = home;
 
       Object.assign(update, {
+        addressLine1: line1 || null,
+        addressLine2: line2 || null,
         city: displayCity,
+        state: state || null,
         zip,
-        homeLat: hasAddr ? addrLat : snapLat,
-        homeLng: hasAddr ? addrLng : snapLng,
+        homeLat,
+        homeLng,
         h3R5: r5,
         h3R6: r6,
         h3R7: r7,

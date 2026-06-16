@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { haversineKm, milesToKm, kmToMiles } from "@/lib/geo/distance";
+import { geocodeAddress } from "@/lib/geo/geocode";
 
 const approx = (a: number, b: number, tol: number) =>
   assert.ok(Math.abs(a - b) <= tol, `${a} not within ${tol} of ${b}`);
@@ -28,4 +29,11 @@ test("mile/km conversions round-trip and match defaults", () => {
   approx(milesToKm(25), 40.23, 0.1);   // the default travel radius
   approx(kmToMiles(40), 24.85, 0.1);
   approx(kmToMiles(milesToKm(13)), 13, 1e-9);
+});
+
+test("geocodeAddress: no street line → null without any network call", async () => {
+  // The early return guards the request path: callers fall back to the ZIP
+  // centroid when there's no street address to resolve.
+  assert.equal(await geocodeAddress({ city: "Coralville", state: "IA", zip: "52241" }), null);
+  assert.equal(await geocodeAddress({ line1: "   " }), null);
 });
