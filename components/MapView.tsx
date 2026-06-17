@@ -162,6 +162,9 @@ export function MapView({
     }
 
     let raf = 0;
+    // While the map is panning/zooming, flags lock to their projected position
+    // (see the frame loop) instead of easing — so they stay bolted to the basemap.
+    let mapMoving = false;
     function frame() {
       const W = container.clientWidth, H = container.clientHeight;
       ctx.clearRect(0, 0, W, H);
@@ -177,17 +180,24 @@ export function MapView({
             const e = easeOut(morph);
             tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
           }
-          if (!f.init) { f.init = true; f.x = tx; f.y = ty; } // seed once; (0,0) is a valid target
-          const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
-          // Out-of-range clusters (beyond the viewer's travel radius) ignore the
-          // cursor — they're games you wouldn't go to, so they don't get pulled.
-          if (on && cl.inRange && d < GR) {
-            const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
-            f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
-            f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;
+          if (!f.init || mapMoving) {
+            // First seed, or bolt rigidly to the map while it pans/zooms — snap
+            // straight to the projected geo position so flags don't lerp-lag
+            // behind the basemap. (0,0) is a valid target.
+            f.init = true; f.x = tx; f.y = ty;
+            f.energy += (0.12 - f.energy) * 0.1; // keep the gentle flutter
           } else {
-            f.x += (tx - f.x) * 0.1; f.y += (ty - f.y) * 0.1;
-            f.energy += (0.12 - f.energy) * 0.1; // gentle resting flutter
+            const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
+            // Out-of-range clusters (beyond the viewer's travel radius) ignore the
+            // cursor — they're games you wouldn't go to, so they don't get pulled.
+            if (on && cl.inRange && d < GR) {
+              const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
+              f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
+              f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;
+            } else {
+              f.x += (tx - f.x) * 0.1; f.y += (ty - f.y) * 0.1;
+              f.energy += (0.12 - f.energy) * 0.1; // gentle resting flutter
+            }
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
@@ -213,6 +223,8 @@ export function MapView({
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => { void refresh(); }, 250);
     };
+    map.on("movestart", () => { mapMoving = true; });
+    map.on("moveend", () => { mapMoving = false; });
     map.on("moveend", debouncedRefresh);
     map.on("click", async (e) => {
       if (map.getZoom() < MAX_ZOOM) return;
