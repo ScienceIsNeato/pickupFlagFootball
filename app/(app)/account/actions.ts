@@ -10,8 +10,7 @@ import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
-
-const str = (v: FormDataEntryValue | null) => String(v ?? "").trim();
+import { str } from "@/lib/forms";
 
 export async function updateAccount(formData: FormData) {
   const session = await auth();
@@ -30,8 +29,9 @@ export async function updateAccount(formData: FormData) {
   };
 
   // Travel radius — entered in miles, stored in km. Updatable on its own.
-  const miles = Number(String(formData.get("max_travel_miles") ?? "").trim());
-  if (Number.isFinite(miles) && miles > 0) update.maxTravelKm = milesToKm(miles);
+  // Bound it server-side (the form caps at 500; a raw POST could send anything).
+  const miles = Number(str(formData.get("max_travel_miles")));
+  if (Number.isFinite(miles) && miles >= 1 && miles <= 500) update.maxTravelKm = milesToKm(miles);
 
   if (zip && /^\d{5}$/.test(zip)) {
     const home = await resolveHome({ zip, line1, line2, city, state });

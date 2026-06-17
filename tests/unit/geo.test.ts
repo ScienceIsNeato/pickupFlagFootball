@@ -37,3 +37,15 @@ test("geocodeAddress: no street line → null without any network call", async (
   assert.equal(await geocodeAddress({ city: "Coralville", state: "IA", zip: "52241" }), null);
   assert.equal(await geocodeAddress({ line1: "   " }), null);
 });
+
+test("geocodeAddress: self-host gate — no GEOCODER_URL → null, never a 3rd-party call", async () => {
+  // Guards the privacy promise: with no in-house geocoder configured we don't
+  // send the address anywhere; the caller uses the ZIP centroid instead.
+  const prev = process.env.GEOCODER_URL;
+  delete process.env.GEOCODER_URL;
+  try {
+    assert.equal(await geocodeAddress({ line1: "1806 Brown Deer Trail", city: "Coralville", state: "IA", zip: "52241" }), null);
+  } finally {
+    if (prev !== undefined) process.env.GEOCODER_URL = prev;
+  }
+});

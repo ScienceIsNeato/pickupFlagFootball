@@ -64,6 +64,11 @@ export function MapView({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clustersRef = useRef<Cluster[]>([]);
+  // The map effect is mount-only; keep home/maxTravelKm live via a ref so a
+  // later prop change (e.g. the user edits their travel radius) takes effect on
+  // the next refresh without a remount.
+  const homeRef = useRef(home);
+  homeRef.current = home;
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -134,7 +139,8 @@ export function MapView({
         // A cluster is "in range" when its general-area centroid is within the
         // viewer's travel radius of home. With no home set, everything is in
         // range. This gates the cursor pull below.
-        const inRange = !home || haversineKm(home.lat, home.lng, c.lat, c.lng) <= home.maxTravelKm;
+        const h = homeRef.current;
+        const inRange = !h || haversineKm(h.lat, h.lng, c.lat, c.lng) <= h.maxTravelKm;
         return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags, inRange };
       });
       dataRes = res;

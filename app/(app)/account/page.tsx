@@ -57,6 +57,7 @@ export default async function AccountPage() {
             inputMode="numeric"
             autoComplete="postal-code"
             pattern="[0-9]{5}"
+            required
             defaultValue={u.zip ?? ""}
           />
         </label>

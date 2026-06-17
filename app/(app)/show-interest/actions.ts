@@ -10,8 +10,7 @@ import { setActiveInterest } from "@/lib/db/interest";
 import { txnDb } from "@/lib/db/pool";
 import { evaluate } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
-
-const str = (v: FormDataEntryValue | null) => String(v ?? "").trim();
+import { str } from "@/lib/forms";
 
 export async function setLocationAndInterest(formData: FormData) {
   const session = await auth();
