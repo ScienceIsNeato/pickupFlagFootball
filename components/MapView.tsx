@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { haversineKm } from "@/lib/geo/distance";
+import { TEAM_YELLOW, TEAM_BLUE, GRASS } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
@@ -12,7 +13,9 @@ const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
 const GR = 120;          // cursor gravity radius — the background flag physics
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
-const COLORS = ["#f5c518", "#e2483f", "#2fb673", "#f59e2a"];
+// Cluster layout: two teams line up facing each other across the centroid.
+const ROW_GAP = 14;      // vertical gap between the yellow and blue rows (px)
+const COL_SP = 14;       // horizontal spacing within a row (px)
 
 const STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -124,16 +127,22 @@ export function MapView({
       const W = container.clientWidth, H = container.clientHeight;
       clustersRef.current = cells.map((c) => {
         const n = Math.max(1, Math.min(12, c.count));
-        const spread = Math.min(42, 10 + c.count);
+        // Two teams face off: yellow on the top row, blue on the bottom, spread
+        // along each row and centered — a little football lineup per cluster.
+        const yellow = Math.ceil(n / 2);
         const flags: Flag[] = [];
         for (let i = 0; i < n; i++) {
-          const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
+          const isYellow = i < yellow;
+          const row = isYellow ? yellow : n - yellow;
+          const idx = isYellow ? i : i - yellow;
+          const rdx = (idx - (row - 1) / 2) * COL_SP + rand(-2, 2);
+          const rdy = (isYellow ? -ROW_GAP : ROW_GAP) + rand(-2, 2);
           flags.push({
-            rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
+            rdx, rdy,
             sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
             x: 0, y: 0, ox: rand(-10, 10), oy: rand(-10, 10),
-            size: rand(8, 13), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
-            energy: 0, color: COLORS[(Math.random() * COLORS.length) | 0], init: false,
+            size: rand(9, 12), rot: rand(-0.28, 0.28), phase: rand(0, Math.PI * 2),
+            energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_BLUE, init: false,
           });
         }
         // A cluster is "in range" when its general-area centroid is within the
@@ -212,7 +221,7 @@ export function MapView({
         if (morph > 0.6) {
           ctx.globalAlpha = (morph - 0.6) / 0.4;
           ctx.font = `700 ${cl.count >= 10 ? 13 : 14}px system-ui, -apple-system, sans-serif`;
-          ctx.fillStyle = cl.hasGame ? "#2fb673" : "#ffffff";
+          ctx.fillStyle = cl.hasGame ? GRASS.l1 : "#ffffff";
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
           ctx.fillText(String(cl.count), home.x, home.y - 2);

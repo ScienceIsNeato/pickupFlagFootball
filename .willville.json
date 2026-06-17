@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Swapped the address autocomplete for a real fill-in address form (street, apt, city, state, zip) and geocode it behind the scenes for distance",
-    "direction": "Push the update to the open PR and work the review",
+    "status": "Reskinning the map and flags to our grass-green palette, with flags as two teams (yellow vs blue) that line up like a football matchup",
+    "direction": "Open a separate PR for the look, then tune the map green to taste",
     "last_update": "2026-06-16T00:00:00Z"
   }
 }

@@ -1,12 +1,15 @@
 :root {
   color-scheme: dark;
-  /* flag-football accents */
-  --field: #14532d;
+  /* flag-football accents — "grass fields" palette (light → dark) + team colors */
+  --field: #30632a;
   --line: rgba(255, 255, 255, 0.16);
-  --green: #1f8a3b;
-  --green-d: #14692e;
-  --yellow: #f5c518;
-  --link: #6bc06b;
+  --green: #468944;       /* grass l2 — primary accent / buttons */
+  --green-d: #30632a;     /* grass l5 — hover / dark */
+  --grass: #3f7a39;       /* grass l3 — mid */
+  --grass-l: #5b9452;     /* grass l1 — lightest */
+  --yellow: #f4c430;      /* team yellow */
+  --blue: #2f6fd8;        /* team blue */
+  --link: #5b9452;
   /* dark theme */
   --ink: #e9edf6;
   --muted: #a3acc2;
@@ -43,7 +46,7 @@ body {
 /* Football-field tone over the light basemap: push the warm tiles toward a
    muted grass green and darken them down. Filters the tile canvas only — the
    football markers are separate DOM and keep their own color. */
-.maplibregl-canvas { filter: brightness(0.74) sepia(0.55) hue-rotate(55deg) saturate(1.7) contrast(1.02); }
+.maplibregl-canvas { filter: brightness(0.85) sepia(0.5) hue-rotate(60deg) saturate(1.5) contrast(1.0); }
 
 h1, h2, .brand, .step-n { font-family: var(--font-barlow), var(--font-inter), sans-serif; }
 a { color: var(--link); text-decoration: none; }
