@@ -40,12 +40,23 @@ test("geocodeAddress: no street line → null without any network call", async (
 
 test("geocodeAddress: self-host gate — no GEOCODER_URL → null, never a 3rd-party call", async () => {
   // Guards the privacy promise: with no in-house geocoder configured we don't
-  // send the address anywhere; the caller uses the ZIP centroid instead.
+  // send the address anywhere; the caller uses the ZIP centroid instead. Assert
+  // it explicitly — a regression that still fetched and returned null would slip
+  // past a value-only check.
   const prev = process.env.GEOCODER_URL;
+  const prevFetch = globalThis.fetch;
+  let fetchCalled = false;
+  globalThis.fetch = (async () => {
+    fetchCalled = true;
+    throw new Error("fetch must not be called when GEOCODER_URL is unset");
+  }) as typeof fetch;
   delete process.env.GEOCODER_URL;
   try {
     assert.equal(await geocodeAddress({ line1: "1806 Brown Deer Trail", city: "Coralville", state: "IA", zip: "52241" }), null);
+    assert.equal(fetchCalled, false);
   } finally {
+    globalThis.fetch = prevFetch;
     if (prev !== undefined) process.env.GEOCODER_URL = prev;
+    else delete process.env.GEOCODER_URL;
   }
 });
