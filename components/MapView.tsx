@@ -11,11 +11,30 @@ type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: bool
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
-const GR = 120;          // cursor gravity radius — the background flag physics
+const GR = 120;          // cursor "collect" radius — within this of a cluster, its flags form up
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
-// Cluster layout: two teams line up facing each other across the centroid.
-const ROW_GAP = 14;      // vertical gap between the yellow and blue rows (px)
-const COL_SP = 14;       // horizontal spacing within a row (px)
+
+// Flag-football playbook. Each cluster's two teams rest scattered at the user's
+// area and snap into this formation — scaled to team size, up to 11 a side —
+// only when the cursor collects them. Priority order: QB, wide receivers, then
+// the line, then backs, so 2-on-2 is QB+WR, 5-on-5 adds the line, etc. Units are
+// roughly yards from the line of scrimmage (x lateral, y depth behind it).
+const FORMATION: { x: number; y: number }[] = [
+  { x: 0.0,  y: 2.4 },  // QB
+  { x: -4.0, y: 0.3 },  // WR left
+  { x: 4.0,  y: 0.3 },  // WR right
+  { x: 0.0,  y: 0.0 },  // center
+  { x: -1.1, y: 0.0 },  // left guard
+  { x: 1.1,  y: 0.0 },  // right guard
+  { x: -2.7, y: 0.4 },  // slot left
+  { x: 2.7,  y: 0.4 },  // slot right / TE
+  { x: -2.1, y: 0.0 },  // left tackle
+  { x: 2.1,  y: 0.0 },  // right tackle
+  { x: 1.0,  y: 2.6 },  // running back
+];
+const TEAM_CAP = FORMATION.length;  // 11 a side
+const YARD = 8;          // px per formation unit
+const LOS_GAP = 7;       // px gap at the line of scrimmage between the teams
 
 const STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -46,10 +65,10 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
 type Flag = {
-  rdx: number; rdy: number;       // rest offset within the cluster
+  rdx: number; rdy: number;       // rest offset (scattered at the user's area)
+  fdx: number; fdy: number;       // formation slot offset (when the cursor collects)
   sx: number; sy: number;         // morph spawn point (scattered)
   x: number; y: number;           // live position
-  ox: number; oy: number;         // gather jitter
   size: number; rot: number; phase: number; energy: number; color: string;
   init: boolean;                  // seeded its first live position yet?
 };
@@ -126,28 +145,35 @@ export function MapView({
       }
       const W = container.clientWidth, H = container.clientHeight;
       clustersRef.current = cells.map((c) => {
-        const n = Math.max(1, Math.min(12, c.count));
-        // Two teams face off: yellow on the top row, blue on the bottom, spread
-        // along each row and centered — a little football lineup per cluster.
-        const yellow = Math.ceil(n / 2);
+        // Show up to two full teams (11 a side). Yellow takes the larger half.
+        const shown = Math.max(1, Math.min(TEAM_CAP * 2, c.count));
+        const yellow = Math.min(TEAM_CAP, Math.ceil(shown / 2));
+        const blue = Math.min(TEAM_CAP, shown - yellow);
+        const spread = Math.min(46, 14 + c.count); // rest scatter radius
         const flags: Flag[] = [];
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < shown; i++) {
           const isYellow = i < yellow;
-          const row = isYellow ? yellow : n - yellow;
-          const idx = isYellow ? i : i - yellow;
-          const rdx = (idx - (row - 1) / 2) * COL_SP + rand(-2, 2);
-          const rdy = (isYellow ? -ROW_GAP : ROW_GAP) + rand(-2, 2);
+          const role = isYellow ? i : i - yellow;       // 0 = QB, 1/2 = WRs, ...
+          const pos = FORMATION[role];
+          // Formation slot: lateral x, and depth back from the line of scrimmage.
+          // Yellow lines up above the centroid, blue below — facing off.
+          const fdx = pos.x * YARD + rand(-1.5, 1.5);
+          const depth = LOS_GAP + pos.y * YARD;
+          const fdy = (isYellow ? -depth : depth) + rand(-1.5, 1.5);
+          // Rest: scattered around the user's area (the cluster centroid).
+          const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
           flags.push({
-            rdx, rdy,
+            rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
+            fdx, fdy,
             sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
-            x: 0, y: 0, ox: rand(-10, 10), oy: rand(-10, 10),
-            size: rand(9, 12), rot: rand(-0.28, 0.28), phase: rand(0, Math.PI * 2),
+            x: 0, y: 0,
+            size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
             energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_BLUE, init: false,
           });
         }
         // A cluster is "in range" when its general-area centroid is within the
         // viewer's travel radius of home. With no home set, everything is in
-        // range. This gates the cursor pull below.
+        // range. Out-of-range clusters never get collected into formation.
         const h = homeRef.current;
         const inRange = !h || haversineKm(h.lat, h.lng, c.lat, c.lng) <= h.maxTravelKm;
         return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags, inRange };
@@ -189,30 +215,31 @@ export function MapView({
 
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
+        // The cursor "collects" a cluster when it's within GR of the centroid
+        // (and the cluster is in travel range, and the map is idle). Only then do
+        // the two teams break from their scatter and line up in formation.
+        const cdx = mx - home.x, cdy = my - home.y;
+        const active = on && !mapMoving && cl.inRange && (cdx * cdx + cdy * cdy) < GR * GR;
         for (const f of cl.flags) {
-          let tx = home.x + f.rdx, ty = home.y + f.rdy;
+          // Rest position — scattered at the user's area — with the intro morph.
+          let rx = home.x + f.rdx, ry = home.y + f.rdy;
           if (morph < 1 && f.sx >= 0) {
             const e = easeOut(morph);
-            tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
+            rx = f.sx + (rx - f.sx) * e; ry = f.sy + (ry - f.sy) * e;
           }
           if (!f.init || mapMoving) {
             // First seed, or bolt rigidly to the map while it pans/zooms — snap
-            // straight to the projected geo position so flags don't lerp-lag
-            // behind the basemap. (0,0) is a valid target.
-            f.init = true; f.x = tx; f.y = ty;
-            f.energy += (0.12 - f.energy) * 0.1; // keep the gentle flutter
+            // to the rest spot so flags don't lerp-lag behind the basemap.
+            f.init = true; f.x = rx; f.y = ry;
+            f.energy += (0.12 - f.energy) * 0.1;
           } else {
-            const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
-            // Out-of-range clusters (beyond the viewer's travel radius) ignore the
-            // cursor — they're games you wouldn't go to, so they don't get pulled.
-            if (on && cl.inRange && d < GR) {
-              const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
-              f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
-              f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;
-            } else {
-              f.x += (tx - f.x) * 0.1; f.y += (ty - f.y) * 0.1;
-              f.energy += (0.12 - f.energy) * 0.1; // gentle resting flutter
-            }
+            // Collected → ease into the playbook slot; otherwise drift back home.
+            const tx = active ? home.x + f.fdx : rx;
+            const ty = active ? home.y + f.fdy : ry;
+            const k = active ? 0.16 : 0.1;            // snappier into formation
+            f.x += (tx - f.x) * k; f.y += (ty - f.y) * k;
+            const targetE = active ? 0.45 : 0.12;     // livelier flutter when formed up
+            f.energy += (targetE - f.energy) * (active ? 0.14 : 0.1);
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
