@@ -78,11 +78,18 @@ CREATE TABLE users (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email         text UNIQUE NOT NULL,
   display_name  text,
+  -- structured home address (optional beyond ZIP; server-only, used to geocode)
+  address_line1 text,
+  address_line2 text,
   city          text,
+  state         text,
   zip           text,
-  -- coarse, privacy-rounded home point (snapped to an H3 cell center; never an address)
+  -- home point: the geocoded address when given, else the ZIP centroid.
+  -- Server-only — the map exposes only H3-cell centroids.
   home_lat      double precision,
   home_lng      double precision,
+  -- how far the user will travel for a game (km); gates the map's cursor pull
+  max_travel_km double precision NOT NULL DEFAULT 40,
   -- derived H3 cell ids at multiple resolutions (computed in-app via h3-js)
   h3_r5         bigint,
   h3_r6         bigint,
@@ -95,7 +102,8 @@ CREATE TABLE users (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
   CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),
-  CHECK (home_lng IS NULL OR home_lng BETWEEN -180 AND 180)
+  CHECK (home_lng IS NULL OR home_lng BETWEEN -180 AND 180),
+  CHECK (max_travel_km > 0)
 );
 CREATE INDEX idx_users_zip    ON users(zip);
 CREATE INDEX idx_users_h3_r7  ON users(h3_r7);

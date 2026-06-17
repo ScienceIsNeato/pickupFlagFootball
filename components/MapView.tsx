@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { haversineKm } from "@/lib/geo/distance";
 import { ProposeModal } from "./ProposeModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
@@ -49,13 +50,25 @@ type Flag = {
   size: number; rot: number; phase: number; energy: number; color: string;
   init: boolean;                  // seeded its first live position yet?
 };
-type Cluster = { ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[] };
+type Cluster = {
+  ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[];
+  inRange: boolean;               // within the viewer's travel radius of home?
+};
 
-export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?: number }) {
+type Home = { lat: number; lng: number; maxTravelKm: number };
+
+export function MapView({
+  center, zoom = 9, home = null,
+}: { center: [number, number]; zoom?: number; home?: Home | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clustersRef = useRef<Cluster[]>([]);
+  // The map effect is mount-only; keep home/maxTravelKm live via a ref so a
+  // later prop change (e.g. the user edits their travel radius) takes effect on
+  // the next refresh without a remount.
+  const homeRef = useRef(home);
+  homeRef.current = home;
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -123,7 +136,12 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
             energy: 0, color: COLORS[(Math.random() * COLORS.length) | 0], init: false,
           });
         }
-        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
+        // A cluster is "in range" when its general-area centroid is within the
+        // viewer's travel radius of home. With no home set, everything is in
+        // range. This gates the cursor pull below.
+        const h = homeRef.current;
+        const inRange = !h || haversineKm(h.lat, h.lng, c.lat, c.lng) <= h.maxTravelKm;
+        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags, inRange };
       });
       dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
@@ -150,6 +168,9 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
     }
 
     let raf = 0;
+    // While the map is panning/zooming, flags lock to their projected position
+    // (see the frame loop) instead of easing — so they stay bolted to the basemap.
+    let mapMoving = false;
     function frame() {
       const W = container.clientWidth, H = container.clientHeight;
       ctx.clearRect(0, 0, W, H);
@@ -165,15 +186,24 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
             const e = easeOut(morph);
             tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
           }
-          if (!f.init) { f.init = true; f.x = tx; f.y = ty; } // seed once; (0,0) is a valid target
-          const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
-          if (on && d < GR) {
-            const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
-            f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
-            f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;
+          if (!f.init || mapMoving) {
+            // First seed, or bolt rigidly to the map while it pans/zooms — snap
+            // straight to the projected geo position so flags don't lerp-lag
+            // behind the basemap. (0,0) is a valid target.
+            f.init = true; f.x = tx; f.y = ty;
+            f.energy += (0.12 - f.energy) * 0.1; // keep the gentle flutter
           } else {
-            f.x += (tx - f.x) * 0.1; f.y += (ty - f.y) * 0.1;
-            f.energy += (0.12 - f.energy) * 0.1; // gentle resting flutter
+            const dx = mx - f.x, dy = my - f.y, d = Math.hypot(dx, dy);
+            // Out-of-range clusters (beyond the viewer's travel radius) ignore the
+            // cursor — they're games you wouldn't go to, so they don't get pulled.
+            if (on && cl.inRange && d < GR) {
+              const close = 1 - d / GR, pull = 0.05 + 0.22 * close;
+              f.x += (mx + f.ox - f.x) * pull; f.y += (my + f.oy - f.y) * pull;
+              f.energy += (0.5 + 0.5 * close - f.energy) * 0.15;
+            } else {
+              f.x += (tx - f.x) * 0.1; f.y += (ty - f.y) * 0.1;
+              f.energy += (0.12 - f.energy) * 0.1; // gentle resting flutter
+            }
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
@@ -199,6 +229,8 @@ export function MapView({ center, zoom = 9 }: { center: [number, number]; zoom?:
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => { void refresh(); }, 250);
     };
+    map.on("movestart", () => { mapMoving = true; });
+    map.on("moveend", () => { mapMoving = false; });
     map.on("moveend", debouncedRefresh);
     map.on("click", async (e) => {
       if (map.getZoom() < MAX_ZOOM) return;

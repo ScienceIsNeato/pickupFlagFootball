@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   const uid = session.user.id;
 
   const [userRows, signalRows] = await Promise.all([
-    db.select({ homeLat: users.homeLat, homeLng: users.homeLng })
+    db.select({ homeLat: users.homeLat, homeLng: users.homeLng, maxTravelKm: users.maxTravelKm })
       .from(users).where(eq(users.id, uid)).limit(1),
     db.select({ id: interestSignals.id })
       .from(interestSignals)
@@ -26,11 +26,16 @@ export default async function DashboardPage() {
 
   const u = userRows[0];
   const center: [number, number] = [u?.homeLng ?? -91.6, u?.homeLat ?? 41.69];
+  // The user's own home + travel radius gate which clusters the cursor pulls.
+  // homeLat/homeLng stay server-side except for this one user's own map.
+  const home = u?.homeLat != null && u?.homeLng != null
+    ? { lat: u.homeLat, lng: u.homeLng, maxTravelKm: u.maxTravelKm }
+    : null;
 
   // Fullscreen map; the floating header/footer (app layout) sit on top.
   return (
     <div className="dash-map">
-      <MapView center={center} zoom={9} />
+      <MapView center={center} zoom={9} home={home} />
     </div>
   );
 }
