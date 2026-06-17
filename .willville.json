@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reskinning the map and flags to our grass-green palette, with flags as two teams (yellow vs blue) that line up like a football matchup",
-    "direction": "Open a separate PR for the look, then tune the map green to taste",
+    "status": "Map now looks like a football field (green turf, white roads) and flags get collected by the cursor into two facing lines",
+    "direction": "Get feedback on the look and tune; logged a few bigger features as issues",
     "last_update": "2026-06-16T00:00:00Z"
   }
 }

@@ -11,47 +11,67 @@ type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: bool
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
-const GR = 120;          // cursor "collect" radius — within this of a cluster, its flags form up
+const GR = 130;          // cursor "collect" radius — within this of a cluster, its flags rush to the cursor
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
+// When collected, the two teams line up in parallel rows on either side of the
+// cursor (the line of scrimmage), tails flapping away from each other.
+const TEAM_CAP = 11;     // up to 11 a side
+const COL_SP = 13;       // spacing between flags along a team's row
+const LINE_GAP = 16;     // gap from the cursor to each team's row
 
-// Flag-football playbook. Each cluster's two teams rest scattered at the user's
-// area and snap into this formation — scaled to team size, up to 11 a side —
-// only when the cursor collects them. Priority order: QB, wide receivers, then
-// the line, then backs, so 2-on-2 is QB+WR, 5-on-5 adds the line, etc. Units are
-// roughly yards from the line of scrimmage (x lateral, y depth behind it).
-const FORMATION: { x: number; y: number }[] = [
-  { x: 0.0,  y: 2.4 },  // QB
-  { x: -4.0, y: 0.3 },  // WR left
-  { x: 4.0,  y: 0.3 },  // WR right
-  { x: 0.0,  y: 0.0 },  // center
-  { x: -1.1, y: 0.0 },  // left guard
-  { x: 1.1,  y: 0.0 },  // right guard
-  { x: -2.7, y: 0.4 },  // slot left
-  { x: 2.7,  y: 0.4 },  // slot right / TE
-  { x: -2.1, y: 0.0 },  // left tackle
-  { x: 2.1,  y: 0.0 },  // right tackle
-  { x: 1.0,  y: 2.6 },  // running back
-];
-const TEAM_CAP = FORMATION.length;  // 11 a side
-const YARD = 8;          // px per formation unit
-const LOS_GAP = 7;       // px gap at the line of scrimmage between the teams
+// Football-field basemap: green turf, white "hashmark" roads, muted water.
+// Vector tiles (OpenFreeMap / OpenMapTiles schema) so we control the colors
+// directly — a raster + CSS filter can't keep roads white over green land.
+const FIELD = "#41863c";        // turf green
+const FIELD_DK = "#36702f";     // parks / woodland / grass
+const WATER = "#35617e";        // muted water
+const LABEL = "#16320f";        // dark-green ink
+const LABEL_HALO = "rgba(255,255,255,0.6)";
+const major = ["motorway", "trunk", "primary"];
 
 const STYLE: maplibregl.StyleSpecification = {
   version: 8,
+  glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   sources: {
-    carto: {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://carto.com/">CARTO</a> © OpenStreetMap contributors',
+    omt: {
+      type: "vector",
+      url: "https://tiles.openfreemap.org/planet",
+      attribution:
+        '© <a href="https://openfreemap.org">OpenFreeMap</a> © OpenMapTiles © OpenStreetMap contributors',
     },
   },
-  layers: [{ id: "carto", type: "raster", source: "carto" }],
+  layers: [
+    { id: "bg", type: "background", paint: { "background-color": FIELD } },
+    { id: "landcover", type: "fill", source: "omt", "source-layer": "landcover",
+      paint: { "fill-color": FIELD_DK, "fill-opacity": 0.3 } },
+    { id: "park", type: "fill", source: "omt", "source-layer": "park",
+      paint: { "fill-color": FIELD_DK, "fill-opacity": 0.4 } },
+    { id: "water", type: "fill", source: "omt", "source-layer": "water",
+      paint: { "fill-color": WATER } },
+    { id: "waterway", type: "line", source: "omt", "source-layer": "waterway",
+      paint: { "line-color": WATER, "line-width": 1 } },
+    // White roads, thin like field hashmarks; minor roads a touch translucent.
+    { id: "roads-minor", type: "line", source: "omt", "source-layer": "transportation",
+      filter: ["!", ["in", ["get", "class"], ["literal", major]]],
+      paint: {
+        "line-color": "rgba(255,255,255,0.55)",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.3, 12, 1, 16, 2.4],
+      } },
+    { id: "roads-major", type: "line", source: "omt", "source-layer": "transportation",
+      filter: ["in", ["get", "class"], ["literal", major]],
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 2, 16, 4],
+      } },
+    { id: "places", type: "symbol", source: "omt", "source-layer": "place",
+      filter: ["in", ["get", "class"], ["literal", ["city", "town", "village", "suburb"]]],
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 7, 11, 12, 15],
+      },
+      paint: { "text-color": LABEL, "text-halo-color": LABEL_HALO, "text-halo-width": 1.2 } },
+  ],
 };
 
 function resForZoom(z: number): number {
@@ -66,7 +86,8 @@ const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
 type Flag = {
   rdx: number; rdy: number;       // rest offset (scattered at the user's area)
-  fdx: number; fdy: number;       // formation slot offset (when the cursor collects)
+  fdx: number; fdy: number;       // row-slot offset from the cursor (when collected)
+  frot: number; rrot: number;     // facing when lined up (tail away) / when at rest
   sx: number; sy: number;         // morph spawn point (scattered)
   x: number; y: number;           // live position
   size: number; rot: number; phase: number; energy: number; color: string;
@@ -153,18 +174,18 @@ export function MapView({
         const flags: Flag[] = [];
         for (let i = 0; i < shown; i++) {
           const isYellow = i < yellow;
-          const role = isYellow ? i : i - yellow;       // 0 = QB, 1/2 = WRs, ...
-          const pos = FORMATION[role];
-          // Formation slot: lateral x, and depth back from the line of scrimmage.
-          // Yellow lines up above the centroid, blue below — facing off.
-          const fdx = pos.x * YARD + rand(-1.5, 1.5);
-          const depth = LOS_GAP + pos.y * YARD;
-          const fdy = (isYellow ? -depth : depth) + rand(-1.5, 1.5);
+          const idx = isYellow ? i : i - yellow;        // position within the team's row
+          const row = isYellow ? yellow : blue;
+          // Collected layout: a centered row on the cursor's yellow/blue side,
+          // tail flapping away from the other team (yellow up, blue down).
+          const fdx = (idx - (row - 1) / 2) * COL_SP + rand(-1.5, 1.5);
+          const fdy = (isYellow ? -LINE_GAP : LINE_GAP) + rand(-1.5, 1.5);
+          const frot = isYellow ? -Math.PI / 2 : Math.PI / 2;
           // Rest: scattered around the user's area (the cluster centroid).
           const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
           flags.push({
             rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
-            fdx, fdy,
+            fdx, fdy, frot, rrot: rand(0, Math.PI * 2),
             sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
             x: 0, y: 0,
             size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
@@ -216,8 +237,8 @@ export function MapView({
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
         // The cursor "collects" a cluster when it's within GR of the centroid
-        // (and the cluster is in travel range, and the map is idle). Only then do
-        // the two teams break from their scatter and line up in formation.
+        // (and the cluster is in travel range, and the map is idle). The flags
+        // then rush to the cursor and line up in two rows on either side of it.
         const cdx = mx - home.x, cdy = my - home.y;
         const active = on && !mapMoving && cl.inRange && (cdx * cdx + cdy * cdy) < GR * GR;
         for (const f of cl.flags) {
@@ -230,16 +251,19 @@ export function MapView({
           if (!f.init || mapMoving) {
             // First seed, or bolt rigidly to the map while it pans/zooms — snap
             // to the rest spot so flags don't lerp-lag behind the basemap.
-            f.init = true; f.x = rx; f.y = ry;
+            f.init = true; f.x = rx; f.y = ry; f.rot = f.rrot;
             f.energy += (0.12 - f.energy) * 0.1;
           } else {
-            // Collected → ease into the playbook slot; otherwise drift back home.
-            const tx = active ? home.x + f.fdx : rx;
-            const ty = active ? home.y + f.fdy : ry;
-            const k = active ? 0.16 : 0.1;            // snappier into formation
+            // Collected → the row slot centered on the cursor; else drift home.
+            const tx = active ? mx + f.fdx : rx;
+            const ty = active ? my + f.fdy : ry;
+            const k = active ? 0.18 : 0.1;            // snappier when collecting
             f.x += (tx - f.x) * k; f.y += (ty - f.y) * k;
-            const targetE = active ? 0.45 : 0.12;     // livelier flutter when formed up
-            f.energy += (targetE - f.energy) * (active ? 0.14 : 0.1);
+            // Face the tail away when lined up; relax to the resting angle at home.
+            const targetRot = active ? f.frot : f.rrot;
+            f.rot += (targetRot - f.rot) * (active ? 0.18 : 0.06);
+            const targetE = active ? 0.5 : 0.12;      // livelier flutter when collected
+            f.energy += (targetE - f.energy) * (active ? 0.15 : 0.1);
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);

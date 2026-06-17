@@ -43,10 +43,8 @@ body {
 
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 
-/* Football-field tone over the light basemap: push the warm tiles toward a
-   muted grass green and darken them down. Filters the tile canvas only — the
-   football markers are separate DOM and keep their own color. */
-.maplibregl-canvas { filter: brightness(0.85) sepia(0.5) hue-rotate(60deg) saturate(1.5) contrast(1.0); }
+/* The basemap is a vector football-field style (green turf + white roads),
+   colored directly in MapView's style spec — no canvas filter needed. */
 
 h1, h2, .brand, .step-n { font-family: var(--font-barlow), var(--font-inter), sans-serif; }
 a { color: var(--link); text-decoration: none; }
