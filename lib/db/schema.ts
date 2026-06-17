@@ -63,7 +63,7 @@ export const users = pgTable("users", {
   homeLat:          doublePrecision("home_lat"),
   homeLng:          doublePrecision("home_lng"),
   // how far the user will travel for a game (km). Gates the map's cursor pull.
-  maxTravelKm:      doublePrecision("max_travel_km").notNull().default(40),
+  maxTravelKm:      doublePrecision("max_travel_km").notNull().default(24.14), // ~15 mi
   h3R5:             bigint("h3_r5", { mode: "bigint" }),
   h3R6:             bigint("h3_r6", { mode: "bigint" }),
   h3R7:             bigint("h3_r7", { mode: "bigint" }),

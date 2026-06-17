@@ -29,9 +29,9 @@ export async function updateAccount(formData: FormData) {
   };
 
   // Travel radius — entered in miles, stored in km. Updatable on its own.
-  // Bound it server-side (the form caps at 500; a raw POST could send anything).
+  // Bound it server-side (the form caps at 100; a raw POST could send anything).
   const miles = Number(str(formData.get("max_travel_miles")));
-  if (Number.isFinite(miles) && miles >= 1 && miles <= 500) update.maxTravelKm = milesToKm(miles);
+  if (Number.isFinite(miles) && miles >= 1 && miles <= 100) update.maxTravelKm = milesToKm(miles);
 
   if (zip && /^\d{5}$/.test(zip)) {
     const home = await resolveHome({ zip, line1, line2, city, state });

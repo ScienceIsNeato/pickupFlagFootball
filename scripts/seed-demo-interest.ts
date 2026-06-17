@@ -1,25 +1,81 @@
 /**
- * Demo seed: scatter interest across an Iowa region so the cluster map has
- * something to collapse/expand. Idempotent (demo emails). One cluster is pushed
- * to a scheduled game so the green accent shows.
+ * Demo seed: scatter interest across the Iowa City / Cedar Rapids metro,
+ * weighted by ZIP population so the density looks real. Idempotent (demo
+ * emails). One cluster is pushed to a scheduled game so the green accent shows.
  *
  *   node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts
  *   node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts --clean
+ *
+ * 80% of users get a precise "real" home — a point scattered around their ZIP
+ * (denser near the centre) with a plausible street address — so they spread
+ * across the map. 20% are ZIP-only: their home is the ZIP centroid, so they all
+ * group there. Travel radius is varied: mostly the 15-mile default, with a tail.
+ *
+ * NOTE: we don't bundle a real street-address dataset, so the 80% are realistic
+ * synthetic points/addresses (population-weighted), not literally real houses.
+ * The geographic distribution is what's "real" here.
  */
-import { and, eq, like } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, areas, interestSignals, games, activityTypes } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
+import { milesToKm } from "@/lib/geo/distance";
 
-const CLUSTERS = [
-  { name: "Coralville",    lat: 41.6764, lng: -91.5805, n: 60, scheduled: true },
-  { name: "Iowa City",     lat: 41.6611, lng: -91.5302, n: 45 },
-  { name: "Cedar Rapids",  lat: 41.9779, lng: -91.6656, n: 35 },
-  { name: "North Liberty", lat: 41.7491, lng: -91.5974, n: 25 },
-  { name: "Tiffin",        lat: 41.7022, lng: -91.6669, n: 12 },
-  { name: "West Branch",   lat: 41.6711, lng: -91.3479, n: 8 },
+const TOTAL = 220;
+const ZIP_ONLY_FRACTION = 0.2;
+
+// Iowa City / Cedar Rapids metro ZIPs: approximate ZCTA population (weight) and
+// centroid. Population weights make the scatter demographically realistic.
+const METRO = [
+  { zip: "52402", city: "Cedar Rapids",  lat: 42.020, lng: -91.650, pop: 33000 },
+  { zip: "52404", city: "Cedar Rapids",  lat: 41.930, lng: -91.700, pop: 34000 },
+  { zip: "52403", city: "Cedar Rapids",  lat: 41.960, lng: -91.610, pop: 28000 },
+  { zip: "52405", city: "Cedar Rapids",  lat: 42.000, lng: -91.720, pop: 30000 },
+  { zip: "52411", city: "Cedar Rapids",  lat: 42.050, lng: -91.700, pop: 20000 },
+  { zip: "52401", city: "Cedar Rapids",  lat: 41.975, lng: -91.660, pop:  6000 },
+  { zip: "52302", city: "Marion",        lat: 42.030, lng: -91.590, pop: 40000 },
+  { zip: "52233", city: "Hiawatha",      lat: 42.045, lng: -91.685, pop:  8000 },
+  { zip: "52240", city: "Iowa City",     lat: 41.630, lng: -91.500, pop: 30000 },
+  { zip: "52245", city: "Iowa City",     lat: 41.670, lng: -91.510, pop: 25000 },
+  { zip: "52246", city: "Iowa City",     lat: 41.650, lng: -91.560, pop: 28000 },
+  { zip: "52241", city: "Coralville",    lat: 41.690, lng: -91.600, pop: 22000 },
+  { zip: "52317", city: "North Liberty", lat: 41.750, lng: -91.600, pop: 20000 },
+  { zip: "52340", city: "Tiffin",        lat: 41.710, lng: -91.670, pop:  4500 },
+  { zip: "52333", city: "Solon",         lat: 41.810, lng: -91.490, pop:  5500 },
+  { zip: "52358", city: "West Branch",   lat: 41.670, lng: -91.350, pop:  4000 },
 ];
+
+const STREETS = [
+  "Maple", "Oak", "1st", "Park", "Brown Deer", "Prairie", "Linn", "Dubuque",
+  "Riverside", "Mormon Trek", "Rochester", "Blairs Ferry", "Edgewood", "Forevergreen",
+];
+const SUFFIX = ["St", "Ave", "Rd", "Trail", "Ln", "Dr"];
+
+const rand = (a: number, b: number) => a + Math.random() * (b - a);
+const pick = <T>(xs: readonly T[]): T => xs[(Math.random() * xs.length) | 0];
+
+function pickZip() {
+  const total = METRO.reduce((s, z) => s + z.pop, 0);
+  let r = Math.random() * total;
+  for (const z of METRO) if ((r -= z.pop) <= 0) return z;
+  return METRO[METRO.length - 1];
+}
+
+/** Travel radius (miles) for each user: guaranteed 3×100, 1×50, 1×30, and the
+ *  rest weighted so 15 (the default) dominates, with some 25s/5s and a few 10s. */
+function travelMilesList(n: number): number[] {
+  const out: number[] = [100, 100, 100, 50, 30];
+  for (let i = out.length; i < n; i++) {
+    const r = Math.random();
+    out.push(r < 0.62 ? 15 : r < 0.80 ? 25 : r < 0.92 ? 5 : 10);
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out.slice(0, n);
+}
 
 async function clean() {
   const demo = await db.select({ id: users.id }).from(users).where(like(users.email, "demo-%@demo.test"));
@@ -35,38 +91,59 @@ async function main() {
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (!activity) throw new Error("flag-football activity not seeded");
 
-  let total = 0;
-  for (const c of CLUSTERS) {
-    for (let i = 0; i < c.n; i++) {
-      const lat = c.lat + (Math.random() - 0.5) * 0.04;
-      const lng = c.lng + (Math.random() - 0.5) * 0.04;
-      const cells = cellsForPoint(lat, lng);
-      const slug = c.name.toLowerCase().replace(/\s+/g, "-");
-      const email = `demo-${slug}-${i}@demo.test`;
+  const travel = travelMilesList(TOTAL);
+  let real = 0, zipOnly = 0;
 
-      const [user] = await db.insert(users)
-        .values({ email, displayName: `${c.name} ${i}`, city: c.name,
-          homeLat: cells.snapLat, homeLng: cells.snapLng,
-          h3R5: cells.r5, h3R6: cells.r6, h3R7: cells.r7, h3R8: cells.r8, h3R9: cells.r9 })
-        .onConflictDoUpdate({ target: users.email, set: { city: c.name } })
-        .returning({ id: users.id });
+  for (let i = 0; i < TOTAL; i++) {
+    const z = pickZip();
+    const isZipOnly = Math.random() < ZIP_ONLY_FRACTION;
 
-      const areaId = await ensureArea(activity.id, cells.r7,
-        { city: c.name, zip: "", centerLat: cells.snapLat, centerLng: cells.snapLng });
-
-      await db.insert(interestSignals)
-        .values({ activityTypeId: activity.id, userId: user.id, areaId, h3Base: cells.r7, active: true })
-        .onConflictDoNothing();
-      total++;
+    // Home point: ZIP centroid for zip-only, else a population-ish scatter near
+    // the centre (sqrt keeps it denser toward the middle of the ZIP).
+    let lat = z.lat, lng = z.lng;
+    if (!isZipOnly) {
+      const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random());
+      lat += Math.cos(a) * rr * 0.03;
+      lng += Math.sin(a) * rr * 0.038;
     }
-    console.log(`  seeded ${c.n} in ${c.name}`);
+    const cells = cellsForPoint(lat, lng);
+
+    const addr = isZipOnly ? {} : {
+      addressLine1: `${(rand(100, 4999) | 0)} ${pick(STREETS)} ${pick(SUFFIX)}`,
+      state: "IA",
+    };
+
+    const [user] = await db.insert(users)
+      .values({
+        email: `demo-${i}@demo.test`,
+        displayName: `${z.city} ${i}`,
+        city: z.city,
+        zip: z.zip,
+        ...addr,
+        homeLat: lat, homeLng: lng,
+        maxTravelKm: milesToKm(travel[i]),
+        h3R5: cells.r5, h3R6: cells.r6, h3R7: cells.r7, h3R8: cells.r8, h3R9: cells.r9,
+      })
+      .onConflictDoUpdate({ target: users.email, set: { city: z.city, zip: z.zip, maxTravelKm: milesToKm(travel[i]) } })
+      .returning({ id: users.id });
+
+    // ZIP-only folks group at the ZIP-centroid cell; real addresses key to the
+    // cell their point lands in. ensureArea centres on the r7 cell centroid.
+    const areaId = await ensureArea(activity.id, cells.r7,
+      { city: z.city, zip: z.zip, centerLat: cells.snapLat, centerLng: cells.snapLng });
+
+    await db.insert(interestSignals)
+      .values({ activityTypeId: activity.id, userId: user.id, areaId, h3Base: cells.r7, active: true })
+      .onConflictDoNothing();
+
+    if (isZipOnly) zipOnly++; else real++;
   }
 
-  // mark one cluster as having a scheduled game (green accent)
-  const sched = CLUSTERS.find((c) => c.scheduled)!;
-  const cell = cellsForPoint(sched.lat, sched.lng).r7;
+  // Mark a Coralville-area cluster as having a scheduled game (green accent).
+  const cor = METRO.find((z) => z.zip === "52241")!;
+  const cell = cellsForPoint(cor.lat, cor.lng).r7;
   const [area] = await db.select({ id: areas.id }).from(areas)
-    .where(and(eq(areas.activityTypeId, activity.id), eq(areas.h3Cell, cell))).limit(1);
+    .where(eq(areas.h3Cell, cell)).limit(1);
   if (area) {
     await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, area.id));
     await db.insert(games).values({
@@ -74,10 +151,12 @@ async function main() {
       placeText: "S.T. Morrison Park", scheduledStart: new Date(Date.now() + 5 * 86_400_000),
       status: "STANDING", confirmedCount: 9, isStanding: true,
     });
-    console.log(`  scheduled a game in ${sched.name}`);
+    console.log("  scheduled a game in Coralville");
   }
 
-  console.log(`done: ${total} demo interest signals`);
+  console.log(`done: ${TOTAL} demo users (${real} real address, ${zipOnly} ZIP-only)`);
+  const dist = travel.reduce<Record<number, number>>((m, mi) => ((m[mi] = (m[mi] ?? 0) + 1), m), {});
+  console.log("  travel miles distribution:", dist);
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

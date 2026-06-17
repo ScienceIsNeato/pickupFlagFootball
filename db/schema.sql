@@ -89,7 +89,7 @@ CREATE TABLE users (
   home_lat      double precision,
   home_lng      double precision,
   -- how far the user will travel for a game (km); gates the map's cursor pull
-  max_travel_km double precision NOT NULL DEFAULT 40,
+  max_travel_km double precision NOT NULL DEFAULT 24.14,  -- ~15 mi
   -- derived H3 cell ids at multiple resolutions (computed in-app via h3-js)
   h3_r5         bigint,
   h3_r6         bigint,

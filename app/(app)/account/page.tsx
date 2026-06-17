@@ -25,9 +25,9 @@ export default async function AccountPage() {
     .where(eq(users.id, uid))
     .limit(1);
   const u = rows[0] ?? {
-    displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 40,
+    displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
   };
-  const travelMiles = Math.round(kmToMiles(u.maxTravelKm ?? 40));
+  const travelMiles = Math.round(kmToMiles(u.maxTravelKm ?? 24.14)); // ~15 mi default
 
   return (
     <main className="reg">
@@ -111,7 +111,7 @@ export default async function AccountPage() {
             type="number"
             name="max_travel_miles"
             min="1"
-            max="500"
+            max="100"
             step="1"
             defaultValue={travelMiles}
             inputMode="numeric"

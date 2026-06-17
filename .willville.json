@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Map now looks like a football field (green turf, white roads) and flags get collected by the cursor into two facing lines",
-    "direction": "Get feedback on the look and tune; logged a few bigger features as issues",
-    "last_update": "2026-06-16T00:00:00Z"
+    "status": "Reworked the demo data to spread people realistically across the Iowa City/Cedar Rapids area by population, with a mix of real addresses and zip-only, and varied travel distances",
+    "direction": "Hand off the seed + migration commands; keep tuning the look",
+    "last_update": "2026-06-17T00:00:00Z"
   }
 }
