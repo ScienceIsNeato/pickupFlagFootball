@@ -38,6 +38,10 @@ CREATE TYPE notification_kind AS ENUM (
 
 CREATE TYPE notification_channel AS ENUM ('push','email');
 
+-- Self-declared donation preference. Drives the conditional email donation
+-- footer: only 'unset' users get the $5/month reminder.
+CREATE TYPE donation_status AS ENUM ('unset','subscribed','declined');
+
 -- ============================================================ activity_types
 -- The "skin" config. The engine depends only on these values, never on a hardcoded
 -- sport. Seed row: flag football. A future tennis/basketball launch is a new row.
@@ -99,6 +103,8 @@ CREATE TABLE users (
   timezone      text,      -- for quiet-hours
   push_subscription jsonb, -- Web Push subscription
   email_opt_in  boolean NOT NULL DEFAULT true,
+  -- self-declared; drives the email donation footer (only 'unset' is reminded)
+  donation_status donation_status NOT NULL DEFAULT 'unset',
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
   CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),

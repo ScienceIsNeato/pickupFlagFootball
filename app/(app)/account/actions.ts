@@ -98,3 +98,25 @@ export async function updateAccount(formData: FormData) {
 
   redirect("/account");
 }
+
+// Donation preference is self-declared and independent of location, so it has
+// its own action — it must NOT re-run the ZIP/geocode path in updateAccount.
+const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
+type DonationStatus = (typeof DONATION_STATUSES)[number];
+
+export async function updateDonationPref(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/api/auth/signin");
+
+  const value = str(formData.get("donation_status"));
+  if (!DONATION_STATUSES.includes(value as DonationStatus)) {
+    throw new Error("invalid donation status");
+  }
+
+  await db
+    .update(users)
+    .set({ donationStatus: value as DonationStatus, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+
+  redirect("/account");
+}

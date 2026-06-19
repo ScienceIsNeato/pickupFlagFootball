@@ -20,6 +20,9 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "GAME_ON", "STALLED_NOTICE",
 ]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
+// Self-declared donation preference. Drives the (Phase 6) email donation footer:
+// only "unset" gets the reminder; "subscribed" and "declined" both suppress it.
+export const donationStatusEnum = pgEnum("donation_status", ["unset", "subscribed", "declined"]);
 
 // ── zip_centroids ──────────────────────────────────────────────────────────
 export const zipCentroids = pgTable("zip_centroids", {
@@ -74,6 +77,7 @@ export const users = pgTable("users", {
   emailVerified:    timestamp("email_verified", { withTimezone: true }),
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
+  donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

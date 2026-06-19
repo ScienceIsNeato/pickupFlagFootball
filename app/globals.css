@@ -396,6 +396,14 @@ section h2::after {
 .reg-row { display: flex; gap: 12px; }
 .reg-row > label { flex: 1; }
 .reg-row > .reg-state { flex: 0 0 88px; }
+
+/* donation preference: separate form below the account form */
+.donate-pref { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--border); }
+.donate-pref .donate-opt {
+  flex-direction: row; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--ink);
+}
+.donate-pref .donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
 @media (max-width: 560px) {

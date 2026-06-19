@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { kmToMiles } from "@/lib/geo";
-import { updateAccount } from "./actions";
+import { skin } from "@/lib/skin";
+import { updateAccount, updateDonationPref } from "./actions";
 
 export const metadata = { title: "Account — MIME-FF" };
 
@@ -20,12 +21,14 @@ export default async function AccountPage() {
       addressLine1: users.addressLine1, addressLine2: users.addressLine2,
       city: users.city, state: users.state, zip: users.zip,
       maxTravelKm: users.maxTravelKm,
+      donationStatus: users.donationStatus,
     })
     .from(users)
     .where(eq(users.id, uid))
     .limit(1);
   const u = rows[0] ?? {
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
+    donationStatus: "unset" as const,
   };
   const travelMiles = Math.round(kmToMiles(u.maxTravelKm ?? 24.14)); // ~15 mi default
 
@@ -122,6 +125,29 @@ export default async function AccountPage() {
           are from you — never shown to anyone. <Link href="/privacy">privacy</Link>.
         </p>
         <button type="submit" className="btn-green">save changes</button>
+      </form>
+
+      <form className="reg-form donate-pref" action={updateDonationPref}>
+        <p className="reg-section">supporting the project</p>
+        <p className="reg-hint">
+          this app is free and pay-what-you-can. if it&apos;s running your weekly game,
+          a <Link href={skin.donate.url}>$5/month donation</Link> keeps the servers on —
+          but it&apos;s an ask, not a gate. let us know where you stand so we only remind
+          you if you want us to.
+        </p>
+        <label className="donate-opt">
+          <input type="radio" name="donation_status" value="unset" defaultChecked={u.donationStatus === "unset"} />
+          <span>remind me later</span>
+        </label>
+        <label className="donate-opt">
+          <input type="radio" name="donation_status" value="subscribed" defaultChecked={u.donationStatus === "subscribed"} />
+          <span>i&apos;m chipping in $5/month — no need to remind me</span>
+        </label>
+        <label className="donate-opt">
+          <input type="radio" name="donation_status" value="declined" defaultChecked={u.donationStatus === "declined"} />
+          <span>i&apos;d rather not donate — stop asking</span>
+        </label>
+        <button type="submit" className="btn-green">save preference</button>
       </form>
     </main>
   );
