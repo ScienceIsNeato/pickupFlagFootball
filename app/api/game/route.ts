@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { games, areas, activityTypes } from "@/lib/db/schema";
+import { games, areas, activityTypes, areaCaptains, users } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +48,11 @@ export async function GET(req: Request) {
   }
   if (!best) return NextResponse.json({ game: null });
 
+  const captainRows = await db.select({ name: users.displayName })
+    .from(areaCaptains).innerJoin(users, eq(users.id, areaCaptains.userId))
+    .where(eq(areaCaptains.areaId, best.areaId));
+  const captains = captainRows.map((r) => r.name);
+
   // Past 10 weeks for this site: was a game played, and how many said they'd come.
   const WEEK = 7 * 86_400_000;
   const now = Date.now();
@@ -75,6 +80,7 @@ export async function GET(req: Request) {
       recurDow: best.recurDow, recurTime: best.recurTime,
       confirmedCount: best.confirmedCount, status: best.status,
       city: best.city, zip: best.zip,
+      captains,
     },
     weeks,
   });

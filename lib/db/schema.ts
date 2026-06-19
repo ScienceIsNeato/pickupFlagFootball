@@ -227,6 +227,15 @@ export const notificationsSent = pgTable("notifications_sent", {
   uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
 ]);
 
+// ── area_captains ──────────────────────────────────────────────────────────
+export const areaCaptains = pgTable("area_captains", {
+  areaId:           uuid("area_id").notNull().references(() => areas.id, { onDelete: "cascade" }),
+  userId:           uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  becameCaptainAt:  timestamp("became_captain_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.areaId, t.userId] }),
+]);
+
 // ── map_aggregates ─────────────────────────────────────────────────────────
 export const mapAggregates = pgTable("map_aggregates", {
   activityTypeId: uuid("activity_type_id").notNull().references(() => activityTypes.id),

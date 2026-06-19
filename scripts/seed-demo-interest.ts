@@ -17,10 +17,10 @@
  */
 import { and, eq, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users, areas, interestSignals, games, activityTypes } from "@/lib/db/schema";
+import { users, areas, interestSignals, games, gameRoster, activityTypes, areaCaptains } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
-import { milesToKm } from "@/lib/geo/distance";
+import { milesToKm, haversineKm } from "@/lib/geo/distance";
 
 const TOTAL = 220;
 const ZIP_ONLY_FRACTION = 0.2;
@@ -86,6 +86,11 @@ async function clean() {
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (act) {
     await db.delete(games).where(eq(games.activityTypeId, act.id));
+    // area_captains cascade off areas on area delete, but areas aren't deleted —
+    // just reset to DORMANT. Clear captains explicitly so re-seeds start fresh.
+    const actAreas = await db.select({ id: areas.id }).from(areas)
+      .where(eq(areas.activityTypeId, act.id));
+    for (const a of actAreas) await db.delete(areaCaptains).where(eq(areaCaptains.areaId, a.id));
     await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, act.id));
   }
   console.log(`removed ${demo.length} demo users + reset games/areas`);
@@ -124,6 +129,13 @@ async function seedGamesAndSites(activityId: string) {
       });
     }
     await db.insert(games).values(hist);
+
+    // Assign the first demo user in this city as captain.
+    const [captain] = await db.select({ id: users.id }).from(users)
+      .where(and(like(users.email, "demo-%@demo.test"), eq(users.city, gc.city))).limit(1);
+    if (captain) {
+      await db.insert(areaCaptains).values({ areaId: a.id, userId: captain.id }).onConflictDoNothing();
+    }
     console.log(`  standing game in ${gc.city} (${gc.place}) + ${hist.length} weeks`);
   }
 
@@ -133,6 +145,44 @@ async function seedGamesAndSites(activityId: string) {
   if (forming) {
     await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, forming.id));
     console.log("  marked a North Liberty area as a proposed (forming) site");
+  }
+}
+
+/** Roster ~half of each standing game's *eligible* players — those within their
+ *  own travel radius of it — spread across that whole area. Rostered = claimed by
+ *  the game; the rest stay free (could reach it, passed on it). A user belongs to
+ *  at most one game. This is what makes members and non-members interleave on the
+ *  map instead of all interest hugging the park. */
+async function seedRosters(activityId: string) {
+  const standing = await db
+    .select({ id: games.id, lat: areas.centerLat, lng: areas.centerLng })
+    .from(games).innerJoin(areas, eq(games.areaId, areas.id))
+    .where(and(eq(games.activityTypeId, activityId), eq(games.status, "STANDING")));
+
+  const interested = await db
+    .select({ userId: interestSignals.userId, lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
+    .from(interestSignals).innerJoin(users, eq(users.id, interestSignals.userId))
+    .where(and(
+      eq(interestSignals.activityTypeId, activityId),
+      eq(interestSignals.active, true),
+      like(users.email, "demo-%@demo.test"),
+    ));
+
+  const taken = new Set<string>();
+  for (const g of standing) {
+    const eligible = interested.filter((u) =>
+      !taken.has(u.userId) && u.lat != null && u.lng != null &&
+      haversineKm(u.lat, u.lng, g.lat, g.lng) <= (u.km ?? 24));
+    for (let i = eligible.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0; [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+    }
+    const members = eligible.slice(0, Math.round(eligible.length * 0.5));
+    if (members.length) {
+      await db.insert(gameRoster).values(members.map((m) => ({ gameId: g.id, userId: m.userId }))).onConflictDoNothing();
+      await db.update(games).set({ confirmedCount: members.length }).where(eq(games.id, g.id));
+      members.forEach((m) => taken.add(m.userId));
+    }
+    console.log(`  rostered ${members.length}/${eligible.length} eligible into game ${g.id.slice(0, 8)}`);
   }
 }
 
@@ -192,6 +242,7 @@ async function main() {
   }
 
   await seedGamesAndSites(activity.id);
+  await seedRosters(activity.id);
 
   console.log(`done: ${TOTAL} demo users (${real} real address, ${zipOnly} ZIP-only)`);
   const dist = travel.reduce<Record<number, number>>((m, mi) => ((m[mi] = (m[mi] ?? 0) + 1), m), {});

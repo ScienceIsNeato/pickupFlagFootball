@@ -9,6 +9,7 @@ type GameInfo = {
   isStanding: boolean; recurDow: number | null; recurTime: string | null;
   confirmedCount: number; status: string;
   city: string | null; zip: string | null;
+  captains: string[];
 };
 type Week = { weekStart: string; played: boolean; count: number };
 
@@ -79,6 +80,12 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               <dd>{weeklyTime(game)}</dd>
               <dt>players in</dt>
               <dd>{game.confirmedCount}</dd>
+              {game.captains.length > 0 && (
+                <>
+                  <dt>captain{game.captains.length > 1 ? "s" : ""}</dt>
+                  <dd>{game.captains.join(", ")}</dd>
+                </>
+              )}
             </dl>
             <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <span className="game-caret">{open ? "▾" : "▸"}</span>

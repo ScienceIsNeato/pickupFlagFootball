@@ -5,12 +5,13 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
-import { cellToLatLng } from "h3-js";
+import { cellToLatLng, latLngToCell } from "h3-js";
 import {
-  activityTypes, areas, interestSignals, formationAttempts, notificationsSent,
+  activityTypes, areas, interestSignals, formationAttempts, notificationsSent, areaCaptains, users,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
+import { haversineKm } from "@/lib/geo/distance";
 import { shouldRetrigger } from "@/lib/mime";
 import { loadTunables } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -21,21 +22,36 @@ function coord(raw: string, lo: number, hi: number): number | null {
   return raw && Number.isFinite(n) && n >= lo && n <= hi ? n : null;
 }
 
+export type ProposeResult = { ok: true } | { ok: false; reason: string };
+
 /**
  * "Propose new game here" from the map. Records a suggestion against the area's
  * live suggestion window — seeding one (a user-initiated spark) if the area
- * doesn't have an open attempt yet.
+ * doesn't have an open attempt yet. Returns a result (no redirect) so the modal
+ * can show a thank-you and the map can drop the proposed badge in place.
  */
-export async function proposeGame(formData: FormData) {
+export async function proposeGame(_prev: ProposeResult | null, formData: FormData): Promise<ProposeResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/play");
 
   const h3 = String(formData.get("h3") ?? "").trim();
-  const place = String(formData.get("place") ?? "").trim();
   const start = String(formData.get("start") ?? "").trim();
-  if (!h3 || !place || !start) throw new Error("place and time are required");
+
+  // Structured venue: street/spot, city, zip, + optional meeting notes. Compose
+  // into a single human place label ("1806 Brown Deer Trail, Coralville 52241 —
+  // park in east lot, gate code 1234"), which threads through to the formed game.
+  const street = String(formData.get("place_street") ?? "").trim();
+  const city = String(formData.get("place_city") ?? "").trim();
+  const zip = String(formData.get("place_zip") ?? "").trim();
+  const notes = String(formData.get("place_notes") ?? "").trim();
+  if (!h3 || !street || !city || !zip || !start) return { ok: false, reason: "missing" };
+  const place = [
+    [street, `${city} ${zip}`.trim()].filter(Boolean).join(", "),
+    notes,
+  ].filter(Boolean).join(" — ");
+
   const when = new Date(start);
-  if (Number.isNaN(when.getTime())) throw new Error("invalid time");
+  if (Number.isNaN(when.getTime())) return { ok: false, reason: "missing" };
 
   const placeLat = coord(String(formData.get("place_lat") ?? ""), -90, 90);
   const placeLng = coord(String(formData.get("place_lng") ?? ""), -180, 180);
@@ -47,37 +63,40 @@ export async function proposeGame(formData: FormData) {
   const timeRaw = String(formData.get("recur_time") ?? "").trim();
   const recurTime = /^\d{2}:\d{2}$/.test(timeRaw) ? `${timeRaw}:00` : null;
 
-  const cell = h3ToBigInt(h3);
+  // Resolve the area from the picked venue when we have its coords (right-click
+  // can be coarse at low zoom; the chosen address is the real spot). Fall back to
+  // the click's r7 cell.
+  const cell = placeLat != null && placeLng != null
+    ? h3ToBigInt(latLngToCell(placeLat, placeLng, 7))
+    : h3ToBigInt(h3);
   const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (!act) throw new Error("activity not configured");
 
   const disk = diskCells(cell, 1);
 
-  // Only locals (people who showed interest in this catchment) may propose.
-  const [mine] = await db.select({ id: interestSignals.id }).from(interestSignals)
-    .where(and(
-      eq(interestSignals.activityTypeId, act.id),
-      eq(interestSignals.userId, session.user.id),
-      eq(interestSignals.active, true),
-      inArray(interestSignals.h3Base, disk),
-    )).limit(1);
-  if (!mine) redirect("/play?propose=notlocal");
+  // You can propose anywhere within your own travel radius of home — that's your
+  // "area of interest" (the radius drawn on the map). Mirrors the client preview.
+  const [me] = await db.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
+    .from(users).where(eq(users.id, session.user.id)).limit(1);
+  if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
+  const [tLat, tLng] = placeLat != null && placeLng != null ? [placeLat, placeLng] : cellToLatLng(h3);
+  if (haversineKm(me.lat, me.lng, tLat, tLng) > (me.km ?? 24)) return { ok: false, reason: "outofrange" };
 
   // Resolve the area for this exact cell, creating it if a right-click landed on a
   // spot with no area row yet (the proposer is already a verified local above).
   let [area] = await db.select().from(areas)
     .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
   if (!area) {
-    const [clat, clng] = cellToLatLng(h3);
+    const [clat, clng] = placeLat != null && placeLng != null ? [placeLat, placeLng] : cellToLatLng(h3);
     await ensureArea(act.id, cell, { city: "", zip: "", centerLat: clat, centerLng: clng });
     [area] = await db.select().from(areas)
       .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
   }
-  if (!area) redirect("/play?propose=retry");
+  if (!area) return { ok: false, reason: "retry" };
 
   // A game is already scheduled here — don't undo it by spawning a new attempt.
-  if (area.status === "SCHEDULED") redirect("/play?propose=scheduled");
+  if (area.status === "SCHEDULED") return { ok: false, reason: "scheduled" };
 
   // Find any LIVE attempt (not just SUGGESTING) so we don't collide with the
   // one-live-attempt index or demote an in-flight formation.
@@ -88,7 +107,7 @@ export async function proposeGame(formData: FormData) {
     )).limit(1);
 
   // Suggestions are only accepted during the suggestion window.
-  if (live && live.status !== "SUGGESTING") redirect("/play?propose=closed");
+  if (live && live.status !== "SUGGESTING") return { ok: false, reason: "closed" };
 
   let attempt = live;
   if (!attempt) {
@@ -101,7 +120,7 @@ export async function proposeGame(formData: FormData) {
     // don't let a manual propose re-open it early.
     if (area.status === "STALLED" &&
         !shouldRetrigger(now, area.nextTriggerAt ?? null, area.nextTriggerInterest ?? null, cohort.length)) {
-      redirect("/play?propose=cooldown");
+      return { ok: false, reason: "cooldown" };
     }
     const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}),0)::int` })
       .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
@@ -133,7 +152,7 @@ export async function proposeGame(formData: FormData) {
         .limit(1);
     }
   }
-  if (!attempt) redirect("/play?propose=retry");
+  if (!attempt) return { ok: false, reason: "retry" };
 
   // The SUGGESTING check above is a read; a concurrent tick (or the window
   // closing right after the unique-conflict reload) could move the attempt to
@@ -149,7 +168,12 @@ export async function proposeGame(formData: FormData) {
     )
     returning id
   `);
-  if (inserted.rows.length === 0) redirect("/play?propose=closed");
+  if (inserted.rows.length === 0) return { ok: false, reason: "closed" };
 
-  redirect("/play");
+  // Proposer becomes a captain of this site automatically.
+  await db.insert(areaCaptains)
+    .values({ areaId: area.id, userId: session.user.id })
+    .onConflictDoNothing();
+
+  return { ok: true };
 }
