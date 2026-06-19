@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW } from "@/lib/brand";
+import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
 import { ProposedDetailsModal } from "./ProposedDetailsModal";
