@@ -157,8 +157,11 @@ export async function GET(req: Request) {
   const cells = [...allCells].map((h3) => {
     const hasGame = gameCellColor.has(h3);
     const forming = !hasGame && formingCells.has(h3);
-    // Forming badges sit on the proposed venue; everything else on the cell centroid.
-    const venue = forming ? formingPoint.get(h3) : undefined;
+    // Badge sits on the game's actual venue (place lat/lng for games; first
+    // suggestion's lat/lng for forming sites) when known, so a click on the
+    // badge sends those exact coords to /api/game or /api/proposed. Falls back
+    // to the H3 cell centroid when no venue is on file (e.g. seeded games).
+    const venue = hasGame ? gameInfo.get(gameAtCell.get(h3)!) : forming ? formingPoint.get(h3) : undefined;
     const [lat, lng] = venue ? [venue.lat, venue.lng] : cellToLatLng(h3);
     const cellClaims = claims.get(h3);
     const claimsOut: Claim[] = cellClaims
