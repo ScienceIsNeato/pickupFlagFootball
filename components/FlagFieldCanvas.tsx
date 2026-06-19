@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { TEAM_YELLOW, TEAM_BLUE } from "@/lib/brand";
+import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
 
 /**
  * Site-wide background: scattered flags lie inert across the (map-grid) space and
@@ -21,7 +21,7 @@ export function FlagFieldCanvas() {
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
     const reduce =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const COLORS = [TEAM_YELLOW, TEAM_BLUE]; // two teams, yellow vs blue
+    const COLORS = [TEAM_YELLOW, TEAM_RED]; // two teams, yellow vs red
     const GR = 168; // gravity radius
     const PI2 = Math.PI * 2;
 

@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW, TEAM_BLUE, GRASS } from "@/lib/brand";
+import { TEAM_YELLOW, TEAM_RED, GRASS } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
+import { GameDetailsModal } from "./GameDetailsModal";
 
 type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
 
@@ -123,7 +124,7 @@ function GameGlyph() {
   return (
     <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
       <path d="M13 7 L3 4 L3 10 z" fill={TEAM_YELLOW} />
-      <path d="M13 7 L23 4 L23 10 z" fill={TEAM_BLUE} />
+      <path d="M13 7 L23 4 L23 10 z" fill={TEAM_RED} />
     </svg>
   );
 }
@@ -141,6 +142,7 @@ export function MapView({
   const homeRef = useRef(home);
   homeRef.current = home;
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
+  const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!ref.current || !canvasRef.current) return;
@@ -217,7 +219,7 @@ export function MapView({
             sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
             x: 0, y: 0,
             size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
-            energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_BLUE, init: false,
+            energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_RED, init: false,
           });
         }
         return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
@@ -230,7 +232,7 @@ export function MapView({
       const L = f.size * 3, h = f.size * 0.5, seg = 6;
       ctx.save();
       ctx.translate(f.x, f.y); ctx.rotate(f.rot);
-      ctx.globalAlpha = 0.5 + 0.5 * f.energy;
+      ctx.globalAlpha = 1; // opaque so flags stand out against the field
       ctx.fillStyle = f.color;
       ctx.beginPath();
       for (let i = 0; i <= seg; i++) {
@@ -342,20 +344,26 @@ export function MapView({
     map.on("movestart", () => { mapMoving = true; });
     map.on("moveend", () => { mapMoving = false; });
     map.on("moveend", debouncedRefresh);
-    map.on("click", async (e) => {
-      if (map.getZoom() < MAX_ZOOM) return;
-      // Cluster refresh is debounced on moveend, so right after a zoom-in
-      // clustersRef can still hold coarser cells while proposeGame resolves
-      // areas at r7. Pull fresh r7 clusters before matching the click so we
-      // never submit a stale, wrong-resolution cell.
-      if (dataRes < PROPOSE_RES) await refresh();
+    const nearestCluster = (px: number, py: number): Cluster | null => {
       let best: Cluster | null = null, bestD = 60;
       for (const cl of clustersRef.current) {
         const p = map.project(cl.ll);
-        const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+        const d = Math.hypot(p.x - px, p.y - py);
         if (d < bestD) { bestD = d; best = cl; }
       }
-      if (best) setPropose({ h3: best.h3, lat: best.ll[1], lng: best.ll[0] });
+      return best;
+    };
+    map.on("click", async (e) => {
+      const hit = nearestCluster(e.point.x, e.point.y);
+      if (!hit) return;
+      // Click an existing game → its details (works at any zoom).
+      if (hit.hasGame) { setGameDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
+      // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
+      // refresh is debounced, so pull fresh r7 cells before matching the click.
+      if (map.getZoom() < MAX_ZOOM) return;
+      if (dataRes < PROPOSE_RES) await refresh();
+      const spot = nearestCluster(e.point.x, e.point.y);
+      if (spot && !spot.hasGame) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
     });
     raf = requestAnimationFrame(frame);
 
@@ -383,6 +391,9 @@ export function MapView({
       </div>
       {propose && (
         <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }} onClose={() => setPropose(null)} />
+      )}
+      {gameDetails && (
+        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)} />
       )}
     </div>
   );

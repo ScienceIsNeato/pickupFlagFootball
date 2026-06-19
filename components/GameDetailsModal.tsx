@@ -1,0 +1,99 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type GameInfo = {
+  placeText: string;
+  placeLat: number | null; placeLng: number | null;
+  scheduledStart: string;
+  isStanding: boolean; recurDow: number | null; recurTime: string | null;
+  confirmedCount: number; status: string;
+  city: string | null; zip: string | null;
+};
+type Recent = { scheduledStart: string; placeText: string; confirmedCount: number; status: string };
+
+const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+
+function fmtTime(t?: string | null): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ap = h < 12 ? "AM" : "PM";
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ap}`;
+}
+function weeklyTime(g: GameInfo): string {
+  if (g.isStanding && g.recurDow != null && g.recurTime) return `${DOW[g.recurDow]} at ${fmtTime(g.recurTime)}`;
+  return new Date(g.scheduledStart).toLocaleString(undefined, {
+    weekday: "long", hour: "numeric", minute: "2-digit",
+  });
+}
+
+/** Details for an existing game, opened by clicking its flags on the map. */
+export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
+  const [state, setState] = useState<{ game: GameInfo | null; recent: Recent[] } | "loading" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        const d = (await r.json()) as { game: GameInfo | null; recent?: Recent[] };
+        if (!cancelled) setState({ game: d.game, recent: d.recent ?? [] });
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lat, lng]);
+
+  const game = state !== "loading" && state !== "error" ? state.game : null;
+  const recent = state !== "loading" && state !== "error" ? state.recent : [];
+  const maps = game?.placeLat != null && game?.placeLng != null
+    ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
+    : null;
+
+  return (
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
+        display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <div className="game-card">
+        <button type="button" className="game-close" onClick={onClose} aria-label="close">×</button>
+        {state === "loading" && <p className="game-muted">loading…</p>}
+        {state === "error" && <p className="game-muted">couldn&apos;t load this game.</p>}
+        {state !== "loading" && state !== "error" && !game && <p className="game-muted">no game here yet.</p>}
+        {game && (
+          <>
+            <h2 className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>
+            <dl className="game-dl">
+              <dt>where</dt>
+              <dd>
+                {game.placeText}
+                {game.city ? <span className="game-muted"> · {game.city}{game.zip ? ` ${game.zip}` : ""}</span> : null}
+                {maps ? <> · <a href={maps} target="_blank" rel="noopener noreferrer">directions</a></> : null}
+              </dd>
+              <dt>weekly time</dt>
+              <dd>{weeklyTime(game)}</dd>
+              <dt>players in</dt>
+              <dd>{game.confirmedCount}</dd>
+            </dl>
+            <h3 className="game-sub">recent games</h3>
+            {recent.length === 0 ? (
+              <p className="game-muted">none yet.</p>
+            ) : (
+              <ul className="game-recent">
+                {recent.map((r, i) => (
+                  <li key={i}>
+                    <span>{new Date(r.scheduledStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                    <span className="game-muted">{r.status.toLowerCase()} · {r.confirmedCount} in</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
