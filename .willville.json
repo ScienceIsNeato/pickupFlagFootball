@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reworked the demo data to spread people realistically across the Iowa City/Cedar Rapids area by population, with a mix of real addresses and zip-only, and varied travel distances",
-    "direction": "Hand off the seed + migration commands; keep tuning the look",
-    "last_update": "2026-06-17T00:00:00Z"
+    "status": "Made two circular badge symbols — one for an established game, a lighter one for a proposed spot — to use as map markers instead of live flags",
+    "direction": "Get a thumbs up on the badges, then wire them onto the map",
+    "last_update": "2026-06-19T00:00:00Z"
   }
 }
