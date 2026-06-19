@@ -52,7 +52,9 @@ export async function GET(req: Request) {
   const captainRows = await db.select({ name: users.displayName })
     .from(areaCaptains).innerJoin(users, eq(users.id, areaCaptains.userId))
     .where(eq(areaCaptains.areaId, best.areaId));
-  const captains = captainRows.map((r) => r.name);
+  // displayName is nullable in the schema — drop unnamed captains rather than
+  // rendering "null" in the popup. Mirrors the /api/proposed fix.
+  const captains = captainRows.map((r) => r.name).filter((n): n is string => !!n);
 
   // Past 10 weeks for this site: was a game played, and how many said they'd come.
   const WEEK = 7 * 86_400_000;
