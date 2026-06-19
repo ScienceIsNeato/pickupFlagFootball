@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areas, activityTypes } from "@/lib/db/schema";
@@ -48,11 +48,25 @@ export async function GET(req: Request) {
   }
   if (!best) return NextResponse.json({ game: null });
 
-  const recent = await db.select({
-    scheduledStart: games.scheduledStart, placeText: games.placeText,
-    confirmedCount: games.confirmedCount, status: games.status,
-  }).from(games).where(eq(games.areaId, best.areaId))
-    .orderBy(desc(games.scheduledStart)).limit(6);
+  // Past 10 weeks for this site: was a game played, and how many said they'd come.
+  const WEEK = 7 * 86_400_000;
+  const now = Date.now();
+  const since = new Date(now - 10 * WEEK);
+  const history = await db.select({
+    scheduledStart: games.scheduledStart, confirmedCount: games.confirmedCount, status: games.status,
+  }).from(games)
+    .where(and(eq(games.areaId, best.areaId), gte(games.scheduledStart, since)))
+    .orderBy(desc(games.scheduledStart));
+
+  const weeks = Array.from({ length: 10 }, (_, i) => {
+    const end = now - i * WEEK, start = end - WEEK;
+    const g = history.find((h) => {
+      const t = new Date(h.scheduledStart).getTime();
+      return t >= start && t < end;
+    });
+    const played = !!g && g.status !== "CANCELLED";
+    return { weekStart: new Date(start).toISOString(), played, count: played ? g!.confirmedCount : 0 };
+  });
 
   return NextResponse.json({
     game: {
@@ -62,6 +76,6 @@ export async function GET(req: Request) {
       confirmedCount: best.confirmedCount, status: best.status,
       city: best.city, zip: best.zip,
     },
-    recent,
+    weeks,
   });
 }

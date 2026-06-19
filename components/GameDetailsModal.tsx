@@ -10,7 +10,7 @@ type GameInfo = {
   confirmedCount: number; status: string;
   city: string | null; zip: string | null;
 };
-type Recent = { scheduledStart: string; placeText: string; confirmedCount: number; status: string };
+type Week = { weekStart: string; played: boolean; count: number };
 
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -29,7 +29,8 @@ function weeklyTime(g: GameInfo): string {
 
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
-  const [state, setState] = useState<{ game: GameInfo | null; recent: Recent[] } | "loading" | "error">("loading");
+  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,8 +38,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
       try {
         const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
         if (!r.ok) throw new Error();
-        const d = (await r.json()) as { game: GameInfo | null; recent?: Recent[] };
-        if (!cancelled) setState({ game: d.game, recent: d.recent ?? [] });
+        const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
+        if (!cancelled) setState({ game: d.game, weeks: d.weeks ?? [] });
       } catch {
         if (!cancelled) setState("error");
       }
@@ -47,7 +48,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   }, [lat, lng]);
 
   const game = state !== "loading" && state !== "error" ? state.game : null;
-  const recent = state !== "loading" && state !== "error" ? state.recent : [];
+  const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
+  const playedCount = weeks.filter((w) => w.played).length;
   const maps = game?.placeLat != null && game?.placeLng != null
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
@@ -78,15 +80,19 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               <dt>players in</dt>
               <dd>{game.confirmedCount}</dd>
             </dl>
-            <h3 className="game-sub">recent games</h3>
-            {recent.length === 0 ? (
-              <p className="game-muted">none yet.</p>
-            ) : (
+            <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+              <span className="game-caret">{open ? "▾" : "▸"}</span>
+              recent games
+              <span className="game-muted"> · played {playedCount} of last {weeks.length} weeks</span>
+            </button>
+            {open && (
               <ul className="game-recent">
-                {recent.map((r, i) => (
+                {weeks.map((w, i) => (
                   <li key={i}>
-                    <span>{new Date(r.scheduledStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-                    <span className="game-muted">{r.status.toLowerCase()} · {r.confirmedCount} in</span>
+                    <span>{new Date(w.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                    {w.played
+                      ? <span className="game-played">✓ played · {w.count} in</span>
+                      : <span className="game-muted">— no game</span>}
                   </li>
                 ))}
               </ul>

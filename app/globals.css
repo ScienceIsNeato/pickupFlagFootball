@@ -202,7 +202,14 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-dl dd { margin: 0; color: var(--ink); }
 .game-dl a, .game-recent a { color: var(--link); }
 .game-sub { font-family: var(--font-barlow), sans-serif; font-size: 15px; margin: 4px 0 6px; color: var(--muted); }
-.game-recent { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.game-collapse {
+  display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+  padding: 6px 0; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--muted);
+}
+.game-collapse:hover { color: var(--ink); }
+.game-caret { display: inline-block; width: 14px; color: var(--faint); }
+.game-played { color: var(--grass-l); }
+.game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
 .game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .game-muted { color: var(--muted); }
 .app-body { min-height: 100vh; padding-top: 64px; }

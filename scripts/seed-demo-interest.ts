@@ -151,7 +151,20 @@ async function main() {
       placeText: "S.T. Morrison Park", scheduledStart: new Date(Date.now() + 5 * 86_400_000),
       status: "STANDING", confirmedCount: 9, isStanding: true,
     });
-    console.log("  scheduled a game in Coralville");
+    // 10 weeks of history for the weekly chart (skip 2 weeks → "no game").
+    const WEEK = 7 * 86_400_000;
+    const skip = new Set([2, 6]);
+    const hist = [];
+    for (let i = 0; i < 10; i++) {
+      if (skip.has(i)) continue;
+      hist.push({
+        activityTypeId: activity.id, areaId: area.id, placeText: "S.T. Morrison Park",
+        scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
+        status: "COMPLETED" as const, confirmedCount: 6 + ((Math.random() * 8) | 0),
+      });
+    }
+    await db.insert(games).values(hist);
+    console.log(`  scheduled a game in Coralville + ${hist.length} weeks of history`);
   }
 
   // Mark a North Liberty area as a proposed (forming) site → the proposed badge.
