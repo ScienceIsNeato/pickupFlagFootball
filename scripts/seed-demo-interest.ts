@@ -68,6 +68,37 @@ const STREETS = [
 ];
 const SUFFIX = ["St", "Ave", "Rd", "Trail", "Ln", "Dr"];
 
+// Display names — a mix of plausible "Steve Martinez" handles and playful
+// nicknames so the UI doesn't read like "Coralville 1, Coralville 2…". Picked
+// deterministically from userIx so reseeds produce stable names for stable
+// user indices (the captain pick + forming-site cohorts stay the same person
+// across reruns instead of getting renamed each pass).
+const FIRST_NAMES = [
+  "Aaron", "Andre", "Becca", "Carlos", "Devon", "Diana", "Diego", "Elena",
+  "Emma", "Felix", "Greg", "Heather", "Imani", "Jamal", "Jared", "Jaylen",
+  "Kim", "Lisa", "Marcus", "Maria", "Megan", "Miles", "Olivia", "Priya",
+  "Raj", "Sarah", "Sophie", "Steve", "Terrell", "Tyler", "Vivian", "Yusuf",
+];
+const LAST_NAMES = [
+  "Anderson", "Brown", "Chen", "Davis", "Garcia", "Hernandez", "Hill",
+  "Johnson", "Khan", "Kim", "Lee", "Lopez", "Martinez", "Mitchell", "Nguyen",
+  "O'Brien", "Park", "Patel", "Pham", "Reyes", "Robinson", "Rodriguez",
+  "Sullivan", "Tanaka", "Thompson", "Walker", "Wallace", "Williams", "Wright", "Yang",
+];
+const NICKNAMES = [
+  "Captain Butterfingers", "Big D", "The Rocket", "Punter Pete", "Sticky Mitts",
+  "Tank", "Zoom", "Coach", "Doc", "T-Bone", "Speedy", "Wheels", "Cannon Arm",
+  "Mudpuddle", "Slick", "Hammer", "Buckshot", "Houdini", "The Wall", "Spider",
+  "Bullseye", "Jet", "Cleats", "The Hawk", "Burner", "Beast Mode", "Wildcard",
+  "Smokey", "Diesel", "Captain Comeback", "Hailmary", "Iceman", "Lightning",
+  "Magic Hands", "Maverick", "Picasso", "Scout", "Tornado", "Vortex", "Yardage King",
+];
+function pickName(ix: number): string {
+  // ~30% nicknames, 70% First Last. Deterministic on ix so reseeds are stable.
+  if (ix % 10 < 3) return NICKNAMES[(ix * 17) % NICKNAMES.length];
+  return `${FIRST_NAMES[(ix * 13) % FIRST_NAMES.length]} ${LAST_NAMES[(ix * 7) % LAST_NAMES.length]}`;
+}
+
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T>(xs: readonly T[]): T => xs[(Math.random() * xs.length) | 0];
 
@@ -411,7 +442,7 @@ async function main() {
       const [user] = await db.insert(users)
         .values({
           email: `demo-${userIx}@demo.test`,
-          displayName: `${pool.city} ${userIx}`,
+          displayName: pickName(userIx),
           city: pool.city, zip: pool.zip, ...addr,
           homeLat: lat, homeLng: lng,
           maxTravelKm: milesToKm(pool.mi),
@@ -423,6 +454,7 @@ async function main() {
         // signals scattered across past random positions).
         .onConflictDoUpdate({ target: users.email,
           set: {
+            displayName: pickName(userIx),
             city: pool.city, zip: pool.zip, ...addr,
             homeLat: lat, homeLng: lng,
             maxTravelKm: milesToKm(pool.mi),
