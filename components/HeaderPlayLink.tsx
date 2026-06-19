@@ -8,5 +8,10 @@ import { useSession } from "next-auth/react";
 export function HeaderPlayLink() {
   const { data: session } = useSession();
   if (!session?.user) return null;
-  return <Link href="/play" className="nav-play">find a game</Link>;
+  return (
+    <>
+      <Link href="/play" className="nav-play">find a game</Link>
+      <Link href="/my-games" className="nav-mine">my games</Link>
+    </>
+  );
 }

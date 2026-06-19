@@ -153,8 +153,8 @@ function Streamer({ color, wave }: { color: string; wave?: boolean }) {
 }
 
 export function MapView({
-  center, zoom = 9, home = null,
-}: { center: [number, number]; zoom?: number; home?: Home | null }) {
+  center, zoom = 9, home = null, mineOnly = false,
+}: { center: [number, number]; zoom?: number; home?: Home | null; mineOnly?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -224,7 +224,7 @@ export function MapView({
       return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [coords] } };
     }
     map.on("load", () => {
-      const h = homeRef.current; if (!h) return;
+      const h = homeRef.current; if (!h || mineOnly) return;
       map.addSource("home-radius", { type: "geojson", data: radiusGeoJSON(h.lat, h.lng, h.maxTravelKm) });
       map.addLayer({ id: "home-radius-fill", type: "fill", source: "home-radius",
         paint: { "fill-color": "#ffffff", "fill-opacity": 0.06 } });
@@ -257,7 +257,7 @@ export function MapView({
       const res = resForZoom(map.getZoom());
       let cells: Cell[];
       try {
-        const r = await fetch(`/api/map?res=${res}`, { cache: "no-store" });
+        const r = await fetch(`/api/map?res=${res}${mineOnly ? "&mine=1" : ""}`, { cache: "no-store" });
         if (aborted || !r.ok) return;
         ({ cells } = (await r.json()) as { cells: Cell[] });
       } catch (e) {
@@ -441,7 +441,7 @@ export function MapView({
       // over a badge → "click…" immediately; over open space + settled → propose.
       let hoverText: string | null = null;
       if (overBadge) hoverText = overBadge === "game" ? "click to see game details" : "click to see this proposal";
-      else if (on && performance.now() - lastMoveAt > 120) hoverText = "right-click to propose a game here";
+      else if (!mineOnly && on && performance.now() - lastMoveAt > 120) hoverText = "right-click to propose a game here";
       mapEl.style.cursor = overBadge ? "pointer" : "crosshair";
       const tip = tipRef.current;
       if (tip) {
@@ -500,6 +500,7 @@ export function MapView({
     // address picker sets the precise venue; the server resolves the area from it.
     map.on("contextmenu", (e) => {
       e.preventDefault();
+      if (mineOnly) return;
       const { lat, lng } = e.lngLat;
       setPropose({ h3: latLngToCell(lat, lng, PROPOSE_RES), lat, lng });
     });
