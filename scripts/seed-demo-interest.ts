@@ -81,7 +81,59 @@ async function clean() {
   const demo = await db.select({ id: users.id }).from(users).where(like(users.email, "demo-%@demo.test"));
   for (const u of demo) await db.delete(interestSignals).where(eq(interestSignals.userId, u.id));
   await db.delete(users).where(like(users.email, "demo-%@demo.test"));
-  console.log(`removed ${demo.length} demo users`);
+  // also clear demo games + reset area statuses (roster/notifs cascade off games)
+  const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
+    .where(eq(activityTypes.slug, "flag-football")).limit(1);
+  if (act) {
+    await db.delete(games).where(eq(games.activityTypeId, act.id));
+    await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, act.id));
+  }
+  console.log(`removed ${demo.length} demo users + reset games/areas`);
+}
+
+/** Reset prior demo games + statuses (clean() doesn't touch games), then seed
+ *  two DISTINCT standing games (own park/schedule/turnout/history) + a proposed
+ *  forming site. game_roster / notifications cascade off games. */
+async function seedGamesAndSites(activityId: string) {
+  await db.delete(games).where(eq(games.activityTypeId, activityId));
+  await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, activityId));
+
+  const WEEK = 7 * 86_400_000;
+  const STANDING = [
+    { city: "Coralville",   place: "S.T. Morrison Park", standDays: 5, base: 9,  skip: [2, 6] },
+    { city: "Cedar Rapids", place: "Noelridge Park",     standDays: 3, base: 13, skip: [4] },
+  ];
+  for (const gc of STANDING) {
+    const [a] = await db.select({ id: areas.id }).from(areas)
+      .where(and(eq(areas.activityTypeId, activityId), eq(areas.displayCity, gc.city))).limit(1);
+    if (!a) { console.log(`  (no ${gc.city} area for a game — skipped)`); continue; }
+    await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, a.id));
+    await db.insert(games).values({
+      activityTypeId: activityId, areaId: a.id, placeText: gc.place,
+      scheduledStart: new Date(Date.now() + gc.standDays * 86_400_000),
+      status: "STANDING", confirmedCount: gc.base, isStanding: true,
+    });
+    const skip = new Set(gc.skip);
+    const hist = [];
+    for (let i = 0; i < 10; i++) {
+      if (skip.has(i)) continue;
+      hist.push({
+        activityTypeId: activityId, areaId: a.id, placeText: gc.place,
+        scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
+        status: "COMPLETED" as const, confirmedCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
+      });
+    }
+    await db.insert(games).values(hist);
+    console.log(`  standing game in ${gc.city} (${gc.place}) + ${hist.length} weeks`);
+  }
+
+  const [forming] = await db.select({ id: areas.id }).from(areas)
+    .where(and(eq(areas.activityTypeId, activityId), eq(areas.displayCity, "North Liberty"), ne(areas.status, "SCHEDULED")))
+    .limit(1);
+  if (forming) {
+    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, forming.id));
+    console.log("  marked a North Liberty area as a proposed (forming) site");
+  }
 }
 
 async function main() {
@@ -139,42 +191,7 @@ async function main() {
     if (isZipOnly) zipOnly++; else real++;
   }
 
-  // Mark a Coralville-area cluster as having a scheduled game (green accent).
-  const cor = METRO.find((z) => z.zip === "52241")!;
-  const cell = cellsForPoint(cor.lat, cor.lng).r7;
-  const [area] = await db.select({ id: areas.id }).from(areas)
-    .where(eq(areas.h3Cell, cell)).limit(1);
-  if (area) {
-    await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, area.id));
-    await db.insert(games).values({
-      activityTypeId: activity.id, areaId: area.id,
-      placeText: "S.T. Morrison Park", scheduledStart: new Date(Date.now() + 5 * 86_400_000),
-      status: "STANDING", confirmedCount: 9, isStanding: true,
-    });
-    // 10 weeks of history for the weekly chart (skip 2 weeks → "no game").
-    const WEEK = 7 * 86_400_000;
-    const skip = new Set([2, 6]);
-    const hist = [];
-    for (let i = 0; i < 10; i++) {
-      if (skip.has(i)) continue;
-      hist.push({
-        activityTypeId: activity.id, areaId: area.id, placeText: "S.T. Morrison Park",
-        scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
-        status: "COMPLETED" as const, confirmedCount: 6 + ((Math.random() * 8) | 0),
-      });
-    }
-    await db.insert(games).values(hist);
-    console.log(`  scheduled a game in Coralville + ${hist.length} weeks of history`);
-  }
-
-  // Mark a North Liberty area as a proposed (forming) site → the proposed badge.
-  const [forming] = await db.select({ id: areas.id }).from(areas)
-    .where(and(eq(areas.activityTypeId, activity.id), eq(areas.displayCity, "North Liberty"), ne(areas.status, "SCHEDULED")))
-    .limit(1);
-  if (forming) {
-    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, forming.id));
-    console.log("  marked a North Liberty area as a proposed (forming) site");
-  }
+  await seedGamesAndSites(activity.id);
 
   console.log(`done: ${TOTAL} demo users (${real} real address, ${zipOnly} ZIP-only)`);
   const dist = travel.reduce<Record<number, number>>((m, mi) => ((m[mi] = (m[mi] ?? 0) + 1), m), {});

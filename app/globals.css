@@ -325,6 +325,7 @@ section h2::after {
 .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
 .step-n { font-size: 40px; font-weight: 700; color: var(--green); line-height: 1; }
 .card .title { font-family: var(--font-inter), sans-serif; font-weight: 600; font-size: 15px; margin: 8px 0 4px; }
+.card .title .tag { margin-left: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); border: 1px solid var(--green); border-radius: 999px; padding: 2px 7px; vertical-align: middle; }
 .card p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
 
 .faq-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
