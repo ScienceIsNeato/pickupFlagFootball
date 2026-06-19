@@ -5,7 +5,7 @@
 // else public Nominatim); these functions just normalize its JSON.
 
 export type GeoResult = { name: string; detail: string; lat: number; lng: number };
-export type ReverseResult = { address: string; city?: string; zip?: string };
+export type ReverseResult = { address: string; street?: string; city?: string; zip?: string };
 
 type NominatimAddress = {
   house_number?: string;
@@ -69,5 +69,7 @@ export function parseNominatimReverse(json: unknown): ReverseResult | null {
   const tail = [cityOf(a), a.state].filter(Boolean).join(", ");
   const address = [place, tail].filter(Boolean).join(", ").trim();
   if (!address) return null;
-  return { address, city: cityOf(a) || undefined, zip: a.postcode || undefined };
+  // street = a numbered street line, or a named place (park/field) as the "spot"
+  const street = line || (it.name && it.name.trim()) || a.road || undefined;
+  return { address, street, city: cityOf(a) || undefined, zip: a.postcode || undefined };
 }

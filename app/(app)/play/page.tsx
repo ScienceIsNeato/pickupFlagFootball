@@ -13,7 +13,8 @@ export default async function PlayPage() {
   const uid = session.user.id;
 
   const [userRows, signalRows] = await Promise.all([
-    db.select({ homeLat: users.homeLat, homeLng: users.homeLng, maxTravelKm: users.maxTravelKm })
+    db.select({ homeLat: users.homeLat, homeLng: users.homeLng, maxTravelKm: users.maxTravelKm,
+                city: users.city, zip: users.zip })
       .from(users).where(eq(users.id, uid)).limit(1),
     db.select({ id: interestSignals.id })
       .from(interestSignals)
@@ -29,7 +30,8 @@ export default async function PlayPage() {
   // The user's own home + travel radius gate which clusters the cursor pulls.
   // homeLat/homeLng stay server-side except for this one user's own map.
   const home = u?.homeLat != null && u?.homeLng != null
-    ? { lat: u.homeLat, lng: u.homeLng, maxTravelKm: u.maxTravelKm }
+    ? { lat: u.homeLat, lng: u.homeLng, maxTravelKm: u.maxTravelKm,
+        city: u.city ?? null, zip: u.zip ?? null }
     : null;
 
   // Fullscreen map; the floating header/footer (app layout) sit on top.
