@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, games } from "@/lib/db/schema";
+import { gameRoster, games, interestSignals } from "@/lib/db/schema";
 
 /**
  * Toggle whether I'm "in" for a game.
@@ -25,10 +25,23 @@ export async function setAttendance(formData: FormData) {
   if (!gameId || (status !== "in" && status !== "out")) throw new Error("bad params");
 
   if (status === "in") {
+    // Authorize the join: the gameId param alone isn't trust-bearing — the
+    // server must verify (a) the game is active and (b) I have active interest
+    // in its area. Otherwise anyone could roster onto any active game.
+    const [eligible] = await db.select({ id: games.id }).from(games)
+      .innerJoin(interestSignals, and(
+        eq(interestSignals.areaId, games.areaId),
+        eq(interestSignals.userId, me),
+        eq(interestSignals.active, true),
+      ))
+      .where(and(eq(games.id, gameId), inArray(games.status, ["STAGED", "STANDING"])))
+      .limit(1);
+    if (!eligible) throw new Error("not eligible for this game");
     await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
     await db.update(games).set({ confirmedCount: sql`(select count(*) from game_roster where game_id = ${gameId})` })
       .where(eq(games.id, gameId));
   } else {
+    // Drop is a self-edit (scoped to userId: me), no extra authorization needed.
     await db.delete(gameRoster).where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
     await db.update(games).set({ confirmedCount: sql`(select count(*) from game_roster where game_id = ${gameId})` })
       .where(eq(games.id, gameId));

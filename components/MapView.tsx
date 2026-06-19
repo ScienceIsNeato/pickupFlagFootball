@@ -23,6 +23,10 @@ const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
 const PROPOSED_BADGE = 68; // px size of the proposed-site marker (smaller)
+// Cursor sentinel: mx/my are set to CURSOR_OFF when the pointer leaves the map;
+// CURSOR_ON_THRESHOLD is the "off-map" check that tolerates rounding/jitter.
+const CURSOR_OFF = -99999;
+const CURSOR_ON_THRESHOLD = -9000;
 
 // Football-field basemap: green turf, white "hashmark" roads, muted water.
 // Vector tiles (OpenFreeMap / OpenMapTiles schema) so we control the colors
@@ -234,14 +238,14 @@ export function MapView({
     const ro = new ResizeObserver(sizeCanvas);
     ro.observe(container);
 
-    let mx = -99999, my = -99999;
+    let mx = CURSOR_OFF, my = CURSOR_OFF;
     let lastMoveAt = 0; // for the "settle → right-click to propose" idle hint
     const onMove = (e: PointerEvent) => {
       const b = container.getBoundingClientRect();
       mx = e.clientX - b.left; my = e.clientY - b.top;
       lastMoveAt = performance.now();
     };
-    const onLeave = () => { mx = -99999; my = -99999; };
+    const onLeave = () => { mx = CURSOR_OFF; my = CURSOR_OFF; };
     // Always suppress the native browser context menu over the map — right-click
     // is our "propose a game here" gesture.
     const onCtxMenu = (ev: MouseEvent) => ev.preventDefault();
@@ -350,7 +354,7 @@ export function MapView({
       ctx.clearRect(0, 0, W, H);
       const morph = morphStart ? Math.min(1, (performance.now() - morphStart) / MORPH_MS) : 0;
       mapEl.style.opacity = easeOut(morph).toFixed(3);
-      const on = mx > -9000 && !mapMoving;
+      const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
 
       // The cursor is a candidate game spot. Interested people within their play
       // radius of it "would play here" — their flags wave + point at the cursor,
@@ -474,11 +478,16 @@ export function MapView({
     map.on("moveend", () => { mapMoving = false; });
     map.on("moveend", debouncedRefresh);
     const nearestCluster = (px: number, py: number): Cluster | null => {
-      let best: Cluster | null = null, bestD = 60;
+      // Per-cluster hit radius. The cluster's projected point is the BADGE BASE,
+      // but the badge image extends UP from there by GAME_BADGE / PROPOSED_BADGE
+      // px — so a 60px radius would miss clicks on the top of a game badge. The
+      // small +8 buffer covers the corners (the badge is a square, not a disc).
+      let best: Cluster | null = null, bestD = Infinity;
       for (const cl of clustersRef.current) {
         const p = map.project(cl.ll);
         const d = Math.hypot(p.x - px, p.y - py);
-        if (d < bestD) { bestD = d; best = cl; }
+        const limit = cl.hasGame ? GAME_BADGE + 8 : cl.forming ? PROPOSED_BADGE + 8 : 60;
+        if (d < limit && d < bestD) { bestD = d; best = cl; }
       }
       return best;
     };
