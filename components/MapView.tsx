@@ -11,10 +11,9 @@ type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: bool
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
-const GR = 130;          // cursor "collect" radius — within this of a cluster, its flags rush to the cursor
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
-// When collected, the two teams line up in parallel rows on either side of the
-// cursor (the line of scrimmage), tails flapping away from each other.
+const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would travel to play
+// Existing games render as two teams lined up facing each other (tails out).
 const TEAM_CAP = 11;     // up to 11 a side
 const COL_SP = 13;       // spacing between flags along a team's row
 const LINE_GAP = 16;     // gap from the cursor to each team's row
@@ -83,6 +82,13 @@ function resForZoom(z: number): number {
 }
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+/** Ease an angle toward a target the short way around (so flags swivel, not spin). */
+function easeAngle(cur: number, target: number, k: number): number {
+  let d = (target - cur) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return cur + d * k;
+}
 
 type Flag = {
   rdx: number; rdy: number;       // rest offset (scattered at the user's area)
@@ -95,10 +101,32 @@ type Flag = {
 };
 type Cluster = {
   ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[];
-  inRange: boolean;               // within the viewer's travel radius of home?
 };
 
 type Home = { lat: number; lng: number; maxTravelKm: number };
+
+// Tiny pennant glyphs for the legend.
+function Pennant({ color, wave }: { color: string; wave?: boolean }) {
+  return (
+    <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+      <line x1="3" y1="1" x2="3" y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
+      <path
+        d={wave
+          ? "M3 2 q5 -2.5 9 0 q4 2 9 0 v5 q-5 2 -9 0 q-4 -2.5 -9 0 z"
+          : "M3 2 L21 4.5 L3 7 z"}
+        fill={color}
+      />
+    </svg>
+  );
+}
+function GameGlyph() {
+  return (
+    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
+      <path d="M13 7 L3 4 L3 10 z" fill={TEAM_YELLOW} />
+      <path d="M13 7 L23 4 L23 10 z" fill={TEAM_BLUE} />
+    </svg>
+  );
+}
 
 export function MapView({
   center, zoom = 9, home = null,
@@ -192,12 +220,7 @@ export function MapView({
             energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_BLUE, init: false,
           });
         }
-        // A cluster is "in range" when its general-area centroid is within the
-        // viewer's travel radius of home. With no home set, everything is in
-        // range. Out-of-range clusters never get collected into formation.
-        const h = homeRef.current;
-        const inRange = !h || haversineKm(h.lat, h.lng, c.lat, c.lng) <= h.maxTravelKm;
-        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags, inRange };
+        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
       });
       dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
@@ -223,6 +246,21 @@ export function MapView({
       ctx.closePath(); ctx.fill(); ctx.restore();
     }
 
+    // Jersey-style count floating above the cursor: how many would play here.
+    function drawJersey(n: number, x: number, y: number) {
+      const s = String(n);
+      ctx.save();
+      ctx.font = '900 36px "Arial Narrow", Impact, system-ui, sans-serif';
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const cy = y - 40;
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 6; ctx.strokeStyle = "rgba(16,40,12,0.9)";
+      ctx.strokeText(s, x, cy);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(s, x, cy);
+      ctx.restore();
+    }
+
     let raf = 0;
     // While the map is panning/zooming, flags lock to their projected position
     // (see the frame loop) instead of easing — so they stay bolted to the basemap.
@@ -232,38 +270,49 @@ export function MapView({
       ctx.clearRect(0, 0, W, H);
       const morph = morphStart ? Math.min(1, (performance.now() - morphStart) / MORPH_MS) : 0;
       mapEl.style.opacity = easeOut(morph).toFixed(3);
-      const on = mx > -9000;
+      const on = mx > -9000 && !mapMoving;
+
+      // The cursor is a candidate game spot. Interested people within their play
+      // radius of it "would play here" — their flags wave + point at the cursor,
+      // and we tally them for the jersey number above it.
+      const catchKm = homeRef.current?.maxTravelKm ?? CATCH_KM_DEFAULT;
+      let mGeo: maplibregl.LngLat | null = null;
+      let catchCount = 0;
+      if (on) {
+        mGeo = map.unproject([mx, my]);
+        for (const cl of clustersRef.current) {
+          if (!cl.hasGame && haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm) {
+            catchCount += cl.count;
+          }
+        }
+      }
 
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
-        // The cursor "collects" a cluster when it's within GR of the centroid
-        // (and the cluster is in travel range, and the map is idle). The flags
-        // then rush to the cursor and line up in two rows on either side of it.
-        const cdx = mx - home.x, cdy = my - home.y;
-        const active = on && !mapMoving && cl.inRange && (cdx * cdx + cdy * cdy) < GR * GR;
+        const game = cl.hasGame;
+        const waving = on && !game && mGeo != null &&
+          haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm;
         for (const f of cl.flags) {
-          // Rest position — scattered at the user's area — with the intro morph.
-          let rx = home.x + f.rdx, ry = home.y + f.rdy;
+          // Games line up in formation at their spot; everyone else holds the
+          // scatter at their area — flags never travel to the cursor anymore.
+          let tx = home.x + (game ? f.fdx : f.rdx);
+          let ty = home.y + (game ? f.fdy : f.rdy);
           if (morph < 1 && f.sx >= 0) {
             const e = easeOut(morph);
-            rx = f.sx + (rx - f.sx) * e; ry = f.sy + (ry - f.sy) * e;
+            tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
           }
           if (!f.init || mapMoving) {
-            // First seed, or bolt rigidly to the map while it pans/zooms — snap
-            // to the rest spot so flags don't lerp-lag behind the basemap.
-            f.init = true; f.x = rx; f.y = ry; f.rot = f.rrot;
+            // First seed, or bolt to the map while it pans/zooms.
+            f.init = true; f.x = tx; f.y = ty; f.rot = game ? f.frot : f.rrot;
             f.energy += (0.12 - f.energy) * 0.1;
           } else {
-            // Collected → the row slot centered on the cursor; else drift home.
-            const tx = active ? mx + f.fdx : rx;
-            const ty = active ? my + f.fdy : ry;
-            const k = active ? 0.18 : 0.1;            // snappier when collecting
-            f.x += (tx - f.x) * k; f.y += (ty - f.y) * k;
-            // Face the tail away when lined up; relax to the resting angle at home.
-            const targetRot = active ? f.frot : f.rrot;
-            f.rot += (targetRot - f.rot) * (active ? 0.18 : 0.06);
-            const targetE = active ? 0.5 : 0.12;      // livelier flutter when collected
-            f.energy += (targetE - f.energy) * (active ? 0.15 : 0.1);
+            f.x += (tx - f.x) * 0.12; f.y += (ty - f.y) * 0.12;
+            // Facing: games keep their tails out; a waving flag points AT the
+            // cursor; otherwise it relaxes to its resting angle.
+            const targetRot = game ? f.frot : waving ? Math.atan2(my - f.y, mx - f.x) : f.rrot;
+            f.rot = easeAngle(f.rot, targetRot, waving ? 0.2 : 0.08);
+            const targetE = waving ? 0.55 : game ? 0.3 : 0.1;
+            f.energy += (targetE - f.energy) * 0.12;
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
@@ -272,13 +321,14 @@ export function MapView({
         if (morph > 0.6) {
           ctx.globalAlpha = (morph - 0.6) / 0.4;
           ctx.font = `700 ${cl.count >= 10 ? 13 : 14}px system-ui, -apple-system, sans-serif`;
-          ctx.fillStyle = cl.hasGame ? GRASS.l1 : "#ffffff";
+          ctx.fillStyle = game ? GRASS.l1 : "#ffffff";
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
           ctx.fillText(String(cl.count), home.x, home.y - 2);
           ctx.shadowBlur = 0; ctx.globalAlpha = 1;
         }
       }
+      if (on && catchCount > 0) drawJersey(catchCount, mx, my);
       raf = requestAnimationFrame(frame);
     }
 
@@ -326,6 +376,11 @@ export function MapView({
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
+      <div className="map-legend">
+        <span className="legend-item"><Pennant color={TEAM_YELLOW} /> interested player</span>
+        <span className="legend-item"><Pennant color={TEAM_YELLOW} wave /> would play near your cursor</span>
+        <span className="legend-item"><GameGlyph /> existing game — flags are players</span>
+      </div>
       {propose && (
         <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }} onClose={() => setPropose(null)} />
       )}
