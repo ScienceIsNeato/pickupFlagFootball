@@ -92,8 +92,9 @@ export async function evaluate(
     // Only the one-live-attempt unique conflict is an expected NOOP (a spark
     // race) — the whole transaction rolls back. Any other DB error must surface,
     // not be hidden as success.
+    const pgCode = (e as { cause?: { code?: string } }).cause?.code;
     const msg = e instanceof Error ? e.message : String(e);
-    if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
+    if (pgCode !== "23505" && !/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
     return { kind: "NOOP", reason: "already sparked (lost the one-live-attempt race)" };
   }
   return decision;

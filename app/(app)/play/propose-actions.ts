@@ -144,8 +144,9 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
       });
     } catch (e) {
       // Only the one-live-attempt conflict is expected (a concurrent propose).
+      const pgCode = (e as { cause?: { code?: string } }).cause?.code;
       const msg = e instanceof Error ? e.message : String(e);
-      if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
+      if (pgCode !== "23505" && !/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
       // attach to the window the winner just opened
       [attempt] = await db.select().from(formationAttempts)
         .where(and(eq(formationAttempts.areaId, area.id), eq(formationAttempts.status, "SUGGESTING")))

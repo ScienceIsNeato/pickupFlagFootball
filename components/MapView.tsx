@@ -5,11 +5,16 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
+import { TEAM_YELLOW } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
+import { ProposedDetailsModal } from "./ProposedDetailsModal";
 
-type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean; forming: boolean };
+type Claim = { lat: number; lng: number; color: string; count: number };
+type Cell = {
+  h3: string; lat: number; lng: number; count: number; hasGame: boolean; forming: boolean;
+  gameColor?: string; gameMembers?: number; claims: Claim[];
+};
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
@@ -63,8 +68,23 @@ const STYLE: maplibregl.StyleSpecification = {
         "line-color": "#ffffff",
         "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 2, 16, 4],
       } },
+    // Street names along the roads (appear as you zoom in, like a normal map).
+    { id: "road-labels", type: "symbol", source: "omt", "source-layer": "transportation_name",
+      minzoom: 11,
+      layout: {
+        "symbol-placement": "line",
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+      },
+      paint: { "text-color": LABEL, "text-halo-color": "rgba(255,255,255,0.8)", "text-halo-width": 1.3 } },
+    // Water names (rivers, lakes, reservoirs).
+    { id: "water-labels", type: "symbol", source: "omt", "source-layer": "water_name",
+      layout: { "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 11 },
+      paint: { "text-color": "#d6e8f2", "text-halo-color": "rgba(20,50,40,0.45)", "text-halo-width": 1 } },
+    // Place names: cities → neighborhoods.
     { id: "places", type: "symbol", source: "omt", "source-layer": "place",
-      filter: ["in", ["get", "class"], ["literal", ["city", "town", "village", "suburb"]]],
+      filter: ["in", ["get", "class"], ["literal", ["city", "town", "village", "suburb", "neighbourhood", "hamlet"]]],
       layout: {
         "text-field": ["get", "name"],
         "text-font": ["Noto Sans Regular"],
@@ -98,12 +118,24 @@ type Flag = {
   x: number; y: number;           // live position
   size: number; rot: number; phase: number; energy: number; color: string;
   init: boolean;                  // seeded its first live position yet?
+  gameLl?: [number, number];      // set → claimed flag: always points at this game, ignores the cursor
 };
 type Cluster = {
   ll: [number, number]; count: number; hasGame: boolean; forming: boolean; h3: string; flags: Flag[];
+  gameColor?: string; gameMembers?: number; claimedCount: number;
 };
 
-type Home = { lat: number; lng: number; maxTravelKm: number };
+type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
+
+// Crosshair glyph for the legend (matches the map's right-click cursor).
+function Crosshair() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <circle cx="9" cy="9" r="6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.4" />
+      <path d="M9 0v4M9 14v4M0 9h4M14 9h4" stroke="rgba(255,255,255,0.85)" strokeWidth="1.4" />
+    </svg>
+  );
+}
 
 // Tiny pull-flag streamer glyph for the legend (matches the map's flags).
 function Streamer({ color, wave }: { color: string; wave?: boolean }) {
@@ -127,6 +159,7 @@ export function MapView({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clustersRef = useRef<Cluster[]>([]);
+  const refreshRef = useRef<(() => void) | null>(null); // lets the propose handler refetch /api/map
   // The map effect is mount-only; keep home/maxTravelKm live via a ref so a
   // later prop change (e.g. the user edits their travel radius) takes effect on
   // the next refresh without a remount.
@@ -139,8 +172,10 @@ export function MapView({
   const cWaving = useRef<HTMLSpanElement>(null);
   const cGames = useRef<HTMLSpanElement>(null);
   const cProposed = useRef<HTMLSpanElement>(null);
+  const cClaimed = useRef<HTMLSpanElement>(null);
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
   const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
+  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!ref.current || !canvasRef.current) return;
@@ -152,7 +187,7 @@ export function MapView({
     const map = new maplibregl.Map({
       container, style: STYLE, center, zoom, attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     mapRef.current = map;
     const mapEl = map.getCanvasContainer();
     mapEl.style.opacity = "0"; // fade in as the flags morph into place
@@ -170,6 +205,32 @@ export function MapView({
     }
     requestAnimationFrame(sizeCanvas);
     map.on("load", sizeCanvas);
+
+    // Your travel-radius ring — visualizes the "area of interest" from which you
+    // may propose a game. Synthesizes a polygon (great-circle), rotates and
+    // scales with the basemap. Tracks home/maxTravelKm via homeRef.
+    function radiusGeoJSON(lat: number, lng: number, km: number): GeoJSON.Feature {
+      const R = 6371, pts = 96, coords: number[][] = [];
+      const φ1 = (lat * Math.PI) / 180, λ1 = (lng * Math.PI) / 180, δ = km / R;
+      for (let i = 0; i <= pts; i++) {
+        const θ = (i / pts) * 2 * Math.PI;
+        const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+        const λ2 = λ1 + Math.atan2(
+          Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+          Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2),
+        );
+        coords.push([(λ2 * 180) / Math.PI, (φ2 * 180) / Math.PI]);
+      }
+      return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [coords] } };
+    }
+    map.on("load", () => {
+      const h = homeRef.current; if (!h) return;
+      map.addSource("home-radius", { type: "geojson", data: radiusGeoJSON(h.lat, h.lng, h.maxTravelKm) });
+      map.addLayer({ id: "home-radius-fill", type: "fill", source: "home-radius",
+        paint: { "fill-color": "#ffffff", "fill-opacity": 0.06 } });
+      map.addLayer({ id: "home-radius-line", type: "line", source: "home-radius",
+        paint: { "line-color": "#ffffff", "line-opacity": 0.55, "line-width": 1.5, "line-dasharray": [3, 3] } });
+    });
     const ro = new ResizeObserver(sizeCanvas);
     ro.observe(container);
 
@@ -181,8 +242,12 @@ export function MapView({
       lastMoveAt = performance.now();
     };
     const onLeave = () => { mx = -99999; my = -99999; };
+    // Always suppress the native browser context menu over the map — right-click
+    // is our "propose a game here" gesture.
+    const onCtxMenu = (ev: MouseEvent) => ev.preventDefault();
     container.addEventListener("pointermove", onMove);
     container.addEventListener("pointerleave", onLeave);
+    container.addEventListener("contextmenu", onCtxMenu);
 
     let first = true;
     let morphStart = 0;
@@ -195,29 +260,45 @@ export function MapView({
         const r = await fetch(`/api/map?res=${res}`, { cache: "no-store" });
         if (aborted || !r.ok) return;
         ({ cells } = (await r.json()) as { cells: Cell[] });
-      } catch {
+      } catch (e) {
+        console.error("[map refresh error]", e);
         return; // transient/offline — keep the current flags, try again on next move
       }
       const W = container.clientWidth, H = container.clientHeight;
+      const mkFlag = (n: number, spread: number, color: (i: number) => string, gameLl?: [number, number]): Flag[] => {
+        const flags: Flag[] = [];
+        const shown = Math.max(1, Math.min(MAX_FLAGS, n));
+        for (let i = 0; i < shown; i++) {
+          const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
+          flags.push({
+            rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
+            rrot: rand(0, Math.PI * 2),
+            sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
+            x: 0, y: 0,
+            size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
+            energy: 0, color: color(i), init: false, gameLl,
+          });
+        }
+        return flags;
+      };
       clustersRef.current = cells.map((c) => {
         const flags: Flag[] = [];
-        // Only interested clusters show flags; games + forming sites are badges.
-        if (!c.hasGame && !c.forming) {
-          const shown = Math.max(1, Math.min(MAX_FLAGS, c.count));
-          const spread = Math.min(46, 14 + c.count); // rest scatter radius
-          for (let i = 0; i < shown; i++) {
-            const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
-            flags.push({
-              rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
-              rrot: rand(0, Math.PI * 2),
-              sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
-              x: 0, y: 0,
-              size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
-              energy: 0, color: i % 2 ? TEAM_RED : TEAM_YELLOW, init: false,
-            });
-          }
+        // Free interest → team-colored flags that court the cursor (badge cells
+        // show only their claimed flags, not free ones, to keep the marker clean).
+        if (!c.hasGame && !c.forming && c.count > 0) {
+          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), () => TEAM_YELLOW));
         }
-        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, forming: c.forming, h3: c.h3, flags };
+        // Claimed interest → game-colored flags that always point at their game.
+        let claimedCount = 0;
+        for (const cm of c.claims ?? []) {
+          claimedCount += cm.count;
+          flags.push(...mkFlag(cm.count, Math.min(46, 14 + cm.count), () => cm.color, [cm.lng, cm.lat]));
+        }
+        return {
+          ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame,
+          forming: c.forming, h3: c.h3, flags, gameColor: c.gameColor, gameMembers: c.gameMembers,
+          claimedCount,
+        };
       });
       dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
@@ -259,10 +340,12 @@ export function MapView({
     }
 
     let raf = 0;
+    let frameErr = false;
     // While the map is panning/zooming, flags lock to their projected position
     // (see the frame loop) instead of easing — so they stay bolted to the basemap.
     let mapMoving = false;
     function frame() {
+     try {
       const W = container.clientWidth, H = container.clientHeight;
       ctx.clearRect(0, 0, W, H);
       const morph = morphStart ? Math.min(1, (performance.now() - morphStart) / MORPH_MS) : 0;
@@ -286,40 +369,19 @@ export function MapView({
 
       // Live counts within the current viewport (for the legend) + badge hover.
       const bounds = map.getBounds();
-      let nInterested = 0, nGames = 0, nProposed = 0;
-      let hoverText: string | null = null;
-      let overGameBadge = false;
+      let nInterested = 0, nGames = 0, nProposed = 0, nClaimed = 0;
+      let overBadge: "game" | "forming" | null = null;
 
+      // PASS 1 — flags. Drawn first so game/proposed badges sit on top of them.
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
-        const inView = bounds.contains(cl.ll);
-
-        // Established game or proposed (forming) site → a badge marker, anchored
-        // by its base at the location.
-        if (cl.hasGame || cl.forming) {
-          if (inView) { if (cl.hasGame) nGames++; else nProposed++; }
-          const img = cl.hasGame ? gameBadge : proposedBadge;
-          const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
-          if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
-          // hovering an existing game badge → "click for details" tip
-          if (on && cl.hasGame && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
-            overGameBadge = true;
-          }
-          if (morph > 0.6) {
-            ctx.globalAlpha = (morph - 0.6) / 0.4;
-            ctx.font = "700 13px system-ui, -apple-system, sans-serif";
-            ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
-            ctx.fillText(`${cl.count} in`, home.x, home.y + 11);
-            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-          }
-          continue;
+        if (bounds.contains(cl.ll)) {
+          nClaimed += cl.claimedCount;
+          if (cl.hasGame) nGames++; else if (cl.forming) nProposed++; else nInterested += cl.count;
         }
-
-        // Interested cluster → flags hold their scatter; wave + point at the
-        // cursor when it's within play range.
-        if (inView) nInterested += cl.count;
-        const waving = on && mGeo != null &&
+        // Free flags court the cursor when it's within play range; claimed flags
+        // always point at their own game and ignore the cursor.
+        const waving = on && mGeo != null && !cl.hasGame && !cl.forming &&
           haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm;
         for (const f of cl.flags) {
           let tx = home.x + f.rdx, ty = home.y + f.rdy;
@@ -332,27 +394,55 @@ export function MapView({
             f.energy += (0.12 - f.energy) * 0.1;
           } else {
             f.x += (tx - f.x) * 0.12; f.y += (ty - f.y) * 0.12;
-            const targetRot = waving ? Math.atan2(my - f.y, mx - f.x) : f.rrot;
-            f.rot = easeAngle(f.rot, targetRot, waving ? 0.2 : 0.08);
-            const targetE = waving ? 0.55 : 0.1;
+            let targetRot: number, targetE: number;
+            if (f.gameLl) {                 // claimed → point at the game, ignore cursor
+              const gp = map.project(f.gameLl);
+              targetRot = Math.atan2(gp.y - f.y, gp.x - f.x); targetE = 0.42;
+            } else if (waving) {            // free + courted → point at cursor
+              targetRot = Math.atan2(my - f.y, mx - f.x); targetE = 0.55;
+            } else {                        // free + idle
+              targetRot = f.rrot; targetE = 0.1;
+            }
+            f.rot = easeAngle(f.rot, targetRot, f.gameLl || waving ? 0.2 : 0.08);
             f.energy += (targetE - f.energy) * 0.12;
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
         }
       }
+
+      // PASS 2 — game + proposed badges, on top of all flags. Also detect hover.
+      for (const cl of clustersRef.current) {
+        if (!cl.hasGame && !cl.forming) continue;
+        const home = map.project(cl.ll);
+        const img = cl.hasGame ? gameBadge : proposedBadge;
+        const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
+        if (cl.hasGame && cl.gameColor) {   // colored ring matching the game's color
+          ctx.beginPath();
+          ctx.arc(home.x, home.y - sz / 2, sz * 0.42, 0, Math.PI * 2);
+          ctx.lineWidth = 5; ctx.strokeStyle = cl.gameColor; ctx.stroke();
+        }
+        if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+        if (on && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
+          overBadge = cl.hasGame ? "game" : "forming";
+        }
+        if (morph > 0.6) {
+          ctx.globalAlpha = (morph - 0.6) / 0.4;
+          ctx.font = "700 13px system-ui, -apple-system, sans-serif";
+          ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
+          ctx.fillText(`${cl.hasGame ? cl.gameMembers ?? 0 : cl.count} in`, home.x, home.y + 11);
+          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        }
+      }
       if (on && catchCount > 0) drawJersey(catchCount, mx, my);
 
-      // Tooltip whenever the cursor is settled (not in motion). Contextual:
-      // over a game badge → details; otherwise, at propose zoom → right-click hint.
-      const settled = on && performance.now() - lastMoveAt > 120;
-      if (settled) {
-        if (overGameBadge) hoverText = "click to see game details";
-        else if (map.getZoom() >= MAX_ZOOM) hoverText = "right-click to propose a game here";
-      }
-
-      // Crosshair always — no grab hand, no special badge cursor.
-      mapEl.style.cursor = "crosshair";
+      // Cursor: pointer over a badge (clickable), crosshair otherwise. Tooltip:
+      // over a badge → "click…" immediately; over open space + settled → propose.
+      let hoverText: string | null = null;
+      if (overBadge) hoverText = overBadge === "game" ? "click to see game details" : "click to see this proposal";
+      else if (on && performance.now() - lastMoveAt > 120) hoverText = "right-click to propose a game here";
+      mapEl.style.cursor = overBadge ? "pointer" : "crosshair";
       const tip = tipRef.current;
       if (tip) {
         if (hoverText) {
@@ -365,11 +455,15 @@ export function MapView({
       if (cWaving.current) cWaving.current.textContent = String(catchCount);
       if (cGames.current) cGames.current.textContent = String(nGames);
       if (cProposed.current) cProposed.current.textContent = String(nProposed);
-
+      if (cClaimed.current) cClaimed.current.textContent = String(nClaimed);
+     } catch (e) {
+      if (!frameErr) { frameErr = true; console.error("[map frame error]", e); }
+     }
       raf = requestAnimationFrame(frame);
     }
 
     void refresh();
+    refreshRef.current = () => { void refresh(); };
     // debounce: don't hit /api/map on every moveend frame of a pan/zoom
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedRefresh = () => {
@@ -393,8 +487,8 @@ export function MapView({
       if (!hit) return;
       // Click an existing game → its details (works at any zoom).
       if (hit.hasGame) { setGameDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
-      // A proposed (forming) site is just a marker for now — no action.
-      if (hit.forming) return;
+      // Click a proposed (forming) site → its details + any vote tallies.
+      if (hit.forming) { setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
       // refresh is debounced, so pull fresh r7 cells before matching the click.
       if (map.getZoom() < MAX_ZOOM) return;
@@ -402,11 +496,10 @@ export function MapView({
       const spot = nearestCluster(e.point.x, e.point.y);
       if (spot && !spot.hasGame && !spot.forming) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
     });
-    // Right-click anywhere (at propose zoom) → propose a game at that exact point.
-    // Suppress the browser context menu; resolve the point's r7 cell client-side.
+    // Right-click anywhere, any zoom → propose a game at that point. The modal's
+    // address picker sets the precise venue; the server resolves the area from it.
     map.on("contextmenu", (e) => {
       e.preventDefault();
-      if (map.getZoom() < MAX_ZOOM) return;
       const { lat, lng } = e.lngLat;
       setPropose({ h3: latLngToCell(lat, lng, PROPOSE_RES), lat, lng });
     });
@@ -419,11 +512,23 @@ export function MapView({
       ro.disconnect();
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
+      container.removeEventListener("contextmenu", onCtxMenu);
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // On a successful propose: optimistically drop a proposed badge at the exact
+  // clicked point so it shows instantly, then refetch so the real forming cell
+  // (area centroid) takes over.
+  const handleProposed = (p: { lat: number; lng: number }) => {
+    clustersRef.current = [
+      ...clustersRef.current,
+      { ll: [p.lng, p.lat], count: 0, hasGame: false, forming: true, h3: `opt:${p.lat},${p.lng}`, flags: [], claimedCount: 0 },
+    ];
+    refreshRef.current?.();
+  };
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -434,13 +539,19 @@ export function MapView({
         <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor <span ref={cWaving} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site <span ref={cProposed} className="legend-n">0</span></span>
+        <span className="legend-item"><Streamer color="#94a3b8" /> claimed (in a game) <span ref={cClaimed} className="legend-n">0</span></span>
+        <span className="legend-item"><Crosshair /> right-click to propose game</span>
       </div>
       <div ref={tipRef} className="map-tip" style={{ display: "none" }}>Click to see game details</div>
       {propose && (
-        <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }} onClose={() => setPropose(null)} />
+        <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }}
+          home={home} onClose={() => setPropose(null)} onProposed={handleProposed} />
       )}
       {gameDetails && (
         <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)} />
+      )}
+      {proposedDetails && (
+        <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng} onClose={() => setProposedDetails(null)} />
       )}
     </div>
   );

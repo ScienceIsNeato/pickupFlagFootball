@@ -17,7 +17,10 @@
  */
 import { and, eq, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { users, areas, interestSignals, games, gameRoster, activityTypes, areaCaptains } from "@/lib/db/schema";
+import {
+  users, areas, interestSignals, games, gameRoster, activityTypes, areaCaptains,
+  formationAttempts, suggestions, formationOptions,
+} from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { milesToKm, haversineKm } from "@/lib/geo/distance";
@@ -86,11 +89,12 @@ async function clean() {
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (act) {
     await db.delete(games).where(eq(games.activityTypeId, act.id));
-    // area_captains cascade off areas on area delete, but areas aren't deleted —
-    // just reset to DORMANT. Clear captains explicitly so re-seeds start fresh.
     const actAreas = await db.select({ id: areas.id }).from(areas)
       .where(eq(areas.activityTypeId, act.id));
-    for (const a of actAreas) await db.delete(areaCaptains).where(eq(areaCaptains.areaId, a.id));
+    for (const a of actAreas) {
+      await db.delete(formationAttempts).where(eq(formationAttempts.areaId, a.id));
+      await db.delete(areaCaptains).where(eq(areaCaptains.areaId, a.id));
+    }
     await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, act.id));
   }
   console.log(`removed ${demo.length} demo users + reset games/areas`);
@@ -101,6 +105,10 @@ async function clean() {
  *  forming site. game_roster / notifications cascade off games. */
 async function seedGamesAndSites(activityId: string) {
   await db.delete(games).where(eq(games.activityTypeId, activityId));
+  // formation_attempts (and cascading suggestions/options/promises) reset each run
+  const allAreas = await db.select({ id: areas.id }).from(areas)
+    .where(eq(areas.activityTypeId, activityId));
+  for (const a of allAreas) await db.delete(formationAttempts).where(eq(formationAttempts.areaId, a.id));
   await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, activityId));
 
   const WEEK = 7 * 86_400_000;
@@ -145,6 +153,124 @@ async function seedGamesAndSites(activityId: string) {
   if (forming) {
     await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, forming.id));
     console.log("  marked a North Liberty area as a proposed (forming) site");
+  }
+}
+
+/** Two forming sites with escalating attempt history: previous votes that fell
+ *  short, growing cohorts each round, and a live suggestion window right now. */
+async function seedFormingHistory(activityId: string) {
+  const DAY = 86_400_000;
+  const now = Date.now();
+
+  const SITES = [
+    {
+      city: "Marion",
+      place: "Colony Road Sports Complex",
+      lat: 42.023, lng: -91.597,
+      past: [
+        { daysAgo: 91, cohort: 5, reason: "not enough players committed",
+          opts: [{ text: "Tuesday evenings, Colony Road Sports Complex", dow: 2, votes: 2 }] },
+        { daysAgo: 42, cohort: 9, reason: "not enough players committed",
+          opts: [
+            { text: "Tuesday evenings, Colony Road Sports Complex", dow: 2, votes: 3 },
+            { text: "Saturday mornings, Colony Road Sports Complex", dow: 6, votes: 2 },
+          ] },
+      ],
+      live: { cohort: 16, closesInDays: 5,
+        suggs: [
+          { text: "Colony Road Sports Complex", dow: 6, time: "10:00" },
+          { text: "Lowe Park, Marion",           dow: 2, time: "18:30" },
+          { text: "Colony Road Sports Complex", dow: 6, time: "09:00" },
+        ] },
+    },
+    {
+      city: "Hiawatha",
+      place: "Prairie Park",
+      lat: 42.046, lng: -91.685,
+      past: [
+        { daysAgo: 63, cohort: 4, reason: "not enough players committed",
+          opts: [{ text: "Saturdays, Prairie Park Hiawatha", dow: 6, votes: 2 }] },
+        { daysAgo: 28, cohort: 7, reason: "not enough players committed",
+          opts: [
+            { text: "Saturdays, Prairie Park Hiawatha",   dow: 6, votes: 3 },
+            { text: "Sundays, Boyson Road Park Hiawatha", dow: 0, votes: 1 },
+          ] },
+      ],
+      live: { cohort: 13, closesInDays: 3,
+        suggs: [
+          { text: "Prairie Park, Hiawatha",      dow: 6, time: "11:00" },
+          { text: "Boyson Road Park, Hiawatha",  dow: 0, time: "14:00" },
+        ] },
+    },
+  ];
+
+  for (const fc of SITES) {
+    const [area] = await db.select({ id: areas.id }).from(areas)
+      .where(and(eq(areas.activityTypeId, activityId), eq(areas.displayCity, fc.city))).limit(1);
+    if (!area) { console.log(`  (no ${fc.city} area — skipped forming history)`); continue; }
+
+    const cityUsers = await db.select({ id: users.id }).from(users)
+      .where(and(like(users.email, "demo-%@demo.test"), eq(users.city, fc.city)));
+    if (cityUsers.length < 3) { console.log(`  (too few users in ${fc.city} — skipped)`); continue; }
+
+    let attemptNum = 1;
+    for (const p of fc.past) {
+      const createdAt = new Date(now - p.daysAgo * DAY);
+      const closedAt  = new Date(createdAt.getTime() + 2 * DAY);
+      const cohort    = cityUsers.slice(0, p.cohort).map((u) => u.id);
+
+      const [att] = await db.insert(formationAttempts).values({
+        activityTypeId: activityId, areaId: area.id,
+        attemptNumber: attemptNum++, status: "FAILED", failureReason: p.reason,
+        catchmentCells: [], cohortUserIds: cohort,
+        suggestionOpenedAt: createdAt, suggestionClosesAt: closedAt, createdAt,
+      }).returning({ id: formationAttempts.id });
+
+      // Seed the options that were voted on but couldn't hit quorum.
+      const optBase = new Date(createdAt.getTime() + 10 * DAY);
+      for (const opt of p.opts) {
+        const proposed = new Date(optBase);
+        const skip = ((opt.dow - optBase.getDay() + 7) % 7) || 7;
+        proposed.setDate(proposed.getDate() + skip);
+        proposed.setHours(19, 0, 0, 0);
+        await db.insert(formationOptions).values({
+          attemptId: att.id, placeText: opt.text,
+          placeLat: fc.lat, placeLng: fc.lng,
+          proposedStart: proposed, firstSuggestedAt: createdAt,
+          promiseCount: opt.votes,
+        });
+      }
+    }
+
+    // Live SUGGESTING attempt — window still open.
+    const openedAt  = new Date(now - 4 * DAY);
+    const closesAt  = new Date(now + fc.live.closesInDays * DAY);
+    const liveCohort = cityUsers.slice(0, fc.live.cohort).map((u) => u.id);
+
+    const [live] = await db.insert(formationAttempts).values({
+      activityTypeId: activityId, areaId: area.id,
+      attemptNumber: attemptNum, status: "SUGGESTING",
+      catchmentCells: [], cohortUserIds: liveCohort,
+      suggestionOpenedAt: openedAt, suggestionClosesAt: closesAt,
+    }).returning({ id: formationAttempts.id });
+
+    for (let si = 0; si < fc.live.suggs.length; si++) {
+      const s = fc.live.suggs[si];
+      const suggestor = cityUsers[si % cityUsers.length];
+      const proposed = new Date(now);
+      const skip = ((s.dow - new Date(now).getDay() + 7) % 7) || 7;
+      proposed.setDate(proposed.getDate() + skip + 7);
+      const [h, m] = s.time.split(":").map(Number);
+      proposed.setHours(h, m, 0, 0);
+      await db.insert(suggestions).values({
+        attemptId: live.id, userId: suggestor.id,
+        placeText: s.text, placeLat: fc.lat, placeLng: fc.lng,
+        proposedStart: proposed, recurDow: s.dow, recurTime: `${s.time}:00`,
+      });
+    }
+
+    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
+    console.log(`  forming site in ${fc.city}: ${fc.past.length} past attempts + live (cohort ${fc.live.cohort})`);
   }
 }
 
@@ -242,6 +368,7 @@ async function main() {
   }
 
   await seedGamesAndSites(activity.id);
+  await seedFormingHistory(activity.id);
   await seedRosters(activity.id);
 
   console.log(`done: ${TOTAL} demo users (${real} real address, ${zipOnly} ZIP-only)`);
