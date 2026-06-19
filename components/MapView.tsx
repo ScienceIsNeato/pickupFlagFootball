@@ -15,8 +15,17 @@ const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
 const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would travel to play
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
-const GAME_BADGE = 46;   // px size of the established-game marker
-const PROPOSED_BADGE = 34; // px size of the proposed-site marker (smaller)
+const GAME_BADGE = 92;   // px size of the established-game marker
+const PROPOSED_BADGE = 68; // px size of the proposed-site marker (smaller)
+
+// A football cursor (SVG data URI) for hovering a clickable badge.
+const FOOTBALL_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34'>" +
+  "<g transform='rotate(-20 17 17)'>" +
+  "<ellipse cx='17' cy='17' rx='14' ry='8.5' fill='#8a4b2a' stroke='#532a16' stroke-width='2'/>" +
+  "<path d='M8 17h18M17 11.5v11M12 14h10M12 20h10' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/>" +
+  "</g></svg>"
+)}") 17 17, auto`;
 
 // Football-field basemap: green turf, white "hashmark" roads, muted water.
 // Vector tiles (OpenFreeMap / OpenMapTiles schema) so we control the colors
@@ -131,6 +140,13 @@ export function MapView({
   // the next refresh without a remount.
   const homeRef = useRef(home);
   homeRef.current = home;
+  // Imperatively-updated DOM (avoids per-frame React re-renders): a hover tip and
+  // the four live legend counts.
+  const tipRef = useRef<HTMLDivElement>(null);
+  const cInterested = useRef<HTMLSpanElement>(null);
+  const cWaving = useRef<HTMLSpanElement>(null);
+  const cGames = useRef<HTMLSpanElement>(null);
+  const cProposed = useRef<HTMLSpanElement>(null);
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
   const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -274,21 +290,32 @@ export function MapView({
         }
       }
 
+      // Live counts within the current viewport (for the legend) + badge hover.
+      const bounds = map.getBounds();
+      let nInterested = 0, nGames = 0, nProposed = 0;
+      let hoverText: string | null = null;
+
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
+        const inView = bounds.contains(cl.ll);
 
         // Established game or proposed (forming) site → a badge marker, anchored
         // by its base at the location.
         if (cl.hasGame || cl.forming) {
+          if (inView) { if (cl.hasGame) nGames++; else nProposed++; }
           const img = cl.hasGame ? gameBadge : proposedBadge;
           const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
           if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+          // hovering an existing game → football cursor + "click for details" tip
+          if (on && cl.hasGame && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
+            hoverText = "Click to see game details";
+          }
           if (morph > 0.6) {
             ctx.globalAlpha = (morph - 0.6) / 0.4;
-            ctx.font = "700 12px system-ui, -apple-system, sans-serif";
+            ctx.font = "700 13px system-ui, -apple-system, sans-serif";
             ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
-            ctx.fillText(`${cl.count} in`, home.x, home.y + 9);
+            ctx.fillText(`${cl.count} in`, home.x, home.y + 11);
             ctx.shadowBlur = 0; ctx.globalAlpha = 1;
           }
           continue;
@@ -296,6 +323,7 @@ export function MapView({
 
         // Interested cluster → flags hold their scatter; wave + point at the
         // cursor when it's within play range.
+        if (inView) nInterested += cl.count;
         const waving = on && mGeo != null &&
           haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm;
         for (const f of cl.flags) {
@@ -319,6 +347,22 @@ export function MapView({
         }
       }
       if (on && catchCount > 0) drawJersey(catchCount, mx, my);
+
+      // Football cursor + hover tip over a badge.
+      mapEl.style.cursor = hoverText ? FOOTBALL_CURSOR : "";
+      const tip = tipRef.current;
+      if (tip) {
+        if (hoverText) {
+          tip.textContent = hoverText; tip.style.display = "block";
+          tip.style.left = `${mx + 16}px`; tip.style.top = `${my + 18}px`;
+        } else tip.style.display = "none";
+      }
+      // Live legend counts.
+      if (cInterested.current) cInterested.current.textContent = String(nInterested);
+      if (cWaving.current) cWaving.current.textContent = String(catchCount);
+      if (cGames.current) cGames.current.textContent = String(nGames);
+      if (cProposed.current) cProposed.current.textContent = String(nProposed);
+
       raf = requestAnimationFrame(frame);
     }
 
@@ -346,12 +390,14 @@ export function MapView({
       if (!hit) return;
       // Click an existing game → its details (works at any zoom).
       if (hit.hasGame) { setGameDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
+      // A proposed (forming) site is just a marker for now — no action.
+      if (hit.forming) return;
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
       // refresh is debounced, so pull fresh r7 cells before matching the click.
       if (map.getZoom() < MAX_ZOOM) return;
       if (dataRes < PROPOSE_RES) await refresh();
       const spot = nearestCluster(e.point.x, e.point.y);
-      if (spot && !spot.hasGame) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
+      if (spot && !spot.hasGame && !spot.forming) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
     });
     raf = requestAnimationFrame(frame);
 
@@ -373,11 +419,12 @@ export function MapView({
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
       <div className="map-legend">
-        <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player</span>
-        <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor</span>
-        <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game</span>
-        <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site</span>
+        <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player <span ref={cInterested} className="legend-n">0</span></span>
+        <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor <span ref={cWaving} className="legend-n">0</span></span>
+        <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>
+        <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site <span ref={cProposed} className="legend-n">0</span></span>
       </div>
+      <div ref={tipRef} className="map-tip" style={{ display: "none" }}>Click to see game details</div>
       {propose && (
         <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }} onClose={() => setPropose(null)} />
       )}
