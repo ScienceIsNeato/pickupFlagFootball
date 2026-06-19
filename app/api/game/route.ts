@@ -72,7 +72,10 @@ export async function GET(req: Request) {
       const t = new Date(h.scheduledStart).getTime();
       return t >= start && t < end;
     });
-    const played = !!g && g.status !== "CANCELLED";
+    // Only COMPLETED games count as "played". STANDING/STAGED rows for the
+    // upcoming/current recurrence can land in this week's bucket and would
+    // otherwise be miscounted as having happened.
+    const played = !!g && g.status === "COMPLETED";
     return { weekStart: new Date(start).toISOString(), played, count: played ? g!.confirmedCount : 0 };
   });
 
