@@ -50,11 +50,15 @@ export async function GET(req: Request) {
     (a.status === "SCHEDULED" ? gameCells : formingCells).add(parent);
   }
 
-  const cells = [...byCell.entries()].map(([h3, users]) => {
+  // Emit every cell that has interest OR a game/forming site. A freshly proposed
+  // site often lands in a cell with no interest of its own, so it must be added
+  // here or its badge would never appear.
+  const allCells = new Set<string>([...byCell.keys(), ...gameCells, ...formingCells]);
+  const cells = [...allCells].map((h3) => {
     const [lat, lng] = cellToLatLng(h3);
     const hasGame = gameCells.has(h3);
     // a scheduled game wins over a forming one if both roll up into the same cell
-    return { h3, lat, lng, count: users.size, hasGame, forming: !hasGame && formingCells.has(h3) };
+    return { h3, lat, lng, count: byCell.get(h3)?.size ?? 0, hasGame, forming: !hasGame && formingCells.has(h3) };
   });
 
   return NextResponse.json({ res, cells });

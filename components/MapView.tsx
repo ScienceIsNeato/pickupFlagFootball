@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
 import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
@@ -17,15 +18,6 @@ const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
 const PROPOSED_BADGE = 68; // px size of the proposed-site marker (smaller)
-
-// A football cursor (SVG data URI) for hovering a clickable badge.
-const FOOTBALL_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
-  "<svg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 34 34'>" +
-  "<g transform='rotate(-20 17 17)'>" +
-  "<ellipse cx='17' cy='17' rx='14' ry='8.5' fill='#8a4b2a' stroke='#532a16' stroke-width='2'/>" +
-  "<path d='M8 17h18M17 11.5v11M12 14h10M12 20h10' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/>" +
-  "</g></svg>"
-)}") 17 17, auto`;
 
 // Football-field basemap: green turf, white "hashmark" roads, muted water.
 // Vector tiles (OpenFreeMap / OpenMapTiles schema) so we control the colors
@@ -182,9 +174,11 @@ export function MapView({
     ro.observe(container);
 
     let mx = -99999, my = -99999;
+    let lastMoveAt = 0; // for the "settle → right-click to propose" idle hint
     const onMove = (e: PointerEvent) => {
       const b = container.getBoundingClientRect();
       mx = e.clientX - b.left; my = e.clientY - b.top;
+      lastMoveAt = performance.now();
     };
     const onLeave = () => { mx = -99999; my = -99999; };
     container.addEventListener("pointermove", onMove);
@@ -294,6 +288,7 @@ export function MapView({
       const bounds = map.getBounds();
       let nInterested = 0, nGames = 0, nProposed = 0;
       let hoverText: string | null = null;
+      let overGameBadge = false;
 
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
@@ -306,9 +301,9 @@ export function MapView({
           const img = cl.hasGame ? gameBadge : proposedBadge;
           const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
           if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
-          // hovering an existing game → football cursor + "click for details" tip
+          // hovering an existing game badge → "click for details" tip
           if (on && cl.hasGame && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
-            hoverText = "Click to see game details";
+            overGameBadge = true;
           }
           if (morph > 0.6) {
             ctx.globalAlpha = (morph - 0.6) / 0.4;
@@ -348,8 +343,16 @@ export function MapView({
       }
       if (on && catchCount > 0) drawJersey(catchCount, mx, my);
 
-      // Football cursor + hover tip over a badge.
-      mapEl.style.cursor = hoverText ? FOOTBALL_CURSOR : "";
+      // Tooltip whenever the cursor is settled (not in motion). Contextual:
+      // over a game badge → details; otherwise, at propose zoom → right-click hint.
+      const settled = on && performance.now() - lastMoveAt > 120;
+      if (settled) {
+        if (overGameBadge) hoverText = "click to see game details";
+        else if (map.getZoom() >= MAX_ZOOM) hoverText = "right-click to propose a game here";
+      }
+
+      // Crosshair always — no grab hand, no special badge cursor.
+      mapEl.style.cursor = "crosshair";
       const tip = tipRef.current;
       if (tip) {
         if (hoverText) {
@@ -398,6 +401,14 @@ export function MapView({
       if (dataRes < PROPOSE_RES) await refresh();
       const spot = nearestCluster(e.point.x, e.point.y);
       if (spot && !spot.hasGame && !spot.forming) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
+    });
+    // Right-click anywhere (at propose zoom) → propose a game at that exact point.
+    // Suppress the browser context menu; resolve the point's r7 cell client-side.
+    map.on("contextmenu", (e) => {
+      e.preventDefault();
+      if (map.getZoom() < MAX_ZOOM) return;
+      const { lat, lng } = e.lngLat;
+      setPropose({ h3: latLngToCell(lat, lng, PROPOSE_RES), lat, lng });
     });
     raf = requestAnimationFrame(frame);
 

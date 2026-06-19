@@ -5,10 +5,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
+import { cellToLatLng } from "h3-js";
 import {
   activityTypes, areas, interestSignals, formationAttempts, notificationsSent,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
+import { ensureArea } from "@/lib/geo/ensureArea";
 import { shouldRetrigger } from "@/lib/mime";
 import { loadTunables } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -38,15 +40,19 @@ export async function proposeGame(formData: FormData) {
   const placeLat = coord(String(formData.get("place_lat") ?? ""), -90, 90);
   const placeLng = coord(String(formData.get("place_lng") ?? ""), -180, 180);
 
+  // Recurring weekly slot (proposer's day-of-week + local time). `when`
+  // (proposed_start) is the first game; these promote the formed game to standing.
+  const dowRaw = Number(String(formData.get("recur_dow") ?? ""));
+  const recurDow = Number.isInteger(dowRaw) && dowRaw >= 0 && dowRaw <= 6 ? dowRaw : null;
+  const timeRaw = String(formData.get("recur_time") ?? "").trim();
+  const recurTime = /^\d{2}:\d{2}$/.test(timeRaw) ? `${timeRaw}:00` : null;
+
   const cell = h3ToBigInt(h3);
   const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (!act) throw new Error("activity not configured");
-  const [area] = await db.select().from(areas)
-    .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
-  if (!area) throw new Error("no area for this spot yet");
 
-  const disk = diskCells(area.h3Cell, 1);
+  const disk = diskCells(cell, 1);
 
   // Only locals (people who showed interest in this catchment) may propose.
   const [mine] = await db.select({ id: interestSignals.id }).from(interestSignals)
@@ -57,6 +63,18 @@ export async function proposeGame(formData: FormData) {
       inArray(interestSignals.h3Base, disk),
     )).limit(1);
   if (!mine) redirect("/play?propose=notlocal");
+
+  // Resolve the area for this exact cell, creating it if a right-click landed on a
+  // spot with no area row yet (the proposer is already a verified local above).
+  let [area] = await db.select().from(areas)
+    .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
+  if (!area) {
+    const [clat, clng] = cellToLatLng(h3);
+    await ensureArea(act.id, cell, { city: "", zip: "", centerLat: clat, centerLng: clng });
+    [area] = await db.select().from(areas)
+      .where(and(eq(areas.activityTypeId, act.id), eq(areas.h3Cell, cell))).limit(1);
+  }
+  if (!area) redirect("/play?propose=retry");
 
   // A game is already scheduled here — don't undo it by spawning a new attempt.
   if (area.status === "SCHEDULED") redirect("/play?propose=scheduled");
@@ -124,8 +142,8 @@ export async function proposeGame(formData: FormData) {
   // against a closed window. neon-http is one-shot (no txn), so this conditional
   // INSERT…SELECT is the atomic unit.
   const inserted = await db.execute(sql`
-    insert into suggestions (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start)
-    select ${attempt.id}, ${session.user.id}, ${place}, ${placeLat}, ${placeLng}, ${when.toISOString()}
+    insert into suggestions (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
+    select ${attempt.id}, ${session.user.id}, ${place}, ${placeLat}, ${placeLng}, ${when.toISOString()}, ${recurDow}, ${recurTime}
     where exists (
       select 1 from formation_attempts where id = ${attempt.id} and status = 'SUGGESTING'
     )

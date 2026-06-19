@@ -153,6 +153,10 @@ export const suggestions = pgTable("suggestions", {
   placeLat:      doublePrecision("place_lat"),
   placeLng:      doublePrecision("place_lng"),
   proposedStart: timestamp("proposed_start", { withTimezone: true }).notNull(),
+  // Recurring weekly slot the proposer picked (local wall-clock). NULL = one-off.
+  // proposedStart is the first game; these drive the standing game on adjudication.
+  recurDow:      integer("recur_dow"),   // 0=Sun…6=Sat
+  recurTime:     time("recur_time"),     // HH:MM:SS, local
   optionId:      uuid("option_id"),
   createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

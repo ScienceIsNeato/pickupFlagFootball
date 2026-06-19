@@ -212,6 +212,10 @@ CREATE TABLE suggestions (
   place_lat     double precision,          -- optional venue coords (public place, not PII)
   place_lng     double precision,
   proposed_start timestamptz NOT NULL,
+  -- recurring weekly slot the proposer picked (local wall-clock); NULL = one-off.
+  -- proposed_start is the first game; these promote the formed game to standing.
+  recur_dow     int,                       -- 0=Sun..6=Sat
+  recur_time    time,                      -- local HH:MM:SS
   option_id     uuid,                      -- assigned during COMPILING (dedupe grouping)
   created_at    timestamptz NOT NULL DEFAULT now()   -- TIE-BREAK: earliest wins
 );
