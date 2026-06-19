@@ -75,17 +75,22 @@ export async function GET(req: Request) {
     gameAtCell.set(parent, g.id);
   }
 
-  // Roster → which game claims each user, and each game's member tally.
-  const claimByUser = new Map<string, string>();
+  // Roster → which game(s) claim each user, and each game's member tally.
+  // A user can be on multiple rosters (multi-area locals); each membership
+  // produces its own claim, so the map shows that user as one flag per game.
+  const claimsByUser = new Map<string, string[]>();
   const memberCount = new Map<string, number>();
   if (gameInfo.size) {
     const roster = await db
       .select({ gameId: gameRoster.gameId, userId: gameRoster.userId })
       .from(gameRoster).where(inArray(gameRoster.gameId, [...gameInfo.keys()]));
     for (const r of roster) {
-      if (!gameInfo.has(r.gameId) || claimByUser.has(r.userId)) continue;
-      claimByUser.set(r.userId, r.gameId);
-      memberCount.set(r.gameId, (memberCount.get(r.gameId) ?? 0) + 1);
+      if (!gameInfo.has(r.gameId)) continue;
+      const list = claimsByUser.get(r.userId) ?? claimsByUser.set(r.userId, []).get(r.userId)!;
+      if (!list.includes(r.gameId)) {
+        list.push(r.gameId);
+        memberCount.set(r.gameId, (memberCount.get(r.gameId) ?? 0) + 1);
+      }
     }
   }
 
@@ -133,10 +138,14 @@ export async function GET(req: Request) {
   const claims = new Map<string, Map<string, Set<string>>>(); // cell → gameId → users
   for (const s of signals) {
     const parent = cellToParent(bigIntToH3(s.h3Base), res);
-    const gid = claimByUser.get(s.userId);
-    if (gid && gameInfo.has(gid)) {  // gameInfo is already mine-filtered above
+    // A user rostered on multiple games gets one claim per game (rendered as one
+    // colored flag per game). gameInfo is already mine-filtered above.
+    const gids = (claimsByUser.get(s.userId) ?? []).filter((g) => gameInfo.has(g));
+    if (gids.length > 0) {
       const cellClaims = claims.get(parent) ?? claims.set(parent, new Map()).get(parent)!;
-      (cellClaims.get(gid) ?? cellClaims.set(gid, new Set()).get(gid)!).add(s.userId);
+      for (const gid of gids) {
+        (cellClaims.get(gid) ?? cellClaims.set(gid, new Set()).get(gid)!).add(s.userId);
+      }
     } else if (!mineOnly) {
       (free.get(parent) ?? free.set(parent, new Set()).get(parent)!).add(s.userId);
     }

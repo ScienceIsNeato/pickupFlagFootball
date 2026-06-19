@@ -381,12 +381,27 @@ async function main() {
           maxTravelKm: milesToKm(pool.mi),
           h3R5: cells.r5, h3R6: cells.r6, h3R7: cells.r7, h3R8: cells.r8, h3R9: cells.r9,
         })
+        // Refresh ALL location-shaped fields on rerun, not just city/zip/radius,
+        // so the user's home + h3 cells stay consistent with the new interest
+        // signals we insert below (otherwise stale H3 leaves us with phantom
+        // signals scattered across past random positions).
         .onConflictDoUpdate({ target: users.email,
-          set: { city: pool.city, zip: pool.zip, homeLat: lat, homeLng: lng, maxTravelKm: milesToKm(pool.mi) } })
+          set: {
+            city: pool.city, zip: pool.zip, ...addr,
+            homeLat: lat, homeLng: lng,
+            maxTravelKm: milesToKm(pool.mi),
+            h3R5: cells.r5, h3R6: cells.r6, h3R7: cells.r7, h3R8: cells.r8, h3R9: cells.r9,
+          },
+        })
         .returning({ id: users.id });
 
       const areaId = await ensureArea(activity.id, cells.r7,
         { city: pool.city, zip: pool.zip, centerLat: cells.snapLat, centerLng: cells.snapLng });
+      // Drop stale interest from past reruns (the user's jittered position may
+      // have landed in a different H3 cell), then insert the fresh signal. This
+      // keeps reruns without --clean idempotent: one active signal per demo user.
+      await db.delete(interestSignals)
+        .where(and(eq(interestSignals.userId, user.id), eq(interestSignals.activityTypeId, activity.id)));
       await db.insert(interestSignals)
         .values({ activityTypeId: activity.id, userId: user.id, areaId, h3Base: cells.r7, active: true })
         .onConflictDoNothing();
