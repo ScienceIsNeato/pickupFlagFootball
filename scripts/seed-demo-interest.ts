@@ -104,19 +104,31 @@ async function seedGamesAndSites(activityId: string) {
   await db.update(areas).set({ status: "DORMANT" }).where(eq(areas.activityTypeId, activityId));
 
   const WEEK = 7 * 86_400_000;
+  // Standing games carry their recurrence (recurDow + recurTime) explicitly so
+  // the UI can render "Tuesdays at 6:30 PM" instead of falling back to a single
+  // scheduled-start string. scheduledStart for the first/next instance is
+  // computed from the recurDow (next occurrence ≥ today).
   const STANDING = [
-    { city: "Coralville",   place: "S.T. Morrison Park", standDays: 5, base: 9,  skip: [2, 6] },
-    { city: "Cedar Rapids", place: "Noelridge Park",     standDays: 3, base: 13, skip: [4] },
+    { city: "Coralville",   place: "S.T. Morrison Park", recurDow: 1, recurTime: "18:00", base: 9,  skip: [2, 6] }, // Mon 6:00 pm
+    { city: "Cedar Rapids", place: "Noelridge Park",     recurDow: 3, recurTime: "18:30", base: 13, skip: [4] },    // Wed 6:30 pm
   ];
+  const nextOccurrence = (dow: number, time: string): Date => {
+    const today = new Date();
+    const delta = (dow - today.getDay() + 7) % 7;
+    const [h, m] = time.split(":").map(Number);
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta, h, m, 0, 0);
+  };
   for (const gc of STANDING) {
     const [a] = await db.select({ id: areas.id }).from(areas)
       .where(and(eq(areas.activityTypeId, activityId), eq(areas.displayCity, gc.city))).limit(1);
     if (!a) { console.log(`  (no ${gc.city} area for a game — skipped)`); continue; }
     await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, a.id));
+    const nextStart = nextOccurrence(gc.recurDow, gc.recurTime);
     await db.insert(games).values({
       activityTypeId: activityId, areaId: a.id, placeText: gc.place,
-      scheduledStart: new Date(Date.now() + gc.standDays * 86_400_000),
+      scheduledStart: nextStart,
       status: "STANDING", confirmedCount: gc.base, isStanding: true,
+      recurDow: gc.recurDow, recurTime: `${gc.recurTime}:00`,
     });
     const skip = new Set(gc.skip);
     const hist = [];

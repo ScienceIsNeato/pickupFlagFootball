@@ -290,7 +290,9 @@ export function MapView({
         // Free interest → team-colored flags that court the cursor (badge cells
         // show only their claimed flags, not free ones, to keep the marker clean).
         if (!c.hasGame && !c.forming && c.count > 0) {
-          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), () => TEAM_YELLOW));
+          // Two-team flag lineup: alternate yellow/red so a free-interest cluster
+          // visually reads as "people on both sides" instead of a single-team blob.
+          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), (i) => (i % 2 ? TEAM_RED : TEAM_YELLOW)));
         }
         // Claimed interest → game-colored flags that always point at their game.
         let claimedCount = 0;
