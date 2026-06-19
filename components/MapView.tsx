@@ -175,7 +175,7 @@ export function MapView({
   const cClaimed = useRef<HTMLSpanElement>(null);
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
   const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
-  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number } | null>(null);
+  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number; anchor: { x: number; y: number } } | null>(null);
 
   useEffect(() => {
     if (!ref.current || !canvasRef.current) return;
@@ -488,7 +488,11 @@ export function MapView({
       // Click an existing game → its details (works at any zoom).
       if (hit.hasGame) { setGameDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
       // Click a proposed (forming) site → its details + any vote tallies.
-      if (hit.forming) { setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
+      if (hit.forming) {
+        const p = map.project(hit.ll);
+        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x, y: p.y } });
+        return;
+      }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
       // refresh is debounced, so pull fresh r7 cells before matching the click.
       if (map.getZoom() < MAX_ZOOM) return;
@@ -552,7 +556,8 @@ export function MapView({
         <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)} />
       )}
       {proposedDetails && (
-        <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng} onClose={() => setProposedDetails(null)} />
+        <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng}
+          anchor={proposedDetails.anchor} onClose={() => setProposedDetails(null)} />
       )}
     </div>
   );

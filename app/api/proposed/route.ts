@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -12,11 +12,15 @@ export const dynamic = "force-dynamic";
 
 const LIVE = ["SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING"] as const;
 
+type Activity =
+  | { kind: "propose" | "suggest"; byName: string; placeText: string; proposedStart: string; at: string }
+  | { kind: "vote";              byName: string; placeText: string; proposedStart: string; at: string };
+
 /**
- * Details for the proposed (forming) site nearest a clicked point: where it is,
- * what's been suggested, and — once voting opens — the options with their vote
- * (soft-promise) tallies. Auth-gated like the map.
- * GET /api/proposed?lat=&lng=  → { site, suggestions, options } | { site: null }
+ * Details for the proposed (forming) site nearest a clicked point: where, the
+ * captain(s), and an activity log built from suggestions + votes (soft-promises),
+ * oldest-first. The first entry is always "site proposed by …" (the earliest
+ * suggestion's user — same person the area-captain logic picks). Auth-gated.
  */
 export async function GET(req: Request) {
   const session = await auth();
@@ -51,23 +55,53 @@ export async function GET(req: Request) {
     .where(and(eq(formationAttempts.areaId, best.id), inArray(formationAttempts.status, [...LIVE])))
     .limit(1);
 
-  const suggs = attempt
-    ? await db.select({ placeText: suggestions.placeText, proposedStart: suggestions.proposedStart })
-        .from(suggestions).where(eq(suggestions.attemptId, attempt.id))
+  // Suggestions (oldest first — the earliest is the proposer).
+  const sRows = attempt
+    ? await db.select({
+        byName: users.displayName,
+        placeText: suggestions.placeText,
+        proposedStart: suggestions.proposedStart,
+        at: suggestions.createdAt,
+      }).from(suggestions)
+        .innerJoin(users, eq(users.id, suggestions.userId))
+        .where(eq(suggestions.attemptId, attempt.id))
         .orderBy(asc(suggestions.createdAt))
     : [];
 
-  // Options with their vote (soft-promise) counts — the "recent vote info".
-  const opts = attempt
+  // Votes (soft-promises against compiled options).
+  const vRows = attempt
     ? await db.select({
-        placeText: formationOptions.placeText, proposedStart: formationOptions.proposedStart,
-        votes: sql<number>`count(${softPromises.id})::int`,
-      }).from(formationOptions)
-        .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
-        .where(eq(formationOptions.attemptId, attempt.id))
-        .groupBy(formationOptions.id)
-        .orderBy(desc(sql`count(${softPromises.id})`))
+        byName: users.displayName,
+        placeText: formationOptions.placeText,
+        proposedStart: formationOptions.proposedStart,
+        at: softPromises.createdAt,
+      }).from(softPromises)
+        .innerJoin(formationOptions, eq(formationOptions.id, softPromises.optionId))
+        .innerJoin(users, eq(users.id, softPromises.userId))
+        .where(eq(softPromises.attemptId, attempt.id))
     : [];
+
+  const activity: Activity[] = [
+    ...sRows.map((r, i): Activity => ({
+      kind: i === 0 ? "propose" : "suggest",
+      byName: r.byName ?? "someone",
+      placeText: r.placeText,
+      proposedStart: new Date(r.proposedStart).toISOString(),
+      at: new Date(r.at).toISOString(),
+    })),
+    ...vRows.map((r): Activity => ({
+      kind: "vote",
+      byName: r.byName ?? "someone",
+      placeText: r.placeText,
+      proposedStart: new Date(r.proposedStart).toISOString(),
+      at: new Date(r.at).toISOString(),
+    })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+  // Re-label: regardless of sort, the chronologically-first entry is the proposal.
+  if (activity.length > 0) activity[0] = { ...activity[0], kind: "propose" };
+
+  const firstPlaceText = sRows[0]?.placeText ?? null;
 
   const captainRows = await db.select({ name: users.displayName })
     .from(areaCaptains).innerJoin(users, eq(users.id, areaCaptains.userId))
@@ -76,7 +110,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     site: { city: best.city, zip: best.zip, status: attempt?.status ?? null, captains },
-    suggestions: suggs,
-    options: opts,
+    firstPlaceText,
+    activity,
   });
 }
