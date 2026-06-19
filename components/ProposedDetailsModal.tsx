@@ -31,7 +31,9 @@ export function ProposedDetailsModal({
   lat, lng, anchor, onClose,
 }: {
   lat: number; lng: number;
-  anchor?: { x: number; y: number } | null;
+  // anchor: the badge's base on the map (x,y) + its rendered pixel height,
+  // so we can place this card just above the badge top without hardcoding sizes.
+  anchor?: { x: number; y: number; badgeHeight: number } | null;
   onClose: () => void;
 }) {
   const [state, setState] = useState<Data | "loading" | "error">("loading");
@@ -64,10 +66,10 @@ export function ProposedDetailsModal({
     const GAP = 14;
     let left = anchor.x - cw / 2;
     left = Math.max(8, Math.min(W - cw - 8, left));
-    // anchor.y is the badge ANCHOR (its base on the map). The badge image extends
-    // upward from there by ~68px (PROPOSED_BADGE), so the badge top sits at
-    // anchor.y - 68. Place the card's bottom just above that.
-    const badgeTop = anchor.y - 68;
+    // anchor.y is the badge ANCHOR (its base on the map); the badge extends up
+    // from there by anchor.badgeHeight. Place the card's bottom just above the
+    // badge top, with a small gap.
+    const badgeTop = anchor.y - anchor.badgeHeight;
     let top = badgeTop - GAP - ch;
     top = Math.max(8, top);
     setPos({ top, left });

@@ -81,6 +81,10 @@ export async function GET(req: Request) {
         .where(eq(softPromises.attemptId, attempt.id))
     : [];
 
+  // The earliest suggestion IS the proposal (FK chain means votes can't precede
+  // a suggestion; this label survives the merge sort below since older sRows[0]
+  // wins). Labeling here — not via a post-sort rewrite — avoids mislabeling a
+  // vote as the proposal in any degenerate ordering.
   const activity: Activity[] = [
     ...sRows.map((r, i): Activity => ({
       kind: i === 0 ? "propose" : "suggest",
@@ -98,15 +102,14 @@ export async function GET(req: Request) {
     })),
   ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
-  // Re-label: regardless of sort, the chronologically-first entry is the proposal.
-  if (activity.length > 0) activity[0] = { ...activity[0], kind: "propose" };
-
   const firstPlaceText = sRows[0]?.placeText ?? null;
 
   const captainRows = await db.select({ name: users.displayName })
     .from(areaCaptains).innerJoin(users, eq(users.id, areaCaptains.userId))
     .where(eq(areaCaptains.areaId, best.id));
-  const captains = captainRows.map((r) => r.name);
+  // displayName is nullable in the schema — drop unnamed captains rather than
+  // rendering "null" in the popup.
+  const captains = captainRows.map((r) => r.name).filter((n): n is string => !!n);
 
   return NextResponse.json({
     site: { city: best.city, zip: best.zip, status: attempt?.status ?? null, captains },

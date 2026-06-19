@@ -175,7 +175,7 @@ export function MapView({
   const cClaimed = useRef<HTMLSpanElement>(null);
   const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
   const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
-  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number; anchor: { x: number; y: number } } | null>(null);
+  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number; anchor: { x: number; y: number; badgeHeight: number } } | null>(null);
 
   useEffect(() => {
     if (!ref.current || !canvasRef.current) return;
@@ -490,7 +490,7 @@ export function MapView({
       // Click a proposed (forming) site → its details + any vote tallies.
       if (hit.forming) {
         const p = map.project(hit.ll);
-        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x, y: p.y } });
+        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x, y: p.y, badgeHeight: PROPOSED_BADGE } });
         return;
       }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
