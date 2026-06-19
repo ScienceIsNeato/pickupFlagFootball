@@ -271,6 +271,9 @@ CREATE TABLE games (
   scheduled_start  timestamptz NOT NULL,
   status           game_status NOT NULL DEFAULT 'STAGED',
   confirmed_count  int NOT NULL DEFAULT 0,
+  -- Per-game color (hex). Assigned at creation time so the badge ring + claimed
+  -- flags use a stable, inspectable color (vs. hashed-from-id at render time).
+  color            text,
   -- v2 recurring standing-slot fields
   is_standing      boolean NOT NULL DEFAULT false,
   recur_dow        int,        -- 0-6

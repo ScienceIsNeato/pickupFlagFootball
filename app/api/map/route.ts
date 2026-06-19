@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   // (denormalised here) areaId so we can decide "is this one of mine?".
   const gameRows = await db
     .select({
-      id: games.id, areaId: games.areaId,
+      id: games.id, areaId: games.areaId, color: games.color,
       placeLat: games.placeLat, placeLng: games.placeLng,
       h3Cell: areas.h3Cell, centerLat: areas.centerLat, centerLng: areas.centerLng,
     })
@@ -69,9 +69,12 @@ export async function GET(req: Request) {
   const gameAtCell = new Map<string, string>();       // display cell → gameId (for the member badge)
   for (const g of gameRows) {
     if (mineGameIds && !mineGameIds.has(g.id)) continue;
-    gameInfo.set(g.id, { lat: g.placeLat ?? g.centerLat, lng: g.placeLng ?? g.centerLng, color: gameColor(g.id) });
+    // Prefer the stored color; fall back to the deterministic hash for any
+    // legacy row inserted before the color column was added.
+    const color = g.color ?? gameColor(g.id);
+    gameInfo.set(g.id, { lat: g.placeLat ?? g.centerLat, lng: g.placeLng ?? g.centerLng, color });
     const parent = cellToParent(bigIntToH3(g.h3Cell), res);
-    gameCellColor.set(parent, gameColor(g.id));
+    gameCellColor.set(parent, color);
     gameAtCell.set(parent, g.id);
   }
 

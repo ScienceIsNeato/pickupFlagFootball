@@ -6,6 +6,7 @@ import {
   formationOptions, softPromises, games, gameRoster, notificationsSent,
 } from "@/lib/db/schema";
 import { diskCells } from "@/lib/geo/h3";
+import { gameColor } from "@/lib/brand";
 import { resolveTunables } from "./tunables";
 import { onInterest, onSuggestionClose, onAvailabilityClose } from "./fsm";
 import type { Decision, SuggestionInput, OptionTally } from "./types";
@@ -248,6 +249,9 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
     scheduledStart: winner.proposedStart,
     status: "STAGED", confirmedCount: roster.length,
+    // Color is keyed off the AREA, so this week's instance and every future
+    // recurring instance of the same standing game share one color.
+    color: gameColor(att.areaId),
     ...(recur ? { isStanding: true, recurDow: recur.dow, recurTime: recur.time } : {}),
   }).returning({ id: games.id });
 

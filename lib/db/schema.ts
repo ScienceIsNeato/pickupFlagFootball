@@ -196,6 +196,7 @@ export const games = pgTable("games", {
   scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
   status:          gameStatusEnum("status").notNull().default("STAGED"),
   confirmedCount:  integer("confirmed_count").notNull().default(0),
+  color:           text("color"),  // assigned at insert time; consumers fall back to gameColor(id) for legacy rows
   isStanding:      boolean("is_standing").notNull().default(false),
   recurDow:        integer("recur_dow"),
   recurTime:       time("recur_time"),

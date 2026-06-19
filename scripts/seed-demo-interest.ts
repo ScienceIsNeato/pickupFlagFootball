@@ -24,6 +24,7 @@ import {
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { milesToKm, haversineKm } from "@/lib/geo/distance";
+import { gameColor } from "@/lib/brand";
 
 // Deliberate population pools — replaces the old population-weighted ZIP scatter
 // (which seeded ~220 across the metro and over-filled rosters with "everybody's
@@ -124,10 +125,14 @@ async function seedGamesAndSites(activityId: string) {
     if (!a) { console.log(`  (no ${gc.city} area for a game — skipped)`); continue; }
     await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, a.id));
     const nextStart = nextOccurrence(gc.recurDow, gc.recurTime);
+    // One color per area — shared by this week's instance and every history row,
+    // so a recurring game keeps the same color across its weekly instances.
+    const color = gameColor(a.id);
     await db.insert(games).values({
       activityTypeId: activityId, areaId: a.id, placeText: gc.place,
       scheduledStart: nextStart,
       status: "STANDING", confirmedCount: gc.base, isStanding: true,
+      color,
       recurDow: gc.recurDow, recurTime: `${gc.recurTime}:00`,
     });
     const skip = new Set(gc.skip);
@@ -138,6 +143,7 @@ async function seedGamesAndSites(activityId: string) {
         activityTypeId: activityId, areaId: a.id, placeText: gc.place,
         scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
         status: "COMPLETED" as const, confirmedCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
+        color,
       });
     }
     await db.insert(games).values(hist);

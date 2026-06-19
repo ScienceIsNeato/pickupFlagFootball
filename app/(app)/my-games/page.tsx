@@ -60,6 +60,7 @@ export default async function MyGamesPage() {
         id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
         scheduledStart: games.scheduledStart, isStanding: games.isStanding,
         recurDow: games.recurDow, recurTime: games.recurTime, confirmedCount: games.confirmedCount,
+        color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
         .where(and(inArray(games.id, [...onRoster]), inArray(games.status, ["STAGED", "STANDING"])))
@@ -71,6 +72,7 @@ export default async function MyGamesPage() {
         id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
         scheduledStart: games.scheduledStart, isStanding: games.isStanding,
         recurDow: games.recurDow, recurTime: games.recurTime, confirmedCount: games.confirmedCount,
+        color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
         .where(and(inArray(games.areaId, myAreaIds), inArray(games.status, ["STAGED", "STANDING"])))
@@ -112,7 +114,7 @@ export default async function MyGamesPage() {
               {rosterGames.map((g) => {
                 const next = nextGameDate(g);
                 const captain = isCaptainArea.has(g.areaId);
-                const color = gameColor(g.id);
+                const color = g.color ?? gameColor(g.id);
                 return (
                   <li key={g.id} className="mine-card">
                     <div className="mine-card-top">
@@ -148,7 +150,7 @@ export default async function MyGamesPage() {
             <ul className="mine-list">
               {interestOnly.map((g) => {
                 const captain = isCaptainArea.has(g.areaId);
-                const color = gameColor(g.id);
+                const color = g.color ?? gameColor(g.id);
                 return (
                   <li key={g.id} className="mine-card">
                     <div className="mine-card-top">
