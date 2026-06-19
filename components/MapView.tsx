@@ -345,6 +345,39 @@ export function MapView({
       ctx.restore();
     }
 
+    // PASS 2 of the frame: draw the established-game ring + badge image and the
+    // proposed-site badge ON TOP of all flags, plus the floating "N in" count.
+    // Returns whichever badge the cursor is currently over (or null) so frame()
+    // can wire the tooltip + cursor style without re-walking the cluster list.
+    function drawBadgesPass(morph: number): "game" | "forming" | null {
+      let over: "game" | "forming" | null = null;
+      const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
+      for (const cl of clustersRef.current) {
+        if (!cl.hasGame && !cl.forming) continue;
+        const home = map.project(cl.ll);
+        const img = cl.hasGame ? gameBadge : proposedBadge;
+        const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
+        if (cl.hasGame && cl.gameColor) {   // colored ring matching the game's color
+          ctx.beginPath();
+          ctx.arc(home.x, home.y - sz / 2, sz * 0.42, 0, Math.PI * 2);
+          ctx.lineWidth = 5; ctx.strokeStyle = cl.gameColor; ctx.stroke();
+        }
+        if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+        if (on && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
+          over = cl.hasGame ? "game" : "forming";
+        }
+        if (morph > 0.6) {
+          ctx.globalAlpha = (morph - 0.6) / 0.4;
+          ctx.font = "700 13px system-ui, -apple-system, sans-serif";
+          ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
+          ctx.fillText(`${cl.hasGame ? cl.gameMembers ?? 0 : cl.count} in`, home.x, home.y + 11);
+          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        }
+      }
+      return over;
+    }
+
     let raf = 0;
     let frameErr = false;
     // While the map is panning/zooming, flags lock to their projected position
@@ -417,30 +450,9 @@ export function MapView({
         }
       }
 
-      // PASS 2 — game + proposed badges, on top of all flags. Also detect hover.
-      for (const cl of clustersRef.current) {
-        if (!cl.hasGame && !cl.forming) continue;
-        const home = map.project(cl.ll);
-        const img = cl.hasGame ? gameBadge : proposedBadge;
-        const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
-        if (cl.hasGame && cl.gameColor) {   // colored ring matching the game's color
-          ctx.beginPath();
-          ctx.arc(home.x, home.y - sz / 2, sz * 0.42, 0, Math.PI * 2);
-          ctx.lineWidth = 5; ctx.strokeStyle = cl.gameColor; ctx.stroke();
-        }
-        if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
-        if (on && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
-          overBadge = cl.hasGame ? "game" : "forming";
-        }
-        if (morph > 0.6) {
-          ctx.globalAlpha = (morph - 0.6) / 0.4;
-          ctx.font = "700 13px system-ui, -apple-system, sans-serif";
-          ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
-          ctx.fillText(`${cl.hasGame ? cl.gameMembers ?? 0 : cl.count} in`, home.x, home.y + 11);
-          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-        }
-      }
+      // PASS 2 — game + proposed badges, on top of all flags. Returns the badge
+      // category under the cursor (for the tooltip + cursor style above).
+      overBadge = drawBadgesPass(morph);
       if (on && catchCount > 0) drawJersey(catchCount, mx, my);
 
       // Cursor: pointer over a badge (clickable), crosshair otherwise. Tooltip:

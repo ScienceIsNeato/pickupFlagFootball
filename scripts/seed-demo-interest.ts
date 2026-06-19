@@ -160,6 +160,48 @@ async function seedGamesAndSites(activityId: string) {
   }
 }
 
+/** Insert the live SUGGESTING attempt (window still open) for a forming site,
+ *  along with its current suggestions. Extracted from seedFormingHistory so the
+ *  outer pass stays under the sprawl limit and the live-flow seed is self-
+ *  contained. */
+async function seedLiveAttempt(
+  activityId: string,
+  areaId: string,
+  attemptNum: number,
+  cityUsers: { id: string }[],
+  fc: {
+    lat: number; lng: number;
+    live: { cohort: number; closesInDays: number; suggs: { text: string; dow: number; time: string }[] };
+  },
+  now: number,
+) {
+  const DAY = 86_400_000;
+  const openedAt = new Date(now - 4 * DAY);
+  const closesAt = new Date(now + fc.live.closesInDays * DAY);
+  const liveCohort = cityUsers.slice(0, fc.live.cohort).map((u) => u.id);
+
+  const [live] = await db.insert(formationAttempts).values({
+    activityTypeId: activityId, areaId, attemptNumber: attemptNum, status: "SUGGESTING",
+    catchmentCells: [], cohortUserIds: liveCohort,
+    suggestionOpenedAt: openedAt, suggestionClosesAt: closesAt,
+  }).returning({ id: formationAttempts.id });
+
+  for (let si = 0; si < fc.live.suggs.length; si++) {
+    const s = fc.live.suggs[si];
+    const suggestor = cityUsers[si % cityUsers.length];
+    const proposed = new Date(now);
+    const skip = ((s.dow - new Date(now).getDay() + 7) % 7) || 7;
+    proposed.setDate(proposed.getDate() + skip + 7);
+    const [h, m] = s.time.split(":").map(Number);
+    proposed.setHours(h, m, 0, 0);
+    await db.insert(suggestions).values({
+      attemptId: live.id, userId: suggestor.id,
+      placeText: s.text, placeLat: fc.lat, placeLng: fc.lng,
+      proposedStart: proposed, recurDow: s.dow, recurTime: `${s.time}:00`,
+    });
+  }
+}
+
 /** Two forming sites with escalating attempt history: previous votes that fell
  *  short, growing cohorts each round, and a live suggestion window right now. */
 async function seedFormingHistory(activityId: string) {
@@ -247,31 +289,7 @@ async function seedFormingHistory(activityId: string) {
     }
 
     // Live SUGGESTING attempt — window still open.
-    const openedAt  = new Date(now - 4 * DAY);
-    const closesAt  = new Date(now + fc.live.closesInDays * DAY);
-    const liveCohort = cityUsers.slice(0, fc.live.cohort).map((u) => u.id);
-
-    const [live] = await db.insert(formationAttempts).values({
-      activityTypeId: activityId, areaId: area.id,
-      attemptNumber: attemptNum, status: "SUGGESTING",
-      catchmentCells: [], cohortUserIds: liveCohort,
-      suggestionOpenedAt: openedAt, suggestionClosesAt: closesAt,
-    }).returning({ id: formationAttempts.id });
-
-    for (let si = 0; si < fc.live.suggs.length; si++) {
-      const s = fc.live.suggs[si];
-      const suggestor = cityUsers[si % cityUsers.length];
-      const proposed = new Date(now);
-      const skip = ((s.dow - new Date(now).getDay() + 7) % 7) || 7;
-      proposed.setDate(proposed.getDate() + skip + 7);
-      const [h, m] = s.time.split(":").map(Number);
-      proposed.setHours(h, m, 0, 0);
-      await db.insert(suggestions).values({
-        attemptId: live.id, userId: suggestor.id,
-        placeText: s.text, placeLat: fc.lat, placeLng: fc.lng,
-        proposedStart: proposed, recurDow: s.dow, recurTime: `${s.time}:00`,
-      });
-    }
+    await seedLiveAttempt(activityId, area.id, attemptNum, cityUsers, fc, now);
 
     await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
     console.log(`  forming site in ${fc.city}: ${fc.past.length} past attempts + live (cohort ${fc.live.cohort})`);

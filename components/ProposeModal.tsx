@@ -25,6 +25,24 @@ const ERRORS: Record<string, string> = {
 type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
 const kmToMi = (km: number) => Math.round(km / 1.609);
 
+/** The success card shown after a successful propose. Extracted so the modal's
+ *  main component stays under the sprawl limit. */
+function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="reg-form"
+      style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
+        border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
+      <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
+        thanks for proposing a game!
+      </h2>
+      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 6px", lineHeight: 1.55 }}>
+        our matching engine will take care of the rest — you should be receiving an official invite shortly.
+      </p>
+      <button type="button" className="btn-green" onClick={onClose}>got it</button>
+    </div>
+  );
+}
+
 /** Propose-a-game flow, opened by right-clicking a spot on the map. The exact
  *  clicked point is the location; the address fields (prefilled by reverse-geocode)
  *  describe it, and notes carry meeting details ("east lot, gate code 1234"). */
@@ -99,19 +117,7 @@ export function ProposeModal({
       style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      {state?.ok ? (
-        <div className="reg-form"
-          style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
-            border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
-          <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
-            thanks for proposing a game!
-          </h2>
-          <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 6px", lineHeight: 1.55 }}>
-            our matching engine will take care of the rest — you should be receiving an official invite shortly.
-          </p>
-          <button type="button" className="btn-green" onClick={onClose}>got it</button>
-        </div>
-      ) : (
+      {state?.ok ? <ProposeSuccessCard onClose={onClose} /> : (
       <form action={formAction} onSubmit={onInvalidSubmit} noValidate className="reg-form"
         style={{ width: 380, maxWidth: "92%", maxHeight: "88%", overflowY: "auto",
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
