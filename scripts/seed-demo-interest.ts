@@ -15,7 +15,7 @@
  * synthetic points/addresses (population-weighted), not literally real houses.
  * The geographic distribution is what's "real" here.
  */
-import { eq, like } from "drizzle-orm";
+import { and, eq, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, areas, interestSignals, games, activityTypes } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
@@ -152,6 +152,15 @@ async function main() {
       status: "STANDING", confirmedCount: 9, isStanding: true,
     });
     console.log("  scheduled a game in Coralville");
+  }
+
+  // Mark a North Liberty area as a proposed (forming) site → the proposed badge.
+  const [forming] = await db.select({ id: areas.id }).from(areas)
+    .where(and(eq(areas.activityTypeId, activity.id), eq(areas.displayCity, "North Liberty"), ne(areas.status, "SCHEDULED")))
+    .limit(1);
+  if (forming) {
+    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, forming.id));
+    console.log("  marked a North Liberty area as a proposed (forming) site");
   }
 
   console.log(`done: ${TOTAL} demo users (${real} real address, ${zipOnly} ZIP-only)`);

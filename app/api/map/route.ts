@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cellToParent, cellToLatLng } from "h3-js";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { interestSignals, areas } from "@/lib/db/schema";
@@ -38,16 +38,23 @@ export async function GET(req: Request) {
     (byCell.get(parent) ?? byCell.set(parent, new Set()).get(parent)!).add(s.userId);
   }
 
-  // cells that hold a scheduled game
-  const scheduled = await db
-    .select({ h3Cell: areas.h3Cell })
+  // cells with a scheduled game vs. a live formation (a proposed game site)
+  const marked = await db
+    .select({ h3Cell: areas.h3Cell, status: areas.status })
     .from(areas)
-    .where(eq(areas.status, "SCHEDULED"));
-  const gameCells = new Set(scheduled.map((a) => cellToParent(bigIntToH3(a.h3Cell), res)));
+    .where(inArray(areas.status, ["SCHEDULED", "IN_FORMATION"]));
+  const gameCells = new Set<string>();
+  const formingCells = new Set<string>();
+  for (const a of marked) {
+    const parent = cellToParent(bigIntToH3(a.h3Cell), res);
+    (a.status === "SCHEDULED" ? gameCells : formingCells).add(parent);
+  }
 
   const cells = [...byCell.entries()].map(([h3, users]) => {
     const [lat, lng] = cellToLatLng(h3);
-    return { h3, lat, lng, count: users.size, hasGame: gameCells.has(h3) };
+    const hasGame = gameCells.has(h3);
+    // a scheduled game wins over a forming one if both roll up into the same cell
+    return { h3, lat, lng, count: users.size, hasGame, forming: !hasGame && formingCells.has(h3) };
   });
 
   return NextResponse.json({ res, cells });

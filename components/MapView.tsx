@@ -4,20 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW, TEAM_RED, GRASS } from "@/lib/brand";
+import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
 
-type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean };
+type Cell = { h3: string; lat: number; lng: number; count: number; hasGame: boolean; forming: boolean };
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
 const MORPH_MS = 1500;   // background-scatter → map-cluster morph
 const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would travel to play
-// Existing games render as two teams lined up facing each other (tails out).
-const TEAM_CAP = 11;     // up to 11 a side
-const COL_SP = 13;       // spacing between flags along a team's row
-const LINE_GAP = 16;     // gap from the cursor to each team's row
+const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
+const GAME_BADGE = 46;   // px size of the established-game marker
+const PROPOSED_BADGE = 34; // px size of the proposed-site marker (smaller)
 
 // Football-field basemap: green turf, white "hashmark" roads, muted water.
 // Vector tiles (OpenFreeMap / OpenMapTiles schema) so we control the colors
@@ -93,38 +92,29 @@ function easeAngle(cur: number, target: number, k: number): number {
 
 type Flag = {
   rdx: number; rdy: number;       // rest offset (scattered at the user's area)
-  fdx: number; fdy: number;       // row-slot offset from the cursor (when collected)
-  frot: number; rrot: number;     // facing when lined up (tail away) / when at rest
+  rrot: number;                   // resting facing angle
   sx: number; sy: number;         // morph spawn point (scattered)
   x: number; y: number;           // live position
   size: number; rot: number; phase: number; energy: number; color: string;
   init: boolean;                  // seeded its first live position yet?
 };
 type Cluster = {
-  ll: [number, number]; count: number; hasGame: boolean; h3: string; flags: Flag[];
+  ll: [number, number]; count: number; hasGame: boolean; forming: boolean; h3: string; flags: Flag[];
 };
 
 type Home = { lat: number; lng: number; maxTravelKm: number };
 
-// Tiny pennant glyphs for the legend.
-function Pennant({ color, wave }: { color: string; wave?: boolean }) {
+// Tiny pull-flag streamer glyph for the legend (matches the map's flags).
+function Streamer({ color, wave }: { color: string; wave?: boolean }) {
   return (
-    <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
-      <line x1="3" y1="1" x2="3" y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
+    <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">
+      <line x1="3" y1="1" x2="3" y2="15" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
       <path
         d={wave
-          ? "M3 2 q5 -2.5 9 0 q4 2 9 0 v5 q-5 2 -9 0 q-4 -2.5 -9 0 z"
-          : "M3 2 L21 4.5 L3 7 z"}
+          ? "M3 3 q5 -2 9 0 q4 2 7 0 v4 q-3 2 -7 0 q-4 -2 -9 0 z"
+          : "M3 3 h16 v4 H3 z"}
         fill={color}
       />
-    </svg>
-  );
-}
-function GameGlyph() {
-  return (
-    <svg width="26" height="14" viewBox="0 0 26 14" aria-hidden="true">
-      <path d="M13 7 L3 4 L3 10 z" fill={TEAM_YELLOW} />
-      <path d="M13 7 L23 4 L23 10 z" fill={TEAM_RED} />
     </svg>
   );
 }
@@ -158,6 +148,10 @@ export function MapView({
     mapRef.current = map;
     const mapEl = map.getCanvasContainer();
     mapEl.style.opacity = "0"; // fade in as the flags morph into place
+
+    // Badge markers: established game + proposed (forming) site.
+    const gameBadge = new Image(); gameBadge.src = "/game-badge.png";
+    const proposedBadge = new Image(); proposedBadge.src = "/proposed-badge.png";
 
     function sizeCanvas() {
       const r = container.getBoundingClientRect();
@@ -196,33 +190,24 @@ export function MapView({
       }
       const W = container.clientWidth, H = container.clientHeight;
       clustersRef.current = cells.map((c) => {
-        // Show up to two full teams (11 a side). Yellow takes the larger half.
-        const shown = Math.max(1, Math.min(TEAM_CAP * 2, c.count));
-        const yellow = Math.min(TEAM_CAP, Math.ceil(shown / 2));
-        const blue = Math.min(TEAM_CAP, shown - yellow);
-        const spread = Math.min(46, 14 + c.count); // rest scatter radius
         const flags: Flag[] = [];
-        for (let i = 0; i < shown; i++) {
-          const isYellow = i < yellow;
-          const idx = isYellow ? i : i - yellow;        // position within the team's row
-          const row = isYellow ? yellow : blue;
-          // Collected layout: a centered row on the cursor's yellow/blue side,
-          // tail flapping away from the other team (yellow up, blue down).
-          const fdx = (idx - (row - 1) / 2) * COL_SP + rand(-1.5, 1.5);
-          const fdy = (isYellow ? -LINE_GAP : LINE_GAP) + rand(-1.5, 1.5);
-          const frot = isYellow ? -Math.PI / 2 : Math.PI / 2;
-          // Rest: scattered around the user's area (the cluster centroid).
-          const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
-          flags.push({
-            rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
-            fdx, fdy, frot, rrot: rand(0, Math.PI * 2),
-            sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
-            x: 0, y: 0,
-            size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
-            energy: 0, color: isYellow ? TEAM_YELLOW : TEAM_RED, init: false,
-          });
+        // Only interested clusters show flags; games + forming sites are badges.
+        if (!c.hasGame && !c.forming) {
+          const shown = Math.max(1, Math.min(MAX_FLAGS, c.count));
+          const spread = Math.min(46, 14 + c.count); // rest scatter radius
+          for (let i = 0; i < shown; i++) {
+            const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * spread;
+            flags.push({
+              rdx: Math.cos(a) * rr, rdy: Math.sin(a) * rr,
+              rrot: rand(0, Math.PI * 2),
+              sx: first ? rand(0, W) : -1, sy: first ? rand(0, H) : -1,
+              x: 0, y: 0,
+              size: rand(9, 12), rot: rand(0, Math.PI * 2), phase: rand(0, Math.PI * 2),
+              energy: 0, color: i % 2 ? TEAM_RED : TEAM_YELLOW, init: false,
+            });
+          }
         }
-        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, h3: c.h3, flags };
+        return { ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame, forming: c.forming, h3: c.h3, flags };
       });
       dataRes = res;
       if (first) { first = false; morphStart = performance.now(); }
@@ -283,7 +268,7 @@ export function MapView({
       if (on) {
         mGeo = map.unproject([mx, my]);
         for (const cl of clustersRef.current) {
-          if (!cl.hasGame && haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm) {
+          if (!cl.hasGame && !cl.forming && haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm) {
             catchCount += cl.count;
           }
         }
@@ -291,43 +276,46 @@ export function MapView({
 
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
-        const game = cl.hasGame;
-        const waving = on && !game && mGeo != null &&
+
+        // Established game or proposed (forming) site → a badge marker, anchored
+        // by its base at the location.
+        if (cl.hasGame || cl.forming) {
+          const img = cl.hasGame ? gameBadge : proposedBadge;
+          const sz = cl.hasGame ? GAME_BADGE : PROPOSED_BADGE;
+          if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+          if (morph > 0.6) {
+            ctx.globalAlpha = (morph - 0.6) / 0.4;
+            ctx.font = "700 12px system-ui, -apple-system, sans-serif";
+            ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
+            ctx.fillText(`${cl.count} in`, home.x, home.y + 9);
+            ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+          }
+          continue;
+        }
+
+        // Interested cluster → flags hold their scatter; wave + point at the
+        // cursor when it's within play range.
+        const waving = on && mGeo != null &&
           haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm;
         for (const f of cl.flags) {
-          // Games line up in formation at their spot; everyone else holds the
-          // scatter at their area — flags never travel to the cursor anymore.
-          let tx = home.x + (game ? f.fdx : f.rdx);
-          let ty = home.y + (game ? f.fdy : f.rdy);
+          let tx = home.x + f.rdx, ty = home.y + f.rdy;
           if (morph < 1 && f.sx >= 0) {
             const e = easeOut(morph);
             tx = f.sx + (tx - f.sx) * e; ty = f.sy + (ty - f.sy) * e;
           }
           if (!f.init || mapMoving) {
-            // First seed, or bolt to the map while it pans/zooms.
-            f.init = true; f.x = tx; f.y = ty; f.rot = game ? f.frot : f.rrot;
+            f.init = true; f.x = tx; f.y = ty; f.rot = f.rrot;
             f.energy += (0.12 - f.energy) * 0.1;
           } else {
             f.x += (tx - f.x) * 0.12; f.y += (ty - f.y) * 0.12;
-            // Facing: games keep their tails out; a waving flag points AT the
-            // cursor; otherwise it relaxes to its resting angle.
-            const targetRot = game ? f.frot : waving ? Math.atan2(my - f.y, mx - f.x) : f.rrot;
+            const targetRot = waving ? Math.atan2(my - f.y, mx - f.x) : f.rrot;
             f.rot = easeAngle(f.rot, targetRot, waving ? 0.2 : 0.08);
-            const targetE = waving ? 0.55 : game ? 0.3 : 0.1;
+            const targetE = waving ? 0.55 : 0.1;
             f.energy += (targetE - f.energy) * 0.12;
           }
           f.phase += 0.16 + 0.18 * f.energy;
           drawFlag(f);
-        }
-        // small translucent count beside the clump
-        if (morph > 0.6) {
-          ctx.globalAlpha = (morph - 0.6) / 0.4;
-          ctx.font = `700 ${cl.count >= 10 ? 13 : 14}px system-ui, -apple-system, sans-serif`;
-          ctx.fillStyle = game ? GRASS.l1 : "#ffffff";
-          ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.shadowColor = "rgba(0,0,0,.85)"; ctx.shadowBlur = 6;
-          ctx.fillText(String(cl.count), home.x, home.y - 2);
-          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
         }
       }
       if (on && catchCount > 0) drawJersey(catchCount, mx, my);
@@ -385,9 +373,10 @@ export function MapView({
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
       <div className="map-legend">
-        <span className="legend-item"><Pennant color={TEAM_YELLOW} /> interested player</span>
-        <span className="legend-item"><Pennant color={TEAM_YELLOW} wave /> would play near your cursor</span>
-        <span className="legend-item"><GameGlyph /> existing game — flags are players</span>
+        <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player</span>
+        <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor</span>
+        <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game</span>
+        <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site</span>
       </div>
       {propose && (
         <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }} onClose={() => setPropose(null)} />

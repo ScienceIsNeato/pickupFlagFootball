@@ -173,6 +173,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 }
 .legend-item { display: inline-flex; align-items: center; gap: 7px; }
 .legend-item svg { flex: none; }
+.legend-badge { width: 22px; height: 22px; object-fit: contain; flex: none; }
 @media (max-width: 560px) { .map-legend { gap: 12px; font-size: 11px; top: 58px; } }
 
 /* Game-details card (click an existing game). */
