@@ -1,12 +1,15 @@
 :root {
   color-scheme: dark;
-  /* flag-football accents */
-  --field: #14532d;
+  /* flag-football accents — "grass fields" palette (light → dark) + team colors */
+  --field: #30632a;
   --line: rgba(255, 255, 255, 0.16);
-  --green: #1f8a3b;
-  --green-d: #14692e;
-  --yellow: #f5c518;
-  --link: #6bc06b;
+  --green: #468944;       /* grass l2 — primary accent / buttons */
+  --green-d: #30632a;     /* grass l5 — hover / dark */
+  --grass: #3f7a39;       /* grass l3 — mid */
+  --grass-l: #5b9452;     /* grass l1 — lightest */
+  --yellow: #f4c430;      /* team yellow */
+  --red: #e23b2e;         /* team red */
+  --link: #5b9452;
   /* dark theme */
   --ink: #e9edf6;
   --muted: #a3acc2;
@@ -40,10 +43,8 @@ body {
 
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
 
-/* Football-field tone over the light basemap: push the warm tiles toward a
-   muted grass green and darken them down. Filters the tile canvas only — the
-   football markers are separate DOM and keep their own color. */
-.maplibregl-canvas { filter: brightness(0.74) sepia(0.55) hue-rotate(55deg) saturate(1.7) contrast(1.02); }
+/* The basemap is a vector football-field style (green turf + white roads),
+   colored directly in MapView's style spec — no canvas filter needed. */
 
 h1, h2, .brand, .step-n { font-family: var(--font-barlow), var(--font-inter), sans-serif; }
 a { color: var(--link); text-decoration: none; }
@@ -65,9 +66,20 @@ a { color: var(--link); text-decoration: none; }
   color: var(--ink);
 }
 .brand .ball { display: inline-flex; }
-.nav nav { display: inline-flex; }
+.nav nav { display: inline-flex; align-items: center; }
 .nav nav a { color: var(--muted); margin-left: 18px; font-size: 14px; }
 .nav nav a.signin { color: var(--ink); font-weight: 500; }
+/* primary action when signed in: jump into the map */
+.nav nav a.nav-play {
+  color: #fff; background: var(--green); border-radius: 6px;
+  padding: 7px 13px; font-weight: 700; font-family: var(--font-barlow), sans-serif;
+}
+.nav nav a.nav-play:hover { color: #fff; filter: brightness(1.08); }
+.nav nav a.nav-mine {
+  color: var(--ink); margin-left: 10px; font-weight: 600; font-size: 14px;
+  padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border);
+}
+.nav nav a.nav-mine:hover { color: var(--ink); border-color: var(--green); }
 .nav-right { display: flex; align-items: center; gap: 18px; }
 
 /* account control (upper-right) */
@@ -158,6 +170,65 @@ a { color: var(--link); text-decoration: none; }
 /* fullscreen dashboard map with floating header/footer banners */
 .dash-map { position: fixed; inset: 0; z-index: 0; }
 body:has(.dash-map) #bg { display: none; }             /* the map's flags take over */
+
+/* Frosted legend — a vertical stack in the upper-right corner of the map. */
+.map-legend {
+  position: absolute; top: 64px; right: 12px;
+  z-index: 5; display: flex; flex-direction: column; gap: 9px; align-items: stretch;
+  max-width: calc(100% - 24px); padding: 12px 14px; border-radius: 14px;
+  background: rgba(12, 19, 38, 0.55);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 14px; color: var(--ink); line-height: 1.1;
+  pointer-events: none;
+}
+.legend-item { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.legend-item svg { flex: none; width: 24px; height: 17px; }
+.legend-badge { width: 24px; height: 24px; object-fit: contain; flex: none; }
+.legend-n { color: var(--grass-l); font-weight: 800; margin-left: auto; padding-left: 10px; }
+@media (max-width: 560px) {
+  .map-legend { top: 58px; font-size: 12px; gap: 7px; padding: 10px 12px; }
+  .legend-badge { width: 20px; height: 20px; } .legend-item svg { width: 20px; height: 14px; }
+}
+
+.map-tip {
+  position: absolute; z-index: 6; pointer-events: none;
+  padding: 5px 9px; border-radius: 7px; font-size: 13px; white-space: nowrap;
+  background: rgba(12, 19, 38, 0.85); color: #fff;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Game-details card (click an existing game). */
+.game-card {
+  position: relative; width: 360px; max-width: 92%; max-height: 80vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 22px 24px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.game-close {
+  position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--muted);
+  font-size: 24px; line-height: 1; cursor: pointer; padding: 4px; font-family: inherit;
+}
+.game-close:hover { color: var(--ink); }
+.game-close:focus-visible {
+  outline: 2px solid var(--green); outline-offset: 2px; color: var(--ink);
+}
+.game-h { font-family: var(--font-barlow), sans-serif; font-size: 24px; margin: 0 0 12px; }
+.game-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 14px; font-size: 14px; }
+.game-dl dt { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; align-self: center; }
+.game-dl dd { margin: 0; color: var(--ink); }
+.game-dl a, .game-recent a { color: var(--link); }
+.game-sub { font-family: var(--font-barlow), sans-serif; font-size: 15px; margin: 4px 0 6px; color: var(--muted); }
+.game-collapse {
+  display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+  padding: 6px 0; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--muted);
+}
+.game-collapse:hover { color: var(--ink); }
+.game-caret { display: inline-block; width: 14px; color: var(--faint); }
+.game-played { color: var(--grass-l); }
+.game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
+.game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.game-muted { color: var(--muted); }
 .app-body { min-height: 100vh; padding-top: 64px; }
 
 .nav-float {
@@ -271,6 +342,7 @@ section h2::after {
 .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
 .step-n { font-size: 40px; font-weight: 700; color: var(--green); line-height: 1; }
 .card .title { font-family: var(--font-inter), sans-serif; font-weight: 600; font-size: 15px; margin: 8px 0 4px; }
+.card .title .tag { margin-left: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); border: 1px solid var(--green); border-radius: 999px; padding: 2px 7px; vertical-align: middle; }
 .card p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
 
 .faq-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
@@ -316,12 +388,56 @@ section h2::after {
 .reg-blurb { color: var(--muted); font-size: 15px; margin: 0 0 26px; line-height: 1.6; }
 .reg-form { display: flex; flex-direction: column; gap: 16px; }
 .reg-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
-.reg-form input {
+.reg-form input, .reg-form select {
   height: 44px; padding: 0 12px; font-size: 15px;
   color: var(--ink); background: var(--bg);
   border: 1px solid var(--border); border-radius: 8px;
 }
-.reg-form input:focus { outline: none; border-color: var(--green); }
+.reg-form textarea {
+  padding: 10px 12px; font-size: 15px; min-height: 56px; resize: vertical;
+  color: var(--ink); background: var(--bg); font-family: inherit;
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.reg-form input:focus, .reg-form select:focus, .reg-form textarea:focus { outline: none; border-color: var(--green); }
+.field-err { color: #ff8b84; font-size: 12px; margin-top: 2px; }
+
+/* my-games panel — floats over the fullscreen map */
+.mine-panel {
+  position: absolute; top: 64px; left: 12px; bottom: 12px; width: 360px; max-width: calc(100% - 24px);
+  z-index: 6; padding: 16px 16px 12px; overflow-y: auto; border-radius: 14px;
+  background: rgba(12, 19, 38, 0.62); border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: var(--ink);
+}
+.mine-h { font-family: var(--font-barlow), sans-serif; font-size: 22px; margin: 0 0 10px; }
+.mine-empty { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 8px 0 0; }
+.mine-section { margin-top: 12px; }
+.mine-sub { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+            color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+.mine-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.mine-card { background: rgba(0,0,0,.25); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.mine-card-top { display: flex; align-items: center; gap: 10px; }
+.mine-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.25); }
+.mine-card-place { flex: 1; min-width: 0; }
+.mine-card-name { font-weight: 600; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mine-card-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.mine-tag {
+  flex: none; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--green); border: 1px solid var(--green); border-radius: 999px; padding: 3px 8px;
+}
+.mine-week { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mine-week-label { font-size: 12px; color: var(--muted); }
+.mine-rsvp { display: inline-flex; gap: 6px; }
+.rsvp-btn {
+  font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--ink); cursor: pointer;
+}
+.rsvp-btn:hover { border-color: var(--green); }
+.rsvp-in[data-active] { background: var(--green); border-color: var(--green); color: #fff; }
+.rsvp-out:hover { border-color: #e23b2e; color: #e23b2e; }
+
+@media (max-width: 560px) {
+  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; }
+}
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;
   font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.3px;
@@ -335,6 +451,42 @@ section h2::after {
 .reg-row { display: flex; gap: 12px; }
 .reg-row > label { flex: 1; }
 .reg-row > .reg-state { flex: 0 0 88px; }
+
+/* address/place picker (propose-a-game modal) */
+.loc-picked {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border: 1px solid var(--green); border-radius: 8px;
+  background: rgba(70, 137, 68, 0.12);
+}
+.loc-pin { flex: 0 0 auto; font-size: 14px; }
+.loc-picked-name {
+  flex: 1; min-width: 0; font-size: 14px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loc-change {
+  flex: 0 0 auto; background: none; border: 0; color: var(--link);
+  font-size: 13px; cursor: pointer; font-family: inherit; padding: 0;
+}
+.loc-change:hover { text-decoration: underline; }
+.loc-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 4px 0 0;
+  padding: 0; list-style: none; max-height: 220px; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+.loc-result { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.loc-result:last-child { border-bottom: 0; }
+.loc-result:hover { background: var(--surface); }
+.loc-result-name { font-size: 14px; color: var(--ink); }
+.loc-result-detail { font-size: 12px; color: var(--muted); }
+
+/* donation preference: separate form below the account form */
+.donate-pref { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--border); }
+.donate-pref .donate-opt {
+  flex-direction: row; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--ink);
+}
+.donate-pref .donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
 @media (max-width: 560px) {

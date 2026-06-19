@@ -38,6 +38,10 @@ CREATE TYPE notification_kind AS ENUM (
 
 CREATE TYPE notification_channel AS ENUM ('push','email');
 
+-- Self-declared donation preference. Drives the conditional email donation
+-- footer: only 'unset' users get the $5/month reminder.
+CREATE TYPE donation_status AS ENUM ('unset','subscribed','declined');
+
 -- ============================================================ activity_types
 -- The "skin" config. The engine depends only on these values, never on a hardcoded
 -- sport. Seed row: flag football. A future tennis/basketball launch is a new row.
@@ -89,7 +93,7 @@ CREATE TABLE users (
   home_lat      double precision,
   home_lng      double precision,
   -- how far the user will travel for a game (km); gates the map's cursor pull
-  max_travel_km double precision NOT NULL DEFAULT 40,
+  max_travel_km double precision NOT NULL DEFAULT 24.14,  -- ~15 mi
   -- derived H3 cell ids at multiple resolutions (computed in-app via h3-js)
   h3_r5         bigint,
   h3_r6         bigint,
@@ -99,6 +103,8 @@ CREATE TABLE users (
   timezone      text,      -- for quiet-hours
   push_subscription jsonb, -- Web Push subscription
   email_opt_in  boolean NOT NULL DEFAULT true,
+  -- self-declared; drives the email donation footer (only 'unset' is reminded)
+  donation_status donation_status NOT NULL DEFAULT 'unset',
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
   CHECK (home_lat IS NULL OR home_lat BETWEEN -90 AND 90),
@@ -206,6 +212,10 @@ CREATE TABLE suggestions (
   place_lat     double precision,          -- optional venue coords (public place, not PII)
   place_lng     double precision,
   proposed_start timestamptz NOT NULL,
+  -- recurring weekly slot the proposer picked (local wall-clock); NULL = one-off.
+  -- proposed_start is the first game; these promote the formed game to standing.
+  recur_dow     int,                       -- 0=Sun..6=Sat
+  recur_time    time,                      -- local HH:MM:SS
   option_id     uuid,                      -- assigned during COMPILING (dedupe grouping)
   created_at    timestamptz NOT NULL DEFAULT now()   -- TIE-BREAK: earliest wins
 );

@@ -20,6 +20,9 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "GAME_ON", "STALLED_NOTICE",
 ]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
+// Self-declared donation preference. Drives the (Phase 6) email donation footer:
+// only "unset" gets the reminder; "subscribed" and "declined" both suppress it.
+export const donationStatusEnum = pgEnum("donation_status", ["unset", "subscribed", "declined"]);
 
 // ── zip_centroids ──────────────────────────────────────────────────────────
 export const zipCentroids = pgTable("zip_centroids", {
@@ -63,7 +66,7 @@ export const users = pgTable("users", {
   homeLat:          doublePrecision("home_lat"),
   homeLng:          doublePrecision("home_lng"),
   // how far the user will travel for a game (km). Gates the map's cursor pull.
-  maxTravelKm:      doublePrecision("max_travel_km").notNull().default(40),
+  maxTravelKm:      doublePrecision("max_travel_km").notNull().default(24.14), // ~15 mi
   h3R5:             bigint("h3_r5", { mode: "bigint" }),
   h3R6:             bigint("h3_r6", { mode: "bigint" }),
   h3R7:             bigint("h3_r7", { mode: "bigint" }),
@@ -74,6 +77,7 @@ export const users = pgTable("users", {
   emailVerified:    timestamp("email_verified", { withTimezone: true }),
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
+  donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -149,6 +153,10 @@ export const suggestions = pgTable("suggestions", {
   placeLat:      doublePrecision("place_lat"),
   placeLng:      doublePrecision("place_lng"),
   proposedStart: timestamp("proposed_start", { withTimezone: true }).notNull(),
+  // Recurring weekly slot the proposer picked (local wall-clock). NULL = one-off.
+  // proposedStart is the first game; these drive the standing game on adjudication.
+  recurDow:      integer("recur_dow"),   // 0=Sun…6=Sat
+  recurTime:     time("recur_time"),     // HH:MM:SS, local
   optionId:      uuid("option_id"),
   createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -217,6 +225,15 @@ export const notificationsSent = pgTable("notifications_sent", {
   sentAt:    timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
+]);
+
+// ── area_captains ──────────────────────────────────────────────────────────
+export const areaCaptains = pgTable("area_captains", {
+  areaId:           uuid("area_id").notNull().references(() => areas.id, { onDelete: "cascade" }),
+  userId:           uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  becameCaptainAt:  timestamp("became_captain_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.areaId, t.userId] }),
 ]);
 
 // ── map_aggregates ─────────────────────────────────────────────────────────

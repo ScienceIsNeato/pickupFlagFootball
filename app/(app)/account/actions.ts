@@ -29,9 +29,9 @@ export async function updateAccount(formData: FormData) {
   };
 
   // Travel radius — entered in miles, stored in km. Updatable on its own.
-  // Bound it server-side (the form caps at 500; a raw POST could send anything).
+  // Bound it server-side (the form caps at 100; a raw POST could send anything).
   const miles = Number(str(formData.get("max_travel_miles")));
-  if (Number.isFinite(miles) && miles >= 1 && miles <= 500) update.maxTravelKm = milesToKm(miles);
+  if (Number.isFinite(miles) && miles >= 1 && miles <= 100) update.maxTravelKm = milesToKm(miles);
 
   if (zip && /^\d{5}$/.test(zip)) {
     const home = await resolveHome({ zip, line1, line2, city, state });
@@ -95,6 +95,28 @@ export async function updateAccount(formData: FormData) {
     .update(users)
     .set(update)
     .where(eq(users.id, session.user.id!));
+
+  redirect("/account");
+}
+
+// Donation preference is self-declared and independent of location, so it has
+// its own action — it must NOT re-run the ZIP/geocode path in updateAccount.
+const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
+type DonationStatus = (typeof DONATION_STATUSES)[number];
+
+export async function updateDonationPref(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/api/auth/signin");
+
+  const value = str(formData.get("donation_status"));
+  if (!DONATION_STATUSES.includes(value as DonationStatus)) {
+    throw new Error("invalid donation status");
+  }
+
+  await db
+    .update(users)
+    .set({ donationStatus: value as DonationStatus, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
 
   redirect("/account");
 }

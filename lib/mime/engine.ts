@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import * as schema from "@/lib/db/schema";
 import {
@@ -92,8 +92,9 @@ export async function evaluate(
     // Only the one-live-attempt unique conflict is an expected NOOP (a spark
     // race) — the whole transaction rolls back. Any other DB error must surface,
     // not be hidden as success.
+    const pgCode = (e as { cause?: { code?: string } }).cause?.code;
     const msg = e instanceof Error ? e.message : String(e);
-    if (!/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
+    if (pgCode !== "23505" && !/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
     return { kind: "NOOP", reason: "already sparked (lost the one-live-attempt race)" };
   }
   return decision;
@@ -233,12 +234,21 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     .where(eq(softPromises.optionId, winner.optionId));
   const roster = promisers.map((p) => p.userId);
 
+  // Promote to a standing weekly slot if the winning suggestion carried a
+  // recurring day/time (proposals from the map do). All suggestions grouped into
+  // one option share the same place + time, so any source row's recurrence holds.
+  const [recur] = await db.select({ dow: suggestions.recurDow, time: suggestions.recurTime })
+    .from(suggestions)
+    .where(and(eq(suggestions.optionId, winner.optionId), isNotNull(suggestions.recurDow)))
+    .limit(1);
+
   const [game] = await db.insert(games).values({
     activityTypeId: att.activityTypeId, areaId: att.areaId,
     originAttemptId: att.id, winningOptionId: winner.optionId,
     placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
     scheduledStart: winner.proposedStart,
     status: "STAGED", confirmedCount: roster.length,
+    ...(recur ? { isStanding: true, recurDow: recur.dow, recurTime: recur.time } : {}),
   }).returning({ id: games.id });
 
   if (roster.length)

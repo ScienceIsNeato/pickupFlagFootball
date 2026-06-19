@@ -28,7 +28,7 @@ export default async function ShowInterestPage() {
 
   return (
     <main className="reg">
-      <Link href="/dashboard" className="back">&larr; back</Link>
+      <Link href="/play" className="back">&larr; back</Link>
       <h1 className="reg-h">{skin.register.heading}</h1>
       <p className="reg-blurb">{skin.register.blurb}</p>
       <form className="reg-form" action={setLocationAndInterest}>

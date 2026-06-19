@@ -8,7 +8,7 @@ import { AuthModal } from "./AuthModal";
 /**
  * Site-wide account control for the upper-right, like ganglia-ai.com: a single
  * "sign in" button opens a modal (Google + email/password); signed in shows an
- * avatar with a dropdown (name, email, dashboard, account, sign out).
+ * avatar with a dropdown (name, email, find a game, account, sign out).
  */
 export function AccountMenu() {
   const { data: session, status } = useSession();
@@ -63,7 +63,7 @@ export function AccountMenu() {
             <div className="acct-name">{name}</div>
             <div className="acct-email">{session.user.email}</div>
           </div>
-          <Link href="/dashboard" onClick={() => setOpen(false)}>dashboard</Link>
+          <Link href="/play" onClick={() => setOpen(false)}>find a game</Link>
           <Link href="/account" onClick={() => setOpen(false)}>account</Link>
           <button className="acct-signout" onClick={() => signOut({ callbackUrl: "/" })}>
             sign out

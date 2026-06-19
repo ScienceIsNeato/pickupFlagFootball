@@ -73,5 +73,5 @@ export async function setLocationAndInterest(formData: FormData) {
   // (transactional spark — needs the pooled client)
   await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
 
-  redirect("/dashboard");
+  redirect("/play");
 }

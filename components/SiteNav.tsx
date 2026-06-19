@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Ball } from "./Ball";
 import { AccountMenu } from "./AccountMenu";
+import { HeaderPlayLink } from "./HeaderPlayLink";
 import { skin } from "@/lib/skin";
 
 export function SiteNav() {
@@ -12,7 +13,7 @@ export function SiteNav() {
       </Link>
       <div className="nav-right">
         <nav>
-          <Link href="/#how">how it works</Link>
+          <HeaderPlayLink />
           <Link href="/gear">gear</Link>
           <Link href="/faq">faq</Link>
         </nav>

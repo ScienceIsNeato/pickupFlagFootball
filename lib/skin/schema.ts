@@ -33,7 +33,24 @@ export const SkinSchema = z.object({
     cta: z.string(),
     note: z.string(),
   }),
-  donate: z.object({ url: z.string(), label: z.string() }),
+  donate: z.object({
+    url: z.string(), // where the footer link + {donate} token resolve to (the /donate page)
+    label: z.string(),
+    seoTitle: z.string(),
+    seoDescription: z.string(),
+    heading: z.string(),
+    blurb: z.string(),
+    // each donation path is just a hosted URL (Stripe Payment Link, Buy Me a Coffee, ...)
+    methods: z.array(
+      z.object({
+        name: z.string(),
+        tag: z.string().optional(), // small badge, e.g. "suggested"
+        desc: z.string(),
+        cta: z.string(),
+        url: z.string(), // external (http…) opens in a new tab; internal (/…) is a route
+      })
+    ),
+  }),
   gear: z.object({
     seoTitle: z.string(),
     seoDescription: z.string(),

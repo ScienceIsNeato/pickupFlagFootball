@@ -17,7 +17,7 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
+    "/play/:path*",
     "/account/:path*",
     "/show-interest/:path*",
     "/nearby/:path*",

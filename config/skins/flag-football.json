@@ -33,7 +33,7 @@
     { "q": "what happens once a game forms - does it just keep going?", "a": "that's the goal. once a game exists, the app keeps the rhythm: each week it asks if you're coming, and the night before it sends everyone the list of who's in, so you're not herding a group chat. you can set a default ('i'm usually in') so it only bugs you when something changes. what it can't do is make people show up - it nudges and organizes, but the game still lives or dies on the people. it's a tool for a community, not a substitute for one." },
     { "q": "why flag football, specifically?", "a": "two reasons. one, it's underserved - there's plenty of software for youth leagues and tournaments, but almost nothing for adults who just want a regular pickup game. two, it's easy to start: small-sided 5v5, non-contact, no pads; a dozen people and a couple cones and you're playing. the downside is it's a smaller crowd than pickup soccer or basketball, so some areas take longer to reach enough people. we'd rather do one underserved thing well than be a generic 'find any sport' app." },
     { "q": "what do you actually do with my info?", "aHtml": "as little as we can. we ask for your email, your name, and your zip - never your street address. the zip groups you with people nearby, the email is how we tell you a game is forming, and your name is so others know who's coming. we don't sell it, and we don't share it beyond what a game needs to form. the honest trade-off: to connect you with local players we do need some location and a way to reach you, so this isn't a zero-data, no-signup tool. full details on the <a href=\"privacy.html\">privacy page</a>." },
-    { "q": "how much does this cost, and how do you make money?", "aHtml": "MIME-FF and pickupflagfootball.com are totally free, and always will be - no fees, no upgrades, no paywall. server costs are covered by <a href=\"{donate}\">donations</a> and <a href=\"gear.html\">affiliate gear</a> (buy a ball or cones through our links and we get a small cut). the honest part: that's thin, unglamorous money, so the whole thing has to stay cheap and lean to run - no expensive features that would tempt us to start charging you. free forever is a constraint we design around, on purpose." }
+    { "q": "how much does this cost, and how do you make money?", "aHtml": "free and open source, pay what you can - there's no paywall and never will be. if the app is running your weekly game, we ask for a $5/month subscription to keep the servers on, but it's an ask, not a gate: skip it and nothing changes. prefer a one-time <a href=\"{donate}\">tip</a>? cool. rather just show up for your local crew? that counts too. <a href=\"gear.html\">affiliate gear</a> (buy a ball or cones through our links and we get a small cut) helps as well. the honest part: it's thin, unglamorous money, so the whole thing stays cheap and lean to run - no expensive features that would tempt us to start charging you. free forever is a constraint we design around, on purpose." }
   ],
   "register": {
     "seoTitle": "show interest · MIME-FF",
@@ -43,7 +43,19 @@
     "cta": "count me in",
     "note": "we ask for your email, name, and zip. that's all."
   },
-  "donate": { "url": "https://github.com/ScienceIsNeato/pickupFlagFootball", "label": "support the project" },
+  "donate": {
+    "url": "/donate",
+    "label": "support the project",
+    "seoTitle": "support · MIME-FF",
+    "seoDescription": "free, open source, pay what you can. a $5/month subscription keeps the servers on, a one-time tip works too, and just showing up for your crew counts.",
+    "heading": "pay what you can",
+    "blurb": "free and open source, and it stays that way - no paywall, ever. if the app is running your weekly game, we ask for $5/month to keep the servers on. it's an ask, not a gate: skip it and nothing changes. and there's more than one way to chip in.",
+    "methods": [
+      { "name": "$5 / month", "tag": "suggested", "desc": "the soft ask. if this app is managing your weekly game, a fiver a month keeps it alive. cancel anytime, and nothing locks if you don't.", "cta": "subscribe ↗", "url": "https://buy.stripe.com/REPLACE_ME" },
+      { "name": "one-time tip", "desc": "rather not commit? throw in whatever, whenever. a quick one-tap thanks if that's more your speed.", "cta": "buy us a coffee ↗", "url": "https://buymeacoffee.com/REPLACE_ME" },
+      { "name": "just show up", "desc": "money's tight? no problem. the best support is being there - bring a friend, fill a roster, keep your local game alive.", "cta": "find your game →", "url": "/show-interest" }
+    ]
+  },
   "gear": {
     "seoTitle": "gear · MIME-FF",
     "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",

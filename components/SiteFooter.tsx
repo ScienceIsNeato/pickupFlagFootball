@@ -12,7 +12,7 @@ export function SiteFooter() {
             {skin.brandName}
           </div>
           <p className="foot-tagline">{skin.footer.tagline}</p>
-          <a href={skin.donate.url} className="donate">{skin.donate.label}</a>
+          <Link href={skin.donate.url} className="donate">{skin.donate.label}</Link>
         </div>
         <div className="foot-col">
           <div className="foot-h">the site</div>

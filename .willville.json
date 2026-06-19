@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Swapped the address autocomplete for a real fill-in address form (street, apt, city, state, zip) and geocode it behind the scenes for distance",
-    "direction": "Push the update to the open PR and work the review",
-    "last_update": "2026-06-16T00:00:00Z"
+    "status": "Made two circular badge symbols — one for an established game, a lighter one for a proposed spot — to use as map markers instead of live flags",
+    "direction": "Get a thumbs up on the badges, then wire them onto the map",
+    "last_update": "2026-06-19T00:00:00Z"
   }
 }

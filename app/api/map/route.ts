@@ -1,53 +1,184 @@
 import { NextResponse } from "next/server";
 import { cellToParent, cellToLatLng } from "h3-js";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { interestSignals, areas } from "@/lib/db/schema";
+import {
+  interestSignals, areas, games, gameRoster, formationAttempts, suggestions,
+} from "@/lib/db/schema";
 import { bigIntToH3 } from "@/lib/geo/h3";
+import { gameColor } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
+type Claim = { lat: number; lng: number; color: string; count: number };
+
 /**
  * Zillow-style cluster feed. Aggregates active interest into H3 cells at the
- * requested resolution (3–7); the client picks the resolution from the map
- * zoom, so cells merge as you zoom out and split as you zoom in. Counts are
- * distinct users per cell. has_game accents cells with a scheduled game.
+ * requested resolution (3–7). A player on an established game's roster is
+ * "claimed" by that game — wherever they live — split from the free pool, tinted
+ * the game's color, and (client-side) pointed at the game. Membership is the
+ * roster, NOT proximity: members are spread across the eligible area, interleaved
+ * with free interest (people who passed on that game). Free interest is what the
+ * cursor courts.
  */
 export async function GET(req: Request) {
-  // The map (and this aggregate interest feed behind it) is sign-in-gated like
-  // the dashboard it lives on — don't let it be scraped anonymously.
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
   const reqRes = Number(url.searchParams.get("res"));
   const res = Number.isFinite(reqRes) ? Math.max(3, Math.min(7, reqRes)) : 5;
+  const mineOnly = url.searchParams.get("mine") === "1";
+  const me = session.user.id;
 
   const signals = await db
     .select({ h3Base: interestSignals.h3Base, userId: interestSignals.userId })
     .from(interestSignals)
     .where(eq(interestSignals.active, true));
 
-  // distinct users per parent cell at the requested resolution
-  const byCell = new Map<string, Set<string>>();
-  for (const s of signals) {
-    const parent = cellToParent(bigIntToH3(s.h3Base), res);
-    (byCell.get(parent) ?? byCell.set(parent, new Set()).get(parent)!).add(s.userId);
+  // Established games: location (place coords, else area center) + color +
+  // (denormalised here) areaId so we can decide "is this one of mine?".
+  const gameRows = await db
+    .select({
+      id: games.id, areaId: games.areaId,
+      placeLat: games.placeLat, placeLng: games.placeLng,
+      h3Cell: areas.h3Cell, centerLat: areas.centerLat, centerLng: areas.centerLng,
+    })
+    .from(games).innerJoin(areas, eq(games.areaId, areas.id))
+    .where(inArray(games.status, ["STAGED", "STANDING"]));
+
+  // "mine" mode: a game is mine if I'm on its roster OR I have active interest in
+  // its area. Filter the cluster feed down to those games' badges + their claims;
+  // free interest, other games, and forming sites are all suppressed.
+  let mineGameIds: Set<string> | null = null;
+  if (mineOnly) {
+    const [myRoster, myInterest] = await Promise.all([
+      db.select({ gameId: gameRoster.gameId }).from(gameRoster).where(eq(gameRoster.userId, me)),
+      db.select({ areaId: interestSignals.areaId })
+        .from(interestSignals)
+        .where(and(eq(interestSignals.userId, me), eq(interestSignals.active, true))),
+    ]);
+    const myAreaIds = new Set(myInterest.map((r) => r.areaId));
+    mineGameIds = new Set<string>(myRoster.map((r) => r.gameId));
+    for (const g of gameRows) if (myAreaIds.has(g.areaId)) mineGameIds.add(g.id);
   }
 
-  // cells that hold a scheduled game
-  const scheduled = await db
-    .select({ h3Cell: areas.h3Cell })
-    .from(areas)
-    .where(eq(areas.status, "SCHEDULED"));
-  const gameCells = new Set(scheduled.map((a) => cellToParent(bigIntToH3(a.h3Cell), res)));
+  const gameInfo = new Map<string, { lat: number; lng: number; color: string }>();
+  const gameCellColor = new Map<string, string>();   // display cell → game color (the ring)
+  const gameAtCell = new Map<string, string>();       // display cell → gameId (for the member badge)
+  for (const g of gameRows) {
+    if (mineGameIds && !mineGameIds.has(g.id)) continue;
+    gameInfo.set(g.id, { lat: g.placeLat ?? g.centerLat, lng: g.placeLng ?? g.centerLng, color: gameColor(g.id) });
+    const parent = cellToParent(bigIntToH3(g.h3Cell), res);
+    gameCellColor.set(parent, gameColor(g.id));
+    gameAtCell.set(parent, g.id);
+  }
 
-  const cells = [...byCell.entries()].map(([h3, users]) => {
-    const [lat, lng] = cellToLatLng(h3);
-    return { h3, lat, lng, count: users.size, hasGame: gameCells.has(h3) };
+  // Roster → which game(s) claim each user, and each game's member tally.
+  // A user can be on multiple rosters (multi-area locals); each membership
+  // produces its own claim, so the map shows that user as one flag per game.
+  const claimsByUser = new Map<string, string[]>();
+  const memberCount = new Map<string, number>();
+  if (gameInfo.size) {
+    const roster = await db
+      .select({ gameId: gameRoster.gameId, userId: gameRoster.userId })
+      .from(gameRoster).where(inArray(gameRoster.gameId, [...gameInfo.keys()]));
+    for (const r of roster) {
+      if (!gameInfo.has(r.gameId)) continue;
+      const list = claimsByUser.get(r.userId) ?? claimsByUser.set(r.userId, []).get(r.userId)!;
+      if (!list.includes(r.gameId)) {
+        list.push(r.gameId);
+        memberCount.set(r.gameId, (memberCount.get(r.gameId) ?? 0) + 1);
+      }
+    }
+  }
+
+  // Areas with a live formation (a proposed game site, not yet scheduled).
+  // Suppressed entirely in "mine" mode — that view is about my established games.
+  // The badge is placed at the proposed venue — the representative suggestion's
+  // address — not the cell centroid, so it lands on the spot that was named.
+  const formingAreas = mineOnly ? [] : await db.select({ id: areas.id, h3Cell: areas.h3Cell })
+    .from(areas).where(eq(areas.status, "IN_FORMATION"));
+  const formingCells = new Set<string>();
+  const formingPoint = new Map<string, { lat: number; lng: number }>(); // display cell → venue point
+  if (formingAreas.length) {
+    const areaIds = formingAreas.map((a) => a.id);
+    const liveAttempts = await db
+      .select({ id: formationAttempts.id, areaId: formationAttempts.areaId })
+      .from(formationAttempts)
+      .where(and(
+        inArray(formationAttempts.areaId, areaIds),
+        inArray(formationAttempts.status, ["SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING"]),
+      ));
+    const areaOfAttempt = new Map(liveAttempts.map((l) => [l.id, l.areaId]));
+    const suggRows = liveAttempts.length
+      ? await db.select({
+          attemptId: suggestions.attemptId, lat: suggestions.placeLat, lng: suggestions.placeLng,
+        }).from(suggestions)
+          .where(inArray(suggestions.attemptId, liveAttempts.map((l) => l.id)))
+          .orderBy(asc(suggestions.createdAt))
+      : [];
+    // Latest suggestion with coords wins (asc order → last write per area).
+    const venueByArea = new Map<string, { lat: number; lng: number }>();
+    for (const s of suggRows) {
+      if (s.lat == null || s.lng == null) continue;
+      const areaId = areaOfAttempt.get(s.attemptId);
+      if (areaId) venueByArea.set(areaId, { lat: s.lat, lng: s.lng });
+    }
+    for (const a of formingAreas) {
+      const parent = cellToParent(bigIntToH3(a.h3Cell), res);
+      formingCells.add(parent);
+      const v = venueByArea.get(a.id);
+      if (v) formingPoint.set(parent, v);
+    }
+  }
+
+  const free = new Map<string, Set<string>>();
+  const claims = new Map<string, Map<string, Set<string>>>(); // cell → gameId → users
+  for (const s of signals) {
+    const parent = cellToParent(bigIntToH3(s.h3Base), res);
+    // A user rostered on multiple games gets one claim per game (rendered as one
+    // colored flag per game). gameInfo is already mine-filtered above.
+    const gids = (claimsByUser.get(s.userId) ?? []).filter((g) => gameInfo.has(g));
+    if (gids.length > 0) {
+      const cellClaims = claims.get(parent) ?? claims.set(parent, new Map()).get(parent)!;
+      for (const gid of gids) {
+        (cellClaims.get(gid) ?? cellClaims.set(gid, new Set()).get(gid)!).add(s.userId);
+      }
+    } else if (!mineOnly) {
+      (free.get(parent) ?? free.set(parent, new Set()).get(parent)!).add(s.userId);
+    }
+  }
+
+  const allCells = new Set<string>([
+    ...free.keys(), ...claims.keys(), ...gameCellColor.keys(), ...formingCells,
+  ]);
+  const cells = [...allCells].map((h3) => {
+    const hasGame = gameCellColor.has(h3);
+    const forming = !hasGame && formingCells.has(h3);
+    // Badge sits on the game's actual venue (place lat/lng for games; first
+    // suggestion's lat/lng for forming sites) when known, so a click on the
+    // badge sends those exact coords to /api/game or /api/proposed. Falls back
+    // to the H3 cell centroid when no venue is on file (e.g. seeded games).
+    const venue = hasGame ? gameInfo.get(gameAtCell.get(h3)!) : forming ? formingPoint.get(h3) : undefined;
+    const [lat, lng] = venue ? [venue.lat, venue.lng] : cellToLatLng(h3);
+    const cellClaims = claims.get(h3);
+    const claimsOut: Claim[] = cellClaims
+      ? [...cellClaims.entries()].map(([gid, users]) => {
+          const g = gameInfo.get(gid)!;
+          return { lat: g.lat, lng: g.lng, color: g.color, count: users.size };
+        })
+      : [];
+    return {
+      h3, lat, lng,
+      count: free.get(h3)?.size ?? 0,           // FREE interest only
+      hasGame,
+      forming,
+      gameColor: hasGame ? gameCellColor.get(h3) : undefined,
+      gameMembers: hasGame ? memberCount.get(gameAtCell.get(h3)!) ?? 0 : undefined,
+      claims: claimsOut,
+    };
   });
 
   return NextResponse.json({ res, cells });
