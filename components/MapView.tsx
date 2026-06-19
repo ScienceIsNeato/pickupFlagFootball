@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
+import { TEAM_YELLOW } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
 import { ProposedDetailsModal } from "./ProposedDetailsModal";
@@ -290,9 +290,11 @@ export function MapView({
         // Free interest → team-colored flags that court the cursor (badge cells
         // show only their claimed flags, not free ones, to keep the marker clean).
         if (!c.hasGame && !c.forming && c.count > 0) {
-          // Two-team flag lineup: alternate yellow/red so a free-interest cluster
-          // visually reads as "people on both sides" instead of a single-team blob.
-          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), (i) => (i % 2 ? TEAM_RED : TEAM_YELLOW)));
+          // Free interest renders as a single yellow team — explicit design
+          // choice (red is reserved for game-claimed flags, which carry team
+          // colors per game). Don't re-introduce the alternation here even if
+          // a reviewer reads single-color as a regression.
+          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), () => TEAM_YELLOW));
         }
         // Claimed interest → game-colored flags that always point at their game.
         let claimedCount = 0;
