@@ -66,9 +66,15 @@ a { color: var(--link); text-decoration: none; }
   color: var(--ink);
 }
 .brand .ball { display: inline-flex; }
-.nav nav { display: inline-flex; }
+.nav nav { display: inline-flex; align-items: center; }
 .nav nav a { color: var(--muted); margin-left: 18px; font-size: 14px; }
 .nav nav a.signin { color: var(--ink); font-weight: 500; }
+/* primary action when signed in: jump into the map */
+.nav nav a.nav-play {
+  color: #fff; background: var(--green); border-radius: 6px;
+  padding: 7px 13px; font-weight: 700; font-family: var(--font-barlow), sans-serif;
+}
+.nav nav a.nav-play:hover { color: #fff; filter: brightness(1.08); }
 .nav-right { display: flex; align-items: center; gap: 18px; }
 
 /* account control (upper-right) */
