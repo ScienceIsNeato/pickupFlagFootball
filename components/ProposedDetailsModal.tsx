@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEscape } from "@/lib/useEscape";
 
 type Site = { city: string | null; zip: string | null; status: string | null; captains: string[] };
 type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
@@ -39,6 +40,7 @@ export function ProposedDetailsModal({
   const [state, setState] = useState<Data | "loading" | "error">("loading");
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useEscape(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +85,7 @@ export function ProposedDetailsModal({
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog" aria-modal="true" aria-labelledby="proposed-details-title"
       style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.42)" }}
     >
       <div
@@ -98,7 +101,7 @@ export function ProposedDetailsModal({
         {state !== "loading" && state !== "error" && !site && <p className="game-muted">no proposed site here.</p>}
         {site && (
           <>
-            <h2 className="game-h">proposed game site</h2>
+            <h2 id="proposed-details-title" className="game-h">proposed game site</h2>
             <dl className="game-dl">
               <dt>where</dt>
               <dd>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useEscape } from "@/lib/useEscape";
 
 type GameInfo = {
   placeText: string;
@@ -22,7 +23,9 @@ function fmtTime(t?: string | null): string {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${ap}`;
 }
 function weeklyTime(g: GameInfo): string {
-  if (g.isStanding && g.recurDow != null && g.recurTime) return `${DOW[g.recurDow]} at ${fmtTime(g.recurTime)}`;
+  if (g.isStanding && g.recurDow != null && g.recurDow >= 0 && g.recurDow < DOW.length && g.recurTime) {
+    return `${DOW[g.recurDow]} at ${fmtTime(g.recurTime)}`;
+  }
   return new Date(g.scheduledStart).toLocaleString(undefined, {
     weekday: "long", hour: "numeric", minute: "2-digit",
   });
@@ -32,6 +35,7 @@ function weeklyTime(g: GameInfo): string {
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
+  useEscape(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +62,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog" aria-modal="true" aria-labelledby="game-details-title"
       style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
@@ -68,7 +73,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
         {state !== "loading" && state !== "error" && !game && <p className="game-muted">no game here yet.</p>}
         {game && (
           <>
-            <h2 className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>
+            <h2 id="game-details-title" className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>
             <dl className="game-dl">
               <dt>where</dt>
               <dd>

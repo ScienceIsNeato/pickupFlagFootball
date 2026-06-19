@@ -23,13 +23,15 @@ function weeklyTime(g: { isStanding: boolean; recurDow: number | null; recurTime
   if (g.isStanding && g.recurDow != null && g.recurTime) return `${DOW[g.recurDow]} at ${fmtTime(g.recurTime)}`;
   return new Date(g.scheduledStart).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
 }
-/** The date of this week's instance of a standing game (or its scheduled date otherwise). */
-function thisWeeksDate(g: { isStanding: boolean; recurDow: number | null; scheduledStart: Date }): Date {
+/** The date of the NEXT instance of a standing game (today if today is the recur
+ *  weekday, otherwise the next upcoming occurrence) — or the scheduled date for
+ *  non-standing games. Named "next" deliberately because past-this-week clicks
+ *  return next week's date, not the one that's already happened. */
+function nextGameDate(g: { isStanding: boolean; recurDow: number | null; scheduledStart: Date }): Date {
   if (!g.isStanding || g.recurDow == null) return new Date(g.scheduledStart);
   const today = new Date();
   const delta = (g.recurDow - today.getDay() + 7) % 7;
-  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta);
-  return d;
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta);
 }
 
 export default async function MyGamesPage() {
@@ -108,7 +110,7 @@ export default async function MyGamesPage() {
             <h3 className="mine-sub">i&apos;m playing</h3>
             <ul className="mine-list">
               {rosterGames.map((g) => {
-                const week = thisWeeksDate(g);
+                const next = nextGameDate(g);
                 const captain = isCaptainArea.has(g.areaId);
                 const color = gameColor(g.id);
                 return (
@@ -125,7 +127,7 @@ export default async function MyGamesPage() {
                     </div>
                     <div className="mine-week">
                       <span className="mine-week-label">
-                        this week: <strong>{week.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</strong>
+                        next game: <strong>{next.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</strong>
                       </span>
                       <form action={setAttendance} className="mine-rsvp">
                         <input type="hidden" name="gameId" value={g.id} />

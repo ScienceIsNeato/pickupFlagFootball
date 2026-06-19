@@ -29,7 +29,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+      lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return NextResponse.json({ error: "bad coords" }, { status: 400 });
   }
 
@@ -42,10 +43,38 @@ export async function GET(req: Request) {
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(areas).where(and(eq(areas.activityTypeId, act.id), eq(areas.status, "IN_FORMATION")));
 
+  // Map clicks now land on the badge's VENUE point (not the cell centroid), so
+  // match each forming area by the earliest suggestion's venue when we have it.
+  // Falls back to the area centroid for forming sites with no suggestions yet.
+  const venueByArea = new Map<string, { lat: number; lng: number }>();
+  if (forming.length) {
+    const venueRows = await db.select({
+      areaId: formationAttempts.areaId,
+      placeLat: suggestions.placeLat,
+      placeLng: suggestions.placeLng,
+    })
+      .from(formationAttempts)
+      .innerJoin(suggestions, eq(suggestions.attemptId, formationAttempts.id))
+      .where(and(
+        inArray(formationAttempts.areaId, forming.map((a) => a.id)),
+        inArray(formationAttempts.status, [...LIVE]),
+      ))
+      .orderBy(asc(suggestions.createdAt));
+    for (const r of venueRows) {
+      if (venueByArea.has(r.areaId)) continue; // earliest wins
+      if (r.placeLat != null && r.placeLng != null) {
+        venueByArea.set(r.areaId, { lat: r.placeLat, lng: r.placeLng });
+      }
+    }
+  }
+
   let best: (typeof forming)[number] | null = null;
   let bestKm = 6;
   for (const a of forming) {
-    const d = haversineKm(lat, lng, a.centerLat, a.centerLng);
+    const venue = venueByArea.get(a.id);
+    const matchLat = venue?.lat ?? a.centerLat;
+    const matchLng = venue?.lng ?? a.centerLng;
+    const d = haversineKm(lat, lng, matchLat, matchLng);
     if (d < bestKm) { bestKm = d; best = a; }
   }
   if (!best) return NextResponse.json({ site: null });

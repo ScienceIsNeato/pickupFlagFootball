@@ -81,7 +81,7 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
     .from(users).where(eq(users.id, session.user.id)).limit(1);
   if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
   const [tLat, tLng] = placeLat != null && placeLng != null ? [placeLat, placeLng] : cellToLatLng(h3);
-  if (haversineKm(me.lat, me.lng, tLat, tLng) > (me.km ?? 24)) return { ok: false, reason: "outofrange" };
+  if (haversineKm(me.lat, me.lng, tLat, tLng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
 
   // Resolve the area for this exact cell, creating it if a right-click landed on a
   // spot with no area row yet (the proposer is already a verified local above).

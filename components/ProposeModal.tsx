@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
+import { useEscape } from "@/lib/useEscape";
 import { proposeGame } from "@/app/(app)/play/propose-actions";
 import { reverseGeocode } from "@/lib/geo/reverseGeocode";
 import { haversineKm } from "@/lib/geo/distance";
@@ -17,6 +18,7 @@ const ERRORS: Record<string, string> = {
   closed: "This area's suggestion window just closed — try again soon.",
   cooldown: "This area is cooling down after a recent attempt — try again later.",
   nolocation: "Set your home address on your account before proposing.",
+  outofrange: "This spot is outside your travel radius — raise it from /account to propose here.",
   retry: "Something hiccuped — please try again.",
 };
 
@@ -33,6 +35,7 @@ export function ProposeModal({
   onClose: () => void; onProposed: (p: { lat: number; lng: number }) => void;
 }) {
   const [state, formAction, pending] = useActionState(proposeGame, null);
+  useEscape(onClose);
 
   // Is the right-clicked spot inside the user's travel radius? If not, the
   // dialog leads with an "increase your radius" message and disables submit.
@@ -92,6 +95,7 @@ export function ProposeModal({
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog" aria-modal="true" aria-labelledby="propose-title"
       style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
@@ -99,7 +103,7 @@ export function ProposeModal({
         <div className="reg-form"
           style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
             border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
-          <h2 style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
+          <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
             thanks for proposing a game!
           </h2>
           <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 6px", lineHeight: 1.55 }}>
@@ -115,7 +119,7 @@ export function ProposeModal({
         <input type="hidden" name="h3" value={h3} />
         <input type="hidden" name="place_lat" value={center.lat} />
         <input type="hidden" name="place_lng" value={center.lng} />
-        <h2 style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 4px" }}>
+        <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 4px" }}>
           propose a game
         </h2>
         <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
