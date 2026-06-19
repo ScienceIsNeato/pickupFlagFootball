@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { proposeGame } from "@/app/(app)/dashboard/propose-actions";
+import { proposeGame } from "@/app/(app)/play/propose-actions";
 import { LocationPicker } from "./LocationPicker";
 
 /** The suggest-a-game flow, opened from a cluster on the map. */

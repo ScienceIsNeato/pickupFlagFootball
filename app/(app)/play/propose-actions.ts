@@ -26,7 +26,7 @@ function coord(raw: string, lo: number, hi: number): number | null {
  */
 export async function proposeGame(formData: FormData) {
   const session = await auth();
-  if (!session?.user?.id) redirect("/?signin=1&next=/dashboard");
+  if (!session?.user?.id) redirect("/?signin=1&next=/play");
 
   const h3 = String(formData.get("h3") ?? "").trim();
   const place = String(formData.get("place") ?? "").trim();
@@ -56,10 +56,10 @@ export async function proposeGame(formData: FormData) {
       eq(interestSignals.active, true),
       inArray(interestSignals.h3Base, disk),
     )).limit(1);
-  if (!mine) redirect("/dashboard?propose=notlocal");
+  if (!mine) redirect("/play?propose=notlocal");
 
   // A game is already scheduled here — don't undo it by spawning a new attempt.
-  if (area.status === "SCHEDULED") redirect("/dashboard?propose=scheduled");
+  if (area.status === "SCHEDULED") redirect("/play?propose=scheduled");
 
   // Find any LIVE attempt (not just SUGGESTING) so we don't collide with the
   // one-live-attempt index or demote an in-flight formation.
@@ -70,7 +70,7 @@ export async function proposeGame(formData: FormData) {
     )).limit(1);
 
   // Suggestions are only accepted during the suggestion window.
-  if (live && live.status !== "SUGGESTING") redirect("/dashboard?propose=closed");
+  if (live && live.status !== "SUGGESTING") redirect("/play?propose=closed");
 
   let attempt = live;
   if (!attempt) {
@@ -83,7 +83,7 @@ export async function proposeGame(formData: FormData) {
     // don't let a manual propose re-open it early.
     if (area.status === "STALLED" &&
         !shouldRetrigger(now, area.nextTriggerAt ?? null, area.nextTriggerInterest ?? null, cohort.length)) {
-      redirect("/dashboard?propose=cooldown");
+      redirect("/play?propose=cooldown");
     }
     const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}),0)::int` })
       .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
@@ -115,7 +115,7 @@ export async function proposeGame(formData: FormData) {
         .limit(1);
     }
   }
-  if (!attempt) redirect("/dashboard?propose=retry");
+  if (!attempt) redirect("/play?propose=retry");
 
   // The SUGGESTING check above is a read; a concurrent tick (or the window
   // closing right after the unique-conflict reload) could move the attempt to
@@ -131,7 +131,7 @@ export async function proposeGame(formData: FormData) {
     )
     returning id
   `);
-  if (inserted.rows.length === 0) redirect("/dashboard?propose=closed");
+  if (inserted.rows.length === 0) redirect("/play?propose=closed");
 
-  redirect("/dashboard");
+  redirect("/play");
 }

@@ -39,7 +39,7 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
 
   // only same-origin relative paths — never an absolute/protocol-relative URL
   const safe = callbackUrl && /^\/(?![/\\])/.test(callbackUrl) ? callbackUrl : null;
-  const dest = safe || "/dashboard";
+  const dest = safe || "/play";
 
   // Google Identity Services popup
   useEffect(() => {

@@ -5,11 +5,11 @@ import { users, interestSignals } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { MapView } from "@/components/MapView";
 
-export const metadata = { title: "Dashboard — MIME-FF" };
+export const metadata = { title: "Find a Game — MIME-FF" };
 
-export default async function DashboardPage() {
+export default async function PlayPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect("/?signin=1&next=/dashboard");
+  if (!session?.user?.id) redirect("/?signin=1&next=/play");
   const uid = session.user.id;
 
   const [userRows, signalRows] = await Promise.all([

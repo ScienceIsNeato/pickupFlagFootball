@@ -13,7 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="nav-right">
           <nav>
-            <Link href="/dashboard">dashboard</Link>
+            <Link href="/play">find a game</Link>
             <Link href="/account">account</Link>
           </nav>
           <AccountMenu />

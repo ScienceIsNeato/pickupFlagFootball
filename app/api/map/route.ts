@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   // The map (and this aggregate interest feed behind it) is sign-in-gated like
-  // the dashboard it lives on — don't let it be scraped anonymously.
+  // the find-a-game page it lives on — don't let it be scraped anonymously.
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

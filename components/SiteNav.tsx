@@ -12,7 +12,6 @@ export function SiteNav() {
       </Link>
       <div className="nav-right">
         <nav>
-          <Link href="/#how">how it works</Link>
           <Link href="/gear">gear</Link>
           <Link href="/faq">faq</Link>
         </nav>

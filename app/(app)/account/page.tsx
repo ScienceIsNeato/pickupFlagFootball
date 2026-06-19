@@ -31,7 +31,7 @@ export default async function AccountPage() {
 
   return (
     <main className="reg">
-      <Link href="/dashboard" className="back">&larr; dashboard</Link>
+      <Link href="/play" className="back">&larr; find a game</Link>
       <h1 className="reg-h">your account</h1>
       <p className="reg-blurb">
         signed in as <strong>{session?.user?.email}</strong>.
