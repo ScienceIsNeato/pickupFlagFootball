@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       <h2>what we collect</h2>
       <ul>
         <li><strong>your email</strong> - to tell you when a game is forming or happening in your area.</li>
-        <li><strong>your name</strong> - so other players know who&apos;s coming.</li>
+        <li><strong>your display name</strong> - so other players know who&apos;s coming. your real name isn&apos;t required — a username or nickname works just fine.</li>
         <li><strong>your zip</strong> (required) - to group you with people nearby.</li>
         <li><strong>your home address</strong> (optional) - if you give it, we use it to measure how far games are from you so we only surface ones you&apos;d actually travel to. it is the only thing we use it for.</li>
         <li><strong>what you&apos;re into</strong> - which area(s) you&apos;re interested in and roughly which times work.</li>
