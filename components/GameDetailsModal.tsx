@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
-import { setRosterMembership, setNextGameRsvp } from "@/app/(app)/play/game-actions";
+import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
 
 type GameInfo = {
   gameId: string;
@@ -15,6 +15,7 @@ type GameInfo = {
   city: string | null; zip: string | null;
   captains: string[];
   eligible: boolean; onRoster: boolean;
+  myDefault: "in" | "out" | null;
   myRsvp: "in" | "out" | null;
   rosterCount: number; inCount: number;
   nextOccurrence: string;
@@ -50,6 +51,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
+  const [pref, setPref] = useState<"regular" | "occasional">("regular");
+  const [nextIn, setNextIn] = useState(true);
   // Portal the modal to document.body so it escapes .dash-map's stacking
   // context (z:0) and renders above the floating site header (z:30).
   const [mounted, setMounted] = useState(false);
@@ -75,6 +78,14 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   const maps = game?.placeLat != null && game?.placeLng != null
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
+
+  // Sync the sliders from persisted state whenever the game (re)loads. A
+  // not-yet-joined viewer defaults to regular + in (they're about to join).
+  useEffect(() => {
+    if (!game) return;
+    setPref(game.myDefault === "out" ? "occasional" : "regular");
+    setNextIn(game.onRoster ? game.myRsvp === "in" : true);
+  }, [game?.gameId, game?.onRoster, game?.myDefault, game?.myRsvp]);
 
   async function run(action: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true); setActionErr("");
@@ -128,16 +139,27 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               {game.eligible || game.onRoster ? (
                 <>
                   <p className="game-join-h">join weekly game</p>
-                  <label className="game-toggle">
-                    <input type="checkbox" checked={game.onRoster} disabled={busy}
-                      onChange={(e) => run(() => setRosterMembership(game.gameId, e.target.checked))} />
-                    <span>I&apos;ll probably be there every week</span>
-                  </label>
-                  <label className="game-toggle">
-                    <input type="checkbox" checked={game.myRsvp === "in"} disabled={busy}
-                      onChange={(e) => run(() => setNextGameRsvp(game.gameId, e.target.checked))} />
-                    <span>I&apos;ll be there for the next game on {fmtDate(game.nextOccurrence)}</span>
-                  </label>
+                  <div className="seg" role="group" aria-label="how often you'll play">
+                    <button type="button" className={pref === "regular" ? "seg-on" : ""}
+                      disabled={busy} onClick={() => setPref("regular")}>regular player</button>
+                    <button type="button" className={pref === "occasional" ? "seg-on" : ""}
+                      disabled={busy} onClick={() => setPref("occasional")}>occasional player</button>
+                  </div>
+                  <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
+                  <div className="seg" role="group" aria-label="next game">
+                    <button type="button" className={nextIn ? "seg-on" : ""}
+                      disabled={busy} onClick={() => setNextIn(true)}>i&apos;m in</button>
+                    <button type="button" className={!nextIn ? "seg-on seg-on-out" : ""}
+                      disabled={busy} onClick={() => setNextIn(false)}>i&apos;m out</button>
+                  </div>
+                  <button type="button" className="btn-green game-join" disabled={busy}
+                    onClick={() => run(() => joinWeeklyGame(game.gameId, pref === "regular", nextIn))}>
+                    {busy ? "…" : game.onRoster ? "save changes" : "join weekly game"}
+                  </button>
+                  {game.onRoster && (
+                    <button type="button" className="game-leave" disabled={busy}
+                      onClick={() => run(() => setRosterMembership(game.gameId, false))}>leave this game</button>
+                  )}
                   <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
                 </>
               ) : (

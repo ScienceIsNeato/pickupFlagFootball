@@ -229,12 +229,27 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
 .game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .game-muted { color: var(--muted); }
-/* "join weekly game" block in the game popup — two independent toggles */
+/* "join weekly game" block in the game popup — two segmented sliders + button */
 .game-join-box { margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .game-join-h { margin: 0 0 10px; font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink); }
-.game-toggle { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--ink); cursor: pointer; }
-.game-toggle input { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; flex: none; }
-.game-toggle input:disabled { cursor: default; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.seg button {
+  flex: 1; padding: 10px 8px; font-family: inherit; font-size: 13px; font-weight: 700;
+  background: transparent; color: var(--muted); border: none; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover:not(.seg-on) { color: var(--ink); }
+.seg button:disabled { cursor: default; }
+.seg button.seg-on { background: var(--green); color: #fff; }
+.seg button.seg-on-out { background: var(--red); color: #fff; }
+.game-seg-cap { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.game-join { width: 100%; height: 44px; }
+.game-leave {
+  width: 100%; height: 34px; margin-top: 2px; cursor: pointer; background: transparent;
+  border: none; color: var(--faint); font-size: 13px; text-decoration: underline;
+}
+.game-leave:hover { color: var(--red); }
+.game-leave:disabled { opacity: 0.6; cursor: default; }
 .game-in-count { margin: 8px 0 0; font-size: 13px; }
 .game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */

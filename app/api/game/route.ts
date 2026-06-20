@@ -102,6 +102,7 @@ export async function GET(req: Request) {
       captains,
       eligible: eligible != null,
       onRoster: membership.onRoster,
+      myDefault: membership.myDefault,
       myRsvp: membership.myRsvp,
       rosterCount: membership.rosterCount,
       inCount: membership.inCount,

@@ -42,11 +42,12 @@ export async function reachableActiveGame(userId: string, gameId: string): Promi
 }
 
 export type Membership = {
-  occurrence: string;          // next occurrence date (YYYY-MM-DD)
-  onRoster: boolean;           // is the user a regular on this game
-  myRsvp: "in" | "out" | null; // their RSVP for the next occurrence
-  rosterCount: number;         // regulars
-  inCount: number;             // RSVP'd "in" for the next occurrence
+  occurrence: string;            // next occurrence date (YYYY-MM-DD)
+  onRoster: boolean;             // is the user a regular on this game
+  myDefault: "in" | "out" | null; // per-site default ("usually come"/"won't"); null if not on roster
+  myRsvp: "in" | "out" | null;   // their RSVP for the next occurrence
+  rosterCount: number;           // regulars
+  inCount: number;               // RSVP'd "in" for the next occurrence
 };
 
 /** The current user's standing on a game + this-occurrence tallies, for the
@@ -57,16 +58,17 @@ export async function gameMembership(
   const occ = nextOccurrenceYMD(game, now);
   const [m] = (await db.execute(sql`
     select
-      exists(select 1 from game_roster r where r.game_id = ${game.id} and r.user_id = ${userId}) as on_roster,
+      (select default_status from game_roster r where r.game_id = ${game.id} and r.user_id = ${userId}) as my_default,
       (select status from game_attendance a
          where a.game_id = ${game.id} and a.user_id = ${userId} and a.occurrence_date = ${occ}) as my_rsvp,
       (select count(*)::int from game_roster r where r.game_id = ${game.id}) as roster_count,
       (select count(*)::int from game_attendance a
          where a.game_id = ${game.id} and a.occurrence_date = ${occ} and a.status = 'in') as in_count
-  `)).rows as Array<{ on_roster: boolean; my_rsvp: string | null; roster_count: number; in_count: number }>;
+  `)).rows as Array<{ my_default: string | null; my_rsvp: string | null; roster_count: number; in_count: number }>;
   return {
     occurrence: occ,
-    onRoster: !!m?.on_roster,
+    onRoster: m?.my_default != null,
+    myDefault: (m?.my_default as "in" | "out" | null) ?? null,
     myRsvp: (m?.my_rsvp as "in" | "out" | null) ?? null,
     rosterCount: Number(m?.roster_count ?? 0),
     inCount: Number(m?.in_count ?? 0),

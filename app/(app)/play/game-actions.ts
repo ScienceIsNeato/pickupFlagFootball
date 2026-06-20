@@ -17,6 +17,40 @@ async function syncRosterCount(gameId: string) {
     .where(eq(games.id, gameId));
 }
 
+/** Join (or update) a weekly game in one shot, from the popup's slider form:
+ *  roster membership with a per-site default (regular = "usually come" / occasional
+ *  = "usually won't") plus the next-occurrence RSVP. Idempotent, so it doubles as
+ *  "save changes" for an existing member. Gated on the radius rule. */
+export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: boolean): Promise<JoinResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "sign in first" };
+  const me = session.user.id;
+
+  const g = await reachableActiveGame(me, gameId);
+  if (!g) return { ok: false, error: "this game is outside your travel area" };
+  const def = regular ? "in" : "out";
+
+  await db.insert(gameRoster).values({ gameId, userId: me, defaultStatus: def })
+    .onConflictDoUpdate({ target: [gameRoster.gameId, gameRoster.userId], set: { defaultStatus: def } });
+
+  const occ = nextOccurrenceYMD(g, new Date());
+  if (nextIn) {
+    await db.insert(gameAttendance)
+      .values({ gameId, userId: me, occurrenceDate: occ, status: "in" })
+      .onConflictDoUpdate({
+        target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
+        set: { status: "in" },
+      });
+  } else {
+    await db.delete(gameAttendance).where(and(
+      eq(gameAttendance.gameId, gameId), eq(gameAttendance.userId, me), eq(gameAttendance.occurrenceDate, occ),
+    ));
+  }
+  await syncRosterCount(gameId);
+  revalidatePath("/my-games");
+  return { ok: true };
+}
+
 /** "I'll probably be there every week" — standing roster membership. Independent
  *  of the per-game RSVP below. Joining is gated on the radius rule (your travel
  *  radius must reach the game's area); leaving is a self-edit. */
