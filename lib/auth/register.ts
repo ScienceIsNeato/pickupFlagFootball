@@ -1,11 +1,12 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { sendBrevoEmail } from "@/lib/email/brevo";
-import { buildWelcomeEmail } from "@/lib/email/templates";
+import { buildVerificationEmail } from "@/lib/email/templates";
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
 
@@ -30,19 +31,20 @@ export async function registerWithPassword(input: {
   if (existing) return { ok: false, error: exists };
 
   const hash = await bcrypt.hash(password, 10);
+  const token = randomBytes(32).toString("hex");
   try {
-    await db.insert(users).values({ email, displayName: name, passwordHash: hash });
+    await db.insert(users).values({ email, displayName: name, passwordHash: hash, verificationToken: token });
   } catch {
     // concurrent insert lost the race on the unique email index
     return { ok: false, error: exists };
   }
 
-  // Welcome email — best-effort: a Brevo hiccup must not fail the signup.
+  // Confirm-your-email — best-effort: a Brevo hiccup must not fail the signup.
   try {
-    const mail = buildWelcomeEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com");
+    const mail = buildVerificationEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", token);
     await sendBrevoEmail({ to: email, toName: name, ...mail });
   } catch (e) {
-    console.error("[email] welcome send failed for", email, e);
+    console.error("[email] verification send failed for", email, e);
   }
 
   return { ok: true };

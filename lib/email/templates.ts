@@ -46,19 +46,19 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
 </td></tr></table></body></html>`;
 }
 
-/** Welcome email sent immediately on account creation (not a cron notification —
- *  a direct response to signing up). */
-export function buildWelcomeEmail(
-  displayName: string | null, appBaseUrl: string,
+/** Confirm-your-email sent on account creation. The link carries the single-use
+ *  verification token; until it's clicked the account can't join or propose. */
+export function buildVerificationEmail(
+  displayName: string | null, appBaseUrl: string, token: string,
 ): { subject: string; htmlContent: string; textContent: string } {
   const base = appBaseUrl.replace(/\/+$/, "");
-  const ctaUrl = `${base}/show-interest`;
+  const ctaUrl = `${base}/verify-email?token=${encodeURIComponent(token)}`;
   const greeting = `hey ${displayName ?? "there"},`;
-  const intro = `welcome to ${skin.brandName} — pickup games that organize themselves. tell us where you play and we'll let you know the moment a game starts forming near you. no organizer, no fees.`;
+  const intro = `welcome to ${skin.brandName} — pickup games that organize themselves. confirm your email to start joining and proposing games near you.`;
   return {
-    subject: `welcome to ${skin.brandName} 🏈`,
-    htmlContent: layout({ title: "you're in", intro, cta: "show interest near you", ctaUrl, greeting, footer: null, base }),
-    textContent: `${greeting}\n\n${intro}\n\nshow interest near you: ${ctaUrl}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`,
+    subject: `confirm your email · ${skin.brandName}`,
+    htmlContent: layout({ title: "confirm your email", intro, cta: "confirm email", ctaUrl, greeting, footer: null, base }),
+    textContent: `${greeting}\n\n${intro}\n\nconfirm your email: ${ctaUrl}\n\nif you didn't sign up, you can ignore this.\n\n${skin.brandName}`,
   };
 }
 

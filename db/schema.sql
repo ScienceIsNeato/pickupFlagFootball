@@ -101,6 +101,7 @@ CREATE TABLE users (
   h3_r8         bigint,
   h3_r9         bigint,
   timezone      text,      -- for quiet-hours
+  verification_token text,  -- single-use confirm-email secret (NULL once verified)
   push_subscription jsonb, -- Web Push subscription
   email_opt_in  boolean NOT NULL DEFAULT true,
   -- self-declared; drives the email donation footer (only 'unset' is reminded)
