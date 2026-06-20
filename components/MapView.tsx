@@ -538,7 +538,11 @@ export function MapView({
       // Click a proposed (forming) site → its details + any vote tallies.
       if (hit.forming) {
         const p = map.project(hit.ll);
-        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x, y: p.y, badgeHeight: PROPOSED_BADGE } });
+        // map.project is relative to the map container, but the modal portals to
+        // <body> and positions in a fixed full-viewport overlay — so offset by the
+        // container's viewport rect (notably the 64px app-header pad) to align.
+        const rect = container.getBoundingClientRect();
+        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x + rect.left, y: p.y + rect.top, badgeHeight: PROPOSED_BADGE } });
         return;
       }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster

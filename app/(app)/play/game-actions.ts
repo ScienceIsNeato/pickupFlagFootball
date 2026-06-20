@@ -37,8 +37,12 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const me = session.user.id;
 
-  const g = await reachableActiveGame(me, gameId);
-  if (!g) return { ok: false, error: "this game is outside your travel area" };
+  // New joins are gated on the radius rule; existing members can always update
+  // their pref/RSVP or save even if they've since moved or narrowed their radius.
+  const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
+    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
+  const g = member ? await activeGame(gameId) : await reachableActiveGame(me, gameId);
+  if (!g) return { ok: false, error: member ? "game unavailable" : "this game is outside your travel area" };
   const def = regular ? "in" : "out";
 
   await db.insert(gameRoster).values({ gameId, userId: me, defaultStatus: def })

@@ -41,9 +41,12 @@ export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> 
     for (const date of dates) {
       await db.execute(sql`
         insert into game_attendance (game_id, user_id, occurrence_date, status)
-        select r.game_id, r.user_id, ${date}::date, 'in'
+        -- capture each member's effective status (their default) for the week, in
+        -- AND out, so the row is the immutable record: a later default change can't
+        -- rewrite a frozen week, and a default-out member is never backfilled "in".
+        select r.game_id, r.user_id, ${date}::date, r.default_status
         from game_roster r
-        where r.game_id = ${g.id} and r.default_status = 'in'
+        where r.game_id = ${g.id}
           -- only weeks on/after the member joined — never backfill pre-join weeks
           and ${date}::date >= r.created_at::date
           and not exists (
