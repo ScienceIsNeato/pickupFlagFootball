@@ -2,16 +2,18 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { and, eq, inArray } from "drizzle-orm";
-import {
-  users, areas, games, gameRoster, interestSignals, areaCaptains,
-} from "@/lib/db/schema";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { users, areas, games, gameRoster, gameAttendance } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
-import { setAttendance } from "./actions";
+import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
+import { hasActiveInterest } from "@/lib/db/interest";
+import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
-export const metadata = { title: "My Games — MIME-FF" };
+export const metadata = { title: "Upcoming Games — MIME-FF" };
 
+const DAY = 86_400_000;
+const PLAYED_MIN = 4; // a recurring occurrence "took place" once this many were in
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 function fmtTime(t?: string | null): string {
@@ -23,159 +25,189 @@ function weeklyTime(g: { isStanding: boolean; recurDow: number | null; recurTime
   if (g.isStanding && g.recurDow != null && g.recurTime) return `${DOW[g.recurDow]} at ${fmtTime(g.recurTime)}`;
   return new Date(g.scheduledStart).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
 }
-/** The date of the NEXT instance of a standing game (today if today is the recur
- *  weekday, otherwise the next upcoming occurrence) — or the scheduled date for
- *  non-standing games. Named "next" deliberately because past-this-week clicks
- *  return next week's date, not the one that's already happened. */
-function nextGameDate(g: { isStanding: boolean; recurDow: number | null; scheduledStart: Date }): Date {
-  if (!g.isStanding || g.recurDow == null) return new Date(g.scheduledStart);
-  const today = new Date();
-  const delta = (g.recurDow - today.getDay() + 7) % 7;
-  return new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta);
+function fmtDate(ymd: string): string {
+  return new Date(`${ymd}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
-export default async function MyGamesPage() {
+export default async function UpcomingGamesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
   const me = session.user.id;
+  // Match the nav gate: this page is for registered + interested users.
+  if (!(await hasActiveInterest(me))) redirect("/show-interest");
+
+  const now = new Date();
+  // Only load attendance within the displayed window (last 8 / next 6 weeks) so
+  // the queries don't grow unbounded as weekly rows accumulate.
+  const windowStart = toYMD(new Date(now.getTime() - 56 * DAY));
+  const windowEnd = toYMD(new Date(now.getTime() + 42 * DAY));
 
   const [u] = await db
     .select({ homeLat: users.homeLat, homeLng: users.homeLng, maxTravelKm: users.maxTravelKm,
               city: users.city, zip: users.zip })
     .from(users).where(eq(users.id, me)).limit(1);
 
-  // The two "mine" inputs: roster (I'm part of) and interest areas (I'm interested in).
-  const [rosterRows, interestRows] = await Promise.all([
-    db.select({ gameId: gameRoster.gameId }).from(gameRoster).where(eq(gameRoster.userId, me)),
-    db.select({ areaId: interestSignals.areaId })
-      .from(interestSignals)
-      .where(and(eq(interestSignals.userId, me), eq(interestSignals.active, true))),
-  ]);
-  const onRoster = new Set(rosterRows.map((r) => r.gameId));
-  const myAreaIds = interestRows.map((r) => r.areaId);
+  // Sites I've joined (roster) + my per-site default ("usually come"/"won't").
+  const rosterRows = await db.select({ gameId: gameRoster.gameId, defaultStatus: gameRoster.defaultStatus })
+    .from(gameRoster).where(eq(gameRoster.userId, me));
+  const rosterIds = rosterRows.map((r) => r.gameId);
+  const defaultByGame = new Map(rosterRows.map((r) => [r.gameId, r.defaultStatus]));
 
-  // Games I'm rostered on:
-  const rosterGames = onRoster.size
+  const rosterGames = rosterIds.length
     ? await db.select({
         id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
         scheduledStart: games.scheduledStart, isStanding: games.isStanding,
-        recurDow: games.recurDow, recurTime: games.recurTime, confirmedCount: games.confirmedCount,
+        recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-        .where(and(inArray(games.id, [...onRoster]), inArray(games.status, ["STAGED", "STANDING"])))
+        .where(and(inArray(games.id, rosterIds), inArray(games.status, ["STAGED", "STANDING"])))
     : [];
 
-  // Games in areas I've shown interest in but am NOT on the roster of:
-  const interestGames = myAreaIds.length
-    ? await db.select({
-        id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
-        scheduledStart: games.scheduledStart, isStanding: games.isStanding,
-        recurDow: games.recurDow, recurTime: games.recurTime, confirmedCount: games.confirmedCount,
-        city: areas.displayCity, zip: areas.displayZip,
-      }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-        .where(and(inArray(games.areaId, myAreaIds), inArray(games.status, ["STAGED", "STANDING"])))
+  // My RSVP overrides (covers upcoming + past), and per-occurrence "in" headcounts.
+  const myAtt = rosterIds.length
+    ? await db.select({ gameId: gameAttendance.gameId, date: gameAttendance.occurrenceDate, status: gameAttendance.status })
+        .from(gameAttendance).where(and(
+          eq(gameAttendance.userId, me), inArray(gameAttendance.gameId, rosterIds),
+          gte(gameAttendance.occurrenceDate, windowStart), lte(gameAttendance.occurrenceDate, windowEnd),
+        ))
     : [];
-  // De-dupe: a game I'm rostered on is shown under "playing", not "interested".
-  const interestOnly = interestGames.filter((g) => !onRoster.has(g.id));
+  const myByKey = new Map(myAtt.map((a) => [`${a.gameId}|${a.date}`, a.status]));
 
-  // Captain badges (for any area we touch).
-  const allAreaIds = [...new Set([...rosterGames, ...interestOnly].map((g) => g.areaId))];
-  const captainRows = allAreaIds.length
-    ? await db.select({ areaId: areaCaptains.areaId, userId: areaCaptains.userId })
-        .from(areaCaptains).where(inArray(areaCaptains.areaId, allAreaIds))
+  const headRows = rosterIds.length
+    ? await db.select({ gameId: gameAttendance.gameId, date: gameAttendance.occurrenceDate, c: sql<number>`count(*)::int` })
+        .from(gameAttendance)
+        .where(and(
+          eq(gameAttendance.status, "in"), inArray(gameAttendance.gameId, rosterIds),
+          gte(gameAttendance.occurrenceDate, windowStart), lte(gameAttendance.occurrenceDate, windowEnd),
+        ))
+        .groupBy(gameAttendance.gameId, gameAttendance.occurrenceDate)
     : [];
-  const isCaptainArea = new Set(captainRows.filter((r) => r.userId === me).map((r) => r.areaId));
+  const headByKey = new Map(headRows.map((r) => [`${r.gameId}|${r.date}`, Number(r.c)]));
+
+  // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
+  const upcoming = rosterGames
+    .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Past: last 8 weeks, most recent first.
+  const past = rosterGames
+    .flatMap((g) => occurrenceDatesInRange(g, new Date(now.getTime() - 56 * DAY), new Date(now.getTime() - DAY)).map((date) => ({ g, date })))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const center: [number, number] = [u?.homeLng ?? -91.6, u?.homeLat ?? 41.69];
   const home = u?.homeLat != null && u?.homeLng != null
     ? { lat: u.homeLat, lng: u.homeLng, maxTravelKm: u.maxTravelKm, city: u.city ?? null, zip: u.zip ?? null }
     : null;
 
-  const hasAny = rosterGames.length + interestOnly.length > 0;
-
   return (
     <div className="dash-map">
       <MapView center={center} zoom={9} home={home} mineOnly />
+
+      {/* ── left: upcoming ─────────────────────────────────────────────── */}
       <aside className="mine-panel">
-        <h2 className="mine-h">my games</h2>
-        {!hasAny && (
+        <h2 className="mine-h">upcoming games</h2>
+        {rosterGames.length === 0 ? (
           <p className="mine-empty">
-            you&apos;re not part of a game yet and haven&apos;t shown interest in an area with one.{" "}
-            <Link href="/play">find a game</Link>.
+            you haven&apos;t joined a game yet. <Link href="/play">find one on the map</Link> and tap
+            &ldquo;join weekly game&rdquo;.
           </p>
-        )}
-
-        {rosterGames.length > 0 && (
-          <section className="mine-section">
-            <h3 className="mine-sub">i&apos;m playing</h3>
-            <ul className="mine-list">
-              {rosterGames.map((g) => {
-                const next = nextGameDate(g);
-                const captain = isCaptainArea.has(g.areaId);
-                const color = gameColor(g.id);
-                return (
-                  <li key={g.id} className="mine-card">
-                    <div className="mine-card-top">
-                      <span className="mine-dot" style={{ background: color }} aria-hidden />
-                      <div className="mine-card-place">
-                        <div className="mine-card-name">{g.placeText}</div>
-                        <div className="mine-card-meta">
-                          {g.city ?? ""}{g.zip ? ` ${g.zip}` : ""} · {weeklyTime(g)}
+        ) : (
+          <>
+            <section className="mine-section">
+              <h3 className="mine-sub">your sites</h3>
+              <ul className="mine-list">
+                {rosterGames.map((g) => {
+                  const def = defaultByGame.get(g.id) ?? "in";
+                  const color = g.color ?? gameColor(g.id);
+                  return (
+                    <li key={g.id} className="mine-card">
+                      <div className="mine-card-top">
+                        <span className="mine-dot" style={{ background: color }} aria-hidden />
+                        <div className="mine-card-place">
+                          <div className="mine-card-name">{g.placeText}</div>
+                          <div className="mine-card-meta">{g.city ?? ""}{g.zip ? ` ${g.zip}` : ""} · {weeklyTime(g)}</div>
                         </div>
                       </div>
-                      {captain && <span className="mine-tag">captain</span>}
-                    </div>
-                    <div className="mine-week">
-                      <span className="mine-week-label">
-                        next game: <strong>{next.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</strong>
-                      </span>
-                      <form action={setAttendance} className="mine-rsvp">
+                      <form action={setSiteDefault} className="mine-pref">
                         <input type="hidden" name="gameId" value={g.id} />
-                        <button type="submit" name="status" value="in" className="rsvp-btn rsvp-in" data-active>i&apos;m in</button>
-                        <button type="submit" name="status" value="out" className="rsvp-btn rsvp-out">drop out</button>
+                        <span className="mine-pref-label">by default i&apos;ll</span>
+                        <button type="submit" name="default" value="in" className="rsvp-btn rsvp-in" {...(def === "in" ? { "data-active": true } : {})}>usually come</button>
+                        <button type="submit" name="default" value="out" className="rsvp-btn rsvp-out" {...(def === "out" ? { "data-active": true } : {})}>usually won&apos;t</button>
                       </form>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
 
-        {interestOnly.length > 0 && (
-          <section className="mine-section">
-            <h3 className="mine-sub">i&apos;m interested</h3>
-            <ul className="mine-list">
-              {interestOnly.map((g) => {
-                const captain = isCaptainArea.has(g.areaId);
-                const color = gameColor(g.id);
-                return (
-                  <li key={g.id} className="mine-card">
-                    <div className="mine-card-top">
-                      <span className="mine-dot" style={{ background: color }} aria-hidden />
-                      <div className="mine-card-place">
-                        <div className="mine-card-name">{g.placeText}</div>
-                        <div className="mine-card-meta">
-                          {g.city ?? ""}{g.zip ? ` ${g.zip}` : ""} · {weeklyTime(g)}
+            <section className="mine-section">
+              <h3 className="mine-sub">upcoming</h3>
+              {upcoming.length === 0 ? <p className="mine-empty">no games scheduled in the next 6 weeks.</p> : (
+                <ul className="mine-list">
+                  {upcoming.map(({ g, date }) => {
+                    const key = `${g.id}|${date}`;
+                    const override = myByKey.get(key);
+                    const eff = override ?? defaultByGame.get(g.id) ?? "in";
+                    return (
+                      <li key={key} className="mine-occ">
+                        <div className="mine-occ-when">
+                          <strong>{fmtDate(date)}</strong>
+                          <span className="mine-occ-site">{g.placeText}</span>
                         </div>
-                      </div>
-                      {captain && <span className="mine-tag">captain</span>}
-                    </div>
-                    <div className="mine-week">
-                      <span className="mine-week-label">not on the roster</span>
-                      <form action={setAttendance} className="mine-rsvp">
-                        <input type="hidden" name="gameId" value={g.id} />
-                        <button type="submit" name="status" value="in" className="rsvp-btn rsvp-in">join roster</button>
-                      </form>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+                        <form action={setOccurrenceRsvp} className="mine-rsvp">
+                          <input type="hidden" name="gameId" value={g.id} />
+                          <input type="hidden" name="date" value={date} />
+                          <button type="submit" name="status" value="in" className="rsvp-btn rsvp-in" {...(eff === "in" ? { "data-active": true } : {})}>in</button>
+                          <button type="submit" name="status" value="out" className="rsvp-btn rsvp-out" {...(eff === "out" ? { "data-active": true } : {})}>out</button>
+                          {!override && <span className="mine-occ-def">default</span>}
+                        </form>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </aside>
+
+      {/* ── right: past ────────────────────────────────────────────────── */}
+      <aside className="mine-panel mine-right">
+        <h2 className="mine-h">past games</h2>
+        {rosterGames.length === 0 ? (
+          <p className="mine-empty">once you join a game, what happened at your sites shows up here.</p>
+        ) : past.length === 0 ? (
+          <p className="mine-empty">no games at your sites in the last 8 weeks.</p>
+        ) : (
+          <ul className="mine-list">
+            {past.map(({ g, date }) => {
+              const key = `${g.id}|${date}`;
+              const head = headByKey.get(key) ?? 0;
+              const played = head >= PLAYED_MIN;
+              // Past attendance is read from frozen rows only — never today's
+              // default, which would rewrite history when a member changes their
+              // pref. The tick freeze materializes a row for everyone who was in.
+              const youIn = myByKey.get(key) === "in";
+              return (
+                <li key={key} className="mine-occ">
+                  <div className="mine-occ-when">
+                    <strong>{fmtDate(date)}</strong>
+                    <span className="mine-occ-site">{g.placeText}</span>
+                  </div>
+                  <div className="mine-past-result">
+                    {played
+                      ? <span className="game-played">✓ played · {head} in</span>
+                      : <span className="mine-occ-def">— no game</span>}
+                    {played && (youIn
+                      ? <span className="mine-you mine-you-in">you played</span>
+                      : <span className="mine-you">you sat out</span>)}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </aside>
     </div>
   );
 }
-

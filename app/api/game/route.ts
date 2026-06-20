@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areas, activityTypes, areaCaptains, users } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
+import { reachableActiveGame, gameMembership } from "@/lib/db/gameMembership";
 
 export const dynamic = "force-dynamic";
 
@@ -79,14 +80,33 @@ export async function GET(req: Request) {
     return { weekStart: new Date(start).toISOString(), played, count: played ? g!.confirmedCount : 0 };
   });
 
+  // The viewer's standing on this game: are they a regular, can they join (their
+  // radius reaches it), and the next-occurrence RSVP tallies for the popup.
+  const occInputs = {
+    id: best.id, isStanding: best.isStanding, recurDow: best.recurDow,
+    scheduledStart: String(best.scheduledStart),
+  };
+  const [eligible, membership] = await Promise.all([
+    reachableActiveGame(session.user.id, best.id),
+    gameMembership(session.user.id, occInputs, new Date()),
+  ]);
+
   return NextResponse.json({
     game: {
+      gameId: best.id,
       placeText: best.placeText, placeLat: best.placeLat, placeLng: best.placeLng,
       scheduledStart: best.scheduledStart, isStanding: best.isStanding,
       recurDow: best.recurDow, recurTime: best.recurTime,
       confirmedCount: best.confirmedCount, status: best.status,
       city: best.city, zip: best.zip,
       captains,
+      eligible: eligible != null,
+      onRoster: membership.onRoster,
+      myDefault: membership.myDefault,
+      myRsvp: membership.myRsvp,
+      rosterCount: membership.rosterCount,
+      inCount: membership.inCount,
+      nextOccurrence: membership.occurrence,
     },
     weeks,
   });

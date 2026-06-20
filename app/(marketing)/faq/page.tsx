@@ -11,8 +11,7 @@ export const metadata: Metadata = {
 function answerHtml(aHtml: string): string {
   return aHtml
     .replaceAll("{donate}", skin.donate.url)
-    .replaceAll('href="privacy.html"', 'href="/privacy"')
-    .replaceAll('href="gear.html"', 'href="/gear"');
+    .replaceAll('href="privacy.html"', 'href="/privacy"');
 }
 
 export default function FaqPage() {

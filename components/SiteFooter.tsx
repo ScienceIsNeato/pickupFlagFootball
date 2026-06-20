@@ -17,7 +17,6 @@ export function SiteFooter() {
         <div className="foot-col">
           <div className="foot-h">the site</div>
           <Link href="/#how">how it works</Link>
-          <Link href="/gear">gear</Link>
           <Link href="/faq">faq</Link>
           <Link href="/show-interest">show interest</Link>
         </div>

@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       <h2>what we collect</h2>
       <ul>
         <li><strong>your email</strong> - to tell you when a game is forming or happening in your area.</li>
-        <li><strong>your name</strong> - so other players know who&apos;s coming.</li>
+        <li><strong>your display name</strong> - so other players know who&apos;s coming. your real name isn&apos;t required — a username or nickname works just fine.</li>
         <li><strong>your zip</strong> (required) - to group you with people nearby.</li>
         <li><strong>your home address</strong> (optional) - if you give it, we use it to measure how far games are from you so we only surface ones you&apos;d actually travel to. it is the only thing we use it for.</li>
         <li><strong>what you&apos;re into</strong> - which area(s) you&apos;re interested in and roughly which times work.</li>
@@ -41,9 +41,6 @@ export default function PrivacyPage() {
 
       <h2>what we do with it</h2>
       <p>only what the product needs: count interest near you, measure your distance to games, help the group form one, and notify you about it. nothing else. we don&apos;t sell or rent your data, and we don&apos;t share it except where it&apos;s part of the game forming (above).</p>
-
-      <h2>gear links</h2>
-      <p>the gear page links to amazon and are affiliate links. if you click one, amazon&apos;s own privacy policy covers what happens on their site. the affiliate cut helps cover server costs.</p>
 
       <h2>email</h2>
       <p>we only email you about games and interest in your areas. you can opt out anytime.</p>

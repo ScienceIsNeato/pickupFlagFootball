@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Made two circular badge symbols — one for an established game, a lighter one for a proposed spot — to use as map markers instead of live flags",
-    "direction": "Get a thumbs up on the badges, then wire them onto the map",
-    "last_update": "2026-06-19T00:00:00Z"
+    "status": "Big map + games update ready — propose/join games, weekly RSVP, upcoming & past panels, the registration flow, and a little 'you are here' player marker. PR going up.",
+    "direction": "Get the PR reviewed and merged, then circle back to the 'not interested' opt-out",
+    "last_update": "2026-06-20T00:00:00Z"
   }
 }

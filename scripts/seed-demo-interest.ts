@@ -18,12 +18,14 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
-  users, areas, interestSignals, games, gameRoster, activityTypes, areaCaptains,
+  users, areas, interestSignals, games, gameRoster, gameAttendance, activityTypes, areaCaptains,
   formationAttempts, suggestions, formationOptions,
 } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { milesToKm, haversineKm } from "@/lib/geo/distance";
+import { occurrenceDatesInRange } from "@/lib/datetime";
+import { gameColor } from "@/lib/brand";
 
 // Deliberate population pools — replaces the old population-weighted ZIP scatter
 // (which seeded ~220 across the metro and over-filled rosters with "everybody's
@@ -66,6 +68,37 @@ const STREETS = [
   "Riverside", "Mormon Trek", "Rochester", "Blairs Ferry", "Edgewood", "Forevergreen",
 ];
 const SUFFIX = ["St", "Ave", "Rd", "Trail", "Ln", "Dr"];
+
+// Display names — a mix of plausible "Steve Martinez" handles and playful
+// nicknames so the UI doesn't read like "Coralville 1, Coralville 2…". Picked
+// deterministically from userIx so reseeds produce stable names for stable
+// user indices (the captain pick + forming-site cohorts stay the same person
+// across reruns instead of getting renamed each pass).
+const FIRST_NAMES = [
+  "Aaron", "Andre", "Becca", "Carlos", "Devon", "Diana", "Diego", "Elena",
+  "Emma", "Felix", "Greg", "Heather", "Imani", "Jamal", "Jared", "Jaylen",
+  "Kim", "Lisa", "Marcus", "Maria", "Megan", "Miles", "Olivia", "Priya",
+  "Raj", "Sarah", "Sophie", "Steve", "Terrell", "Tyler", "Vivian", "Yusuf",
+];
+const LAST_NAMES = [
+  "Anderson", "Brown", "Chen", "Davis", "Garcia", "Hernandez", "Hill",
+  "Johnson", "Khan", "Kim", "Lee", "Lopez", "Martinez", "Mitchell", "Nguyen",
+  "O'Brien", "Park", "Patel", "Pham", "Reyes", "Robinson", "Rodriguez",
+  "Sullivan", "Tanaka", "Thompson", "Walker", "Wallace", "Williams", "Wright", "Yang",
+];
+const NICKNAMES = [
+  "Captain Butterfingers", "Big D", "The Rocket", "Punter Pete", "Sticky Mitts",
+  "Tank", "Zoom", "Coach", "Doc", "T-Bone", "Speedy", "Wheels", "Cannon Arm",
+  "Mudpuddle", "Slick", "Hammer", "Buckshot", "Houdini", "The Wall", "Spider",
+  "Bullseye", "Jet", "Cleats", "The Hawk", "Burner", "Beast Mode", "Wildcard",
+  "Smokey", "Diesel", "Captain Comeback", "Hailmary", "Iceman", "Lightning",
+  "Magic Hands", "Maverick", "Picasso", "Scout", "Tornado", "Vortex", "Yardage King",
+];
+function pickName(ix: number): string {
+  // ~30% nicknames, 70% First Last. Deterministic on ix so reseeds are stable.
+  if (ix % 10 < 3) return NICKNAMES[(ix * 17) % NICKNAMES.length];
+  return `${FIRST_NAMES[(ix * 13) % FIRST_NAMES.length]} ${LAST_NAMES[(ix * 7) % LAST_NAMES.length]}`;
+}
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T>(xs: readonly T[]): T => xs[(Math.random() * xs.length) | 0];
@@ -124,10 +157,14 @@ async function seedGamesAndSites(activityId: string) {
     if (!a) { console.log(`  (no ${gc.city} area for a game — skipped)`); continue; }
     await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, a.id));
     const nextStart = nextOccurrence(gc.recurDow, gc.recurTime);
+    // One color per area — shared by this week's instance and every history row,
+    // so a recurring game keeps the same color across its weekly instances.
+    const color = gameColor(a.id);
     await db.insert(games).values({
       activityTypeId: activityId, areaId: a.id, placeText: gc.place,
       scheduledStart: nextStart,
       status: "STANDING", confirmedCount: gc.base, isStanding: true,
+      color,
       recurDow: gc.recurDow, recurTime: `${gc.recurTime}:00`,
     });
     const skip = new Set(gc.skip);
@@ -138,6 +175,7 @@ async function seedGamesAndSites(activityId: string) {
         activityTypeId: activityId, areaId: a.id, placeText: gc.place,
         scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
         status: "COMPLETED" as const, confirmedCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
+        color,
       });
     }
     await db.insert(games).values(hist);
@@ -373,6 +411,33 @@ async function seedRosters(activityId: string) {
     await db.update(games).set({ confirmedCount: total }).where(eq(games.id, g.id));
     console.log(`  rostered ${total} into ${g.city} (cap ${cap}; ${crossCity.length} cross-city + ${fill.length} home-zone)`);
   }
+
+  // PHASE 3 — backfill ~8 weeks of past attendance so the Past panel shows real
+  // history on a fresh seed (otherwise it stays empty until the tick freeze runs).
+  const histNow = new Date();
+  const standingRows = await db.select({ id: games.id, recurDow: games.recurDow, scheduledStart: games.scheduledStart })
+    .from(games).where(and(eq(games.isStanding, true), inArray(games.status, ["STAGED", "STANDING"])));
+  for (const g of standingRows) {
+    const roster = (await db.select({ u: gameRoster.userId }).from(gameRoster).where(eq(gameRoster.gameId, g.id))).map((r) => r.u);
+    if (!roster.length) continue;
+    const dates = occurrenceDatesInRange(
+      { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) },
+      new Date(histNow.getTime() - 56 * 86_400_000), new Date(histNow.getTime() - 86_400_000),
+    );
+    for (const date of dates) {
+      const noGame = Math.random() < 0.15; // some weeks just didn't draw a crowd
+      const frac = noGame ? Math.random() * 0.08 : 0.5 + Math.random() * 0.45;
+      const shuffled = [...roster];
+      for (let k = shuffled.length - 1; k > 0; k--) {
+        const j = (Math.random() * (k + 1)) | 0; [shuffled[k], shuffled[j]] = [shuffled[j], shuffled[k]];
+      }
+      const who = shuffled.slice(0, Math.round(roster.length * frac));
+      if (!who.length) continue;
+      await db.insert(gameAttendance)
+        .values(who.map((uid) => ({ gameId: g.id, userId: uid, occurrenceDate: date, status: "in" as const })))
+        .onConflictDoNothing();
+    }
+  }
 }
 
 async function main() {
@@ -405,7 +470,7 @@ async function main() {
       const [user] = await db.insert(users)
         .values({
           email: `demo-${userIx}@demo.test`,
-          displayName: `${pool.city} ${userIx}`,
+          displayName: pickName(userIx),
           city: pool.city, zip: pool.zip, ...addr,
           homeLat: lat, homeLng: lng,
           maxTravelKm: milesToKm(pool.mi),
@@ -417,6 +482,7 @@ async function main() {
         // signals scattered across past random positions).
         .onConflictDoUpdate({ target: users.email,
           set: {
+            displayName: pickName(userIx),
             city: pool.city, zip: pool.zip, ...addr,
             homeLat: lat, homeLng: lng,
             maxTravelKm: milesToKm(pool.mi),

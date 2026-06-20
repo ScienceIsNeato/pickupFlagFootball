@@ -51,13 +51,6 @@ export const SkinSchema = z.object({
       })
     ),
   }),
-  gear: z.object({
-    seoTitle: z.string(),
-    seoDescription: z.string(),
-    heading: z.string(),
-    blurb: z.string(),
-    items: z.array(z.object({ name: z.string(), desc: z.string(), url: z.string() })),
-  }),
   faqPage: z.object({
     seoTitle: z.string(),
     seoDescription: z.string(),

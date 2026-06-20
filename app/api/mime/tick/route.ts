@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { txnDb } from "@/lib/db/pool";
 import { tick } from "@/lib/mime/engine";
+import { freezeOccurrences } from "@/lib/mime/freeze";
 import type { EngineDb } from "@/lib/mime/engine";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,12 @@ async function handle(req: Request) {
   if (req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await tick(txnDb as unknown as EngineDb, new Date());
-  return NextResponse.json({ ok: true, ranAt: new Date().toISOString() });
+  const now = new Date();
+  await tick(txnDb as unknown as EngineDb, now);
+  // Snapshot recently-passed occurrences into the attendance record (regulars who
+  // relied on their site default never wrote an RSVP row themselves).
+  await freezeOccurrences(txnDb as unknown as EngineDb, now);
+  return NextResponse.json({ ok: true, ranAt: now.toISOString() });
 }
 
 export const GET = handle;

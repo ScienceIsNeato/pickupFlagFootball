@@ -6,8 +6,6 @@ export const DOW_NAMES = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ] as const;
 
-const DAY_MS = 86_400_000;
-
 /** Local YYYY-MM-DD for a Date (not UTC — we want the proposer's calendar day). */
 export function toYMD(d: Date): string {
   const y = d.getFullYear();
@@ -29,9 +27,59 @@ export function upcomingDatesForDow(dow: number, count: number, from: Date): str
   if (delta === 0) delta = 7; // strictly future: skip today even if it matches
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
-    out.push(toYMD(new Date(start.getTime() + (delta + i * 7) * DAY_MS)));
+    const d = new Date(start);
+    d.setDate(d.getDate() + delta + i * 7); // setDate (not ms math) is DST-safe
+    out.push(toYMD(d));
   }
   return out;
+}
+
+/**
+ * The next occurrence date (local YYYY-MM-DD) for a game: for a standing game,
+ * the soonest date on/after today whose weekday matches recur_dow (today counts
+ * if it's game day); otherwise the scheduled start's calendar date. Server-local
+ * for now — refine with the user's timezone later.
+ */
+export function nextOccurrenceYMD(
+  game: { isStanding: boolean; recurDow: number | null; scheduledStart: string | Date },
+  from: Date,
+): string {
+  if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
+    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const delta = (game.recurDow - start.getDay() + 7) % 7; // 0 = today is game day
+    start.setDate(start.getDate() + delta); // setDate (not ms math) is DST-safe
+    return toYMD(start);
+  }
+  return toYMD(new Date(game.scheduledStart));
+}
+
+/**
+ * All occurrence dates (local YYYY-MM-DD) for a game within an inclusive date
+ * range. Standing games yield every recur_dow date in range; one-off games yield
+ * their scheduled date if it falls in range. `from`/`to` are compared by calendar
+ * day. Used to build the upcoming list and the past-occurrence history.
+ */
+export function occurrenceDatesInRange(
+  game: { isStanding: boolean; recurDow: number | null; scheduledStart: string | Date },
+  from: Date,
+  to: Date,
+): string[] {
+  const fromMid = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const toMid = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
+    const out: string[] = [];
+    const delta = (game.recurDow - fromMid.getDay() + 7) % 7;
+    const d = new Date(fromMid);
+    d.setDate(d.getDate() + delta); // setDate (not ms math) is DST-safe
+    while (d.getTime() <= toMid.getTime()) {
+      out.push(toYMD(d));
+      d.setDate(d.getDate() + 7);
+    }
+    return out;
+  }
+  const s = new Date(game.scheduledStart);
+  const sMid = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  return sMid >= fromMid && sMid <= toMid ? [toYMD(sMid)] : [];
 }
 
 /**

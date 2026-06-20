@@ -271,6 +271,9 @@ CREATE TABLE games (
   scheduled_start  timestamptz NOT NULL,
   status           game_status NOT NULL DEFAULT 'STAGED',
   confirmed_count  int NOT NULL DEFAULT 0,
+  -- Per-game color (hex). Assigned at creation time so the badge ring + claimed
+  -- flags use a stable, inspectable color (vs. hashed-from-id at render time).
+  color            text,
   -- v2 recurring standing-slot fields
   is_standing      boolean NOT NULL DEFAULT false,
   recur_dow        int,        -- 0-6
@@ -294,12 +297,28 @@ ALTER TABLE formation_attempts
 
 -- ============================================================ game_roster
 CREATE TABLE game_roster (
-  game_id    uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  user_id    uuid NOT NULL REFERENCES users(id),
-  source     text NOT NULL DEFAULT 'soft_promise',  -- v2: 'weekly_rsvp'
-  created_at timestamptz NOT NULL DEFAULT now(),
+  game_id        uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id        uuid NOT NULL REFERENCES users(id),
+  source         text NOT NULL DEFAULT 'soft_promise',  -- v2: 'weekly_rsvp'
+  -- per-site default RSVP: 'in' = usually come, 'out' = usually won't
+  default_status text NOT NULL DEFAULT 'in' CHECK (default_status IN ('in', 'out')),
+  created_at     timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (game_id, user_id)
 );
+
+-- ============================================================ game_attendance
+-- Per-occurrence RSVP. game_roster is standing membership; this is the weekly
+-- layer: a roster member marks "in"/"out" for a specific date.
+CREATE TABLE game_attendance (
+  game_id         uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  occurrence_date date NOT NULL,
+  status          text NOT NULL CHECK (status IN ('in', 'out')),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (game_id, user_id, occurrence_date)
+);
+CREATE INDEX idx_game_attendance_occurrence
+  ON game_attendance(game_id, occurrence_date) WHERE status = 'in';
 
 -- ============================================================ notifications_sent
 -- Idempotency (claim-before-send) + anti-spam ledger.

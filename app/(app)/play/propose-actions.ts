@@ -7,13 +7,13 @@ import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
 import { cellToLatLng, latLngToCell } from "h3-js";
 import {
-  activityTypes, areas, interestSignals, formationAttempts, notificationsSent, areaCaptains, users,
+  activityTypes, areas, formationAttempts, notificationsSent, areaCaptains, users,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { haversineKm } from "@/lib/geo/distance";
 import { shouldRetrigger } from "@/lib/mime";
-import { loadTunables } from "@/lib/mime/engine";
+import { loadTunables, catchmentUsers } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 
 const edb = () => db as unknown as EngineDb;
@@ -112,9 +112,10 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
   let attempt = live;
   if (!attempt) {
     const t = await loadTunables(edb(), act.id, area);
-    const cohort = await db.selectDistinct({ u: interestSignals.userId }).from(interestSignals)
-      .where(and(eq(interestSignals.activityTypeId, act.id), eq(interestSignals.active, true),
-        inArray(interestSignals.h3Base, disk)));
+    // Same radius rule the engine uses: everyone active whose travel radius
+    // reaches this site. Measure to the proposed venue (the address the user
+    // picked) when known, falling back to the area centroid.
+    const cohort = await catchmentUsers(edb(), act.id, placeLat ?? area.centerLat, placeLng ?? area.centerLng);
     const now = new Date();
     // A stalled area is in cooldown — respect the backoff like the engine does,
     // don't let a manual propose re-open it early.
@@ -131,13 +132,13 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
       attempt = await txnDb.transaction(async (tx) => {
         const [a] = await tx.insert(formationAttempts).values({
           activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "SUGGESTING",
-          catchmentCells: disk, cohortUserIds: cohort.map((r) => r.u),
+          catchmentCells: disk, cohortUserIds: cohort,
           suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
         }).returning();
         await tx.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
         if (cohort.length) {
-          await tx.insert(notificationsSent).values(cohort.map((r) => ({
-            userId: r.u, attemptId: a.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
+          await tx.insert(notificationsSent).values(cohort.map((u) => ({
+            userId: u, attemptId: a.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
           }))).onConflictDoNothing();
         }
         return a;

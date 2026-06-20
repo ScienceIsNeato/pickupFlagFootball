@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
-import { TEAM_YELLOW, TEAM_RED } from "@/lib/brand";
+import { TEAM_YELLOW } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
 import { ProposedDetailsModal } from "./ProposedDetailsModal";
@@ -23,6 +23,7 @@ const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
 const PROPOSED_BADGE = 68; // px size of the proposed-site marker (smaller)
+const YOU_BADGE = 54;    // px size of the "you are here" marker
 // Cursor sentinel: mx/my are set to CURSOR_OFF when the pointer leaves the map;
 // CURSOR_ON_THRESHOLD is the "off-map" check that tolerates rounding/jitter.
 const CURSOR_OFF = -99999;
@@ -191,7 +192,7 @@ export function MapView({
     const map = new maplibregl.Map({
       container, style: STYLE, center, zoom, attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     mapRef.current = map;
     const mapEl = map.getCanvasContainer();
     mapEl.style.opacity = "0"; // fade in as the flags morph into place
@@ -199,6 +200,7 @@ export function MapView({
     // Badge markers: established game + proposed (forming) site.
     const gameBadge = new Image(); gameBadge.src = "/game-badge.png";
     const proposedBadge = new Image(); proposedBadge.src = "/proposed-badge.png";
+    const youBadge = new Image(); youBadge.src = "/you-badge.png";
 
     function sizeCanvas() {
       const r = container.getBoundingClientRect();
@@ -290,9 +292,11 @@ export function MapView({
         // Free interest → team-colored flags that court the cursor (badge cells
         // show only their claimed flags, not free ones, to keep the marker clean).
         if (!c.hasGame && !c.forming && c.count > 0) {
-          // Two-team flag lineup: alternate yellow/red so a free-interest cluster
-          // visually reads as "people on both sides" instead of a single-team blob.
-          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), (i) => (i % 2 ? TEAM_RED : TEAM_YELLOW)));
+          // Free interest renders as a single yellow team — explicit design
+          // choice (red is reserved for game-claimed flags, which carry team
+          // colors per game). Don't re-introduce the alternation here even if
+          // a reviewer reads single-color as a regression.
+          flags.push(...mkFlag(c.count, Math.min(46, 14 + c.count), () => TEAM_YELLOW));
         }
         // Claimed interest → game-colored flags that always point at their game.
         let claimedCount = 0;
@@ -352,6 +356,20 @@ export function MapView({
     function drawBadgesPass(morph: number): "game" | "forming" | null {
       let over: "game" | "forming" | null = null;
       const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
+      // "You are here" — your home point (geocoded address, or ZIP centroid as
+      // the fallback). Drawn clipped to a circle so the square badge art reads
+      // as a round marker, with a white rim for contrast against the grass.
+      const me = homeRef.current;
+      if (me && youBadge.complete && youBadge.naturalWidth) {
+        const p = map.project([me.lng, me.lat]);
+        const r = YOU_BADGE / 2;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+        ctx.drawImage(youBadge, p.x - r, p.y - r, YOU_BADGE, YOU_BADGE);
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.stroke();
+      }
       for (const cl of clustersRef.current) {
         if (!cl.hasGame && !cl.forming) continue;
         const home = map.project(cl.ll);
@@ -436,7 +454,10 @@ export function MapView({
             let targetRot: number, targetE: number;
             if (f.gameLl) {                 // claimed → point at the game, ignore cursor
               const gp = map.project(f.gameLl);
-              targetRot = Math.atan2(gp.y - f.y, gp.x - f.x); targetE = 0.42;
+              // Match free-idle energy: the "pointing" comes from rotation; we
+              // don't want claimed flags wiggling like crazy just because we're
+              // showing more of them now (multi-game rosters, my-games view).
+              targetRot = Math.atan2(gp.y - f.y, gp.x - f.x); targetE = 0.1;
             } else if (waving) {            // free + courted → point at cursor
               targetRot = Math.atan2(my - f.y, mx - f.x); targetE = 0.55;
             } else {                        // free + idle
@@ -445,7 +466,11 @@ export function MapView({
             f.rot = easeAngle(f.rot, targetRot, f.gameLl || waving ? 0.2 : 0.08);
             f.energy += (targetE - f.energy) * 0.12;
           }
-          f.phase += 0.16 + 0.18 * f.energy;
+          // Wiggle rate — calmed down from the original 0.16 + 0.18*e formula.
+          // With more claimed flags onscreen (multi-game rosters + my-games view)
+          // the original base read as frantic in aggregate; halving keeps the
+          // individual-flag character without the swarm flicker.
+          f.phase += 0.09 + 0.10 * f.energy;
           drawFlag(f);
         }
       }
@@ -513,7 +538,11 @@ export function MapView({
       // Click a proposed (forming) site → its details + any vote tallies.
       if (hit.forming) {
         const p = map.project(hit.ll);
-        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x, y: p.y, badgeHeight: PROPOSED_BADGE } });
+        // map.project is relative to the map container, but the modal portals to
+        // <body> and positions in a fixed full-viewport overlay — so offset by the
+        // container's viewport rect (notably the 64px app-header pad) to align.
+        const rect = container.getBoundingClientRect();
+        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x + rect.left, y: p.y + rect.top, badgeHeight: PROPOSED_BADGE } });
         return;
       }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
@@ -563,6 +592,7 @@ export function MapView({
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
       <div className="map-legend">
+        {home && <span className="legend-item"><img src="/you-badge.png" alt="" className="legend-badge" /> you</span>}
         <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player <span ref={cInterested} className="legend-n">0</span></span>
         <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor <span ref={cWaving} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>

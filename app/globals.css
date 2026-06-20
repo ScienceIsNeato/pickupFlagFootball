@@ -229,20 +229,56 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
 .game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .game-muted { color: var(--muted); }
-.app-body { min-height: 100vh; padding-top: 64px; }
+/* "join weekly game" block in the game popup — two segmented sliders + button */
+.game-join-box { margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.game-join-h { margin: 0 0 10px; font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink); }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.seg button {
+  flex: 1; padding: 10px 8px; font-family: inherit; font-size: 13px; font-weight: 700;
+  background: transparent; color: var(--muted); border: none; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover:not(.seg-on) { color: var(--ink); }
+.seg button:disabled { cursor: default; }
+.seg button.seg-on { background: var(--green); color: #fff; }
+.seg button.seg-on-out { background: var(--red); color: #fff; }
+.game-seg-cap { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.game-join { width: 100%; height: 44px; }
+.game-leave {
+  width: 100%; height: 34px; margin-top: 2px; cursor: pointer; background: transparent;
+  border: none; color: var(--faint); font-size: 13px; text-decoration: underline;
+}
+.game-leave:hover { color: var(--red); }
+.game-leave:disabled { opacity: 0.6; cursor: default; }
+.game-in-count { margin: 8px 0 0; font-size: 13px; }
+.game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
+/* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
+.app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 
+/* THE frost: one fixed layer directly on top of the page background and UNDER
+ * every other layer (content z:1, chrome z:30, modals z:100). backdrop-filter
+ * blurs only what's painted behind it — the fixed map/flag background — never
+ * the content, which paints in front. Hidden on the fullscreen map page, where
+ * the interactive map IS the background and must stay crisp. */
+.app-frost {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  background: rgba(11, 18, 16, 0.30);
+}
+body:has(.dash-map) .app-frost { display: none; }
+
+/* Chrome bars are SOLID (no backdrop-filter): content scrolling underneath is
+ * cleanly hidden, never blurred. The frost shows in the page margins, not here. */
 .nav-float {
   position: fixed; top: 0; left: 0; right: 0; z-index: 30; max-width: none;
   padding: 14px 22px;
-  background: linear-gradient(to bottom, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.35) 70%, transparent);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: #0b1210; border-bottom: 1px solid var(--border);
 }
 .app-foot {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
   display: flex; align-items: center; justify-content: center; gap: 14px;
   padding: 10px 20px; font-size: 13px; color: var(--muted);
-  background: linear-gradient(to top, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.3) 70%, transparent);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: #0b1210; border-top: 1px solid var(--border);
 }
 .app-foot a { color: var(--muted); }
 .app-foot a:hover { color: var(--ink); }
@@ -401,6 +437,21 @@ section h2::after {
 .reg-form input:focus, .reg-form select:focus, .reg-form textarea:focus { outline: none; border-color: var(--green); }
 .field-err { color: #ff8b84; font-size: 12px; margin-top: 2px; }
 
+/* "Changes saved" popup — fixed near the top, above everything, auto-dismisses */
+.save-toast {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 1100; display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
+  color: #fff; background: var(--green); border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  animation: save-toast-in 0.2s ease-out;
+}
+.save-toast-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.25); font-size: 13px;
+}
+@keyframes save-toast-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 /* my-games panel — floats over the fullscreen map */
 .mine-panel {
   position: absolute; top: 64px; left: 12px; bottom: 12px; width: 360px; max-width: calc(100% - 24px);
@@ -434,14 +485,40 @@ section h2::after {
 .rsvp-btn:hover { border-color: var(--green); }
 .rsvp-in[data-active] { background: var(--green); border-color: var(--green); color: #fff; }
 .rsvp-out:hover { border-color: #e23b2e; color: #e23b2e; }
+.rsvp-out[data-active] { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* right-hand "past games" panel mirrors the left one */
+.mine-right { left: auto; right: 12px; }
+/* per-site default pref toggle */
+.mine-pref { margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mine-pref-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+/* a single occurrence row (upcoming override / past result) */
+.mine-occ { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; background: rgba(0,0,0,.22); border: 1px solid var(--border); border-radius: 8px; }
+.mine-occ-when { min-width: 0; font-size: 13px; color: var(--ink); }
+.mine-occ-when strong { display: block; }
+.mine-occ-site { font-size: 12px; color: var(--muted); display: block; max-width: 150px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mine-occ-def { font-size: 11px; color: var(--faint); }
+.mine-past-result { font-size: 13px; display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.mine-you { font-size: 11px; color: var(--faint); }
+.mine-you-in { color: var(--grass-l); }
 
 @media (max-width: 560px) {
-  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; }
+  /* stack the two panels: upcoming on top, past below (don't hide past) */
+  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; bottom: auto; max-height: calc(50vh - 64px); }
+  .mine-right { left: 8px; right: 8px; top: calc(58px + 50vh - 56px); bottom: 8px; max-height: none; }
 }
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;
   font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.3px;
   color: #fff; background: var(--green); border: none; border-radius: 8px;
+}
+.btn-green-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 46px; padding: 0 24px; margin-top: 6px;
+  font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.3px;
+  color: #fff; background: var(--green); border-radius: 8px;
 }
 .reg-note { font-size: 12px; color: var(--faint); margin: 4px 0 0; text-align: center; }
 .reg-hint { font-size: 12px; color: var(--faint); margin: -6px 0 0; line-height: 1.5; }

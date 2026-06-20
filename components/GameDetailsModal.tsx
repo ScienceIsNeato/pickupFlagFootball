@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
 
 type GameInfo = {
+  gameId: string;
   placeText: string;
   placeLat: number | null; placeLng: number | null;
   scheduledStart: string;
@@ -11,6 +15,11 @@ type GameInfo = {
   confirmedCount: number; status: string;
   city: string | null; zip: string | null;
   captains: string[];
+  eligible: boolean; onRoster: boolean;
+  myDefault: "in" | "out" | null;
+  myRsvp: "in" | "out" | null;
+  rosterCount: number; inCount: number;
+  nextOccurrence: string;
 };
 type Week = { weekStart: string; played: boolean; count: number };
 
@@ -30,27 +39,41 @@ function weeklyTime(g: GameInfo): string {
     weekday: "long", hour: "numeric", minute: "2-digit",
   });
 }
+/** Parse a local YYYY-MM-DD without UTC drift, format as "Sun, Jun 22". */
+function fmtDate(ymd: string): string {
+  return new Date(`${ymd}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short", month: "short", day: "numeric",
+  });
+}
 
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
+  const [pref, setPref] = useState<"regular" | "occasional">("regular");
+  const [nextIn, setNextIn] = useState(true);
+  // Portal the modal to document.body so it escapes .dash-map's stacking
+  // context (z:0) and renders above the floating site header (z:30).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEscape(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, mounted);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
-        if (!r.ok) throw new Error();
-        const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
-        if (!cancelled) setState({ game: d.game, weeks: d.weeks ?? [] });
-      } catch {
-        if (!cancelled) setState("error");
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+      if (!r.ok) throw new Error();
+      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
+      setState({ game: d.game, weeks: d.weeks ?? [] });
+    } catch {
+      setState("error");
+    }
   }, [lat, lng]);
+
+  useEffect(() => { load(); }, [load]);
 
   const game = state !== "loading" && state !== "error" ? state.game : null;
   const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
@@ -59,11 +82,36 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
 
-  return (
+  // Sync the sliders from persisted state whenever the game (re)loads. A
+  // not-yet-joined viewer defaults to regular + in (they're about to join).
+  useEffect(() => {
+    if (!game) return;
+    setPref(game.myDefault === "out" ? "occasional" : "regular");
+    // Effective next-game RSVP: explicit override wins, else the site default.
+    const effectiveNext = game.myRsvp ?? game.myDefault ?? "in";
+    setNextIn(game.onRoster ? effectiveNext === "in" : true);
+  }, [game?.gameId, game?.onRoster, game?.myDefault, game?.myRsvp]);
+
+  async function run(action: () => Promise<{ ok: boolean; error?: string }>) {
+    setBusy(true); setActionErr("");
+    try {
+      const res = await action();
+      if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
+      await load();
+    } catch {
+      setActionErr("something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!mounted) return null;
+  return createPortal((
     <div
+      ref={dialogRef} tabIndex={-1}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="game-details-title"
-      style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <div className="game-card">
@@ -83,8 +131,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               </dd>
               <dt>weekly time</dt>
               <dd>{weeklyTime(game)}</dd>
-              <dt>players in</dt>
-              <dd>{game.confirmedCount}</dd>
+              <dt>regulars</dt>
+              <dd>{game.rosterCount}</dd>
               {game.captains.length > 0 && (
                 <>
                   <dt>captain{game.captains.length > 1 ? "s" : ""}</dt>
@@ -92,6 +140,40 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                 </>
               )}
             </dl>
+
+            <div className="game-join-box">
+              {game.eligible || game.onRoster ? (
+                <>
+                  <p className="game-join-h">join weekly game</p>
+                  <div className="seg" role="group" aria-label="how often you'll play">
+                    <button type="button" className={pref === "regular" ? "seg-on" : ""}
+                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => setPref("regular")}>regular player</button>
+                    <button type="button" className={pref === "occasional" ? "seg-on" : ""}
+                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => setPref("occasional")}>occasional player</button>
+                  </div>
+                  <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
+                  <div className="seg" role="group" aria-label="next game">
+                    <button type="button" className={nextIn ? "seg-on" : ""}
+                      aria-pressed={nextIn} disabled={busy} onClick={() => setNextIn(true)}>i&apos;m in</button>
+                    <button type="button" className={!nextIn ? "seg-on seg-on-out" : ""}
+                      aria-pressed={!nextIn} disabled={busy} onClick={() => setNextIn(false)}>i&apos;m out</button>
+                  </div>
+                  <button type="button" className="btn-green game-join" disabled={busy}
+                    onClick={() => run(() => joinWeeklyGame(game.gameId, pref === "regular", nextIn))}>
+                    {busy ? "…" : game.onRoster ? "save changes" : "join weekly game"}
+                  </button>
+                  {game.onRoster && (
+                    <button type="button" className="game-leave" disabled={busy}
+                      onClick={() => run(() => setRosterMembership(game.gameId, false))}>leave this game</button>
+                  )}
+                  <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
+                </>
+              ) : (
+                <p className="game-muted">this game is outside your travel radius — widen it in your <a href="/account">account</a> to join.</p>
+              )}
+              {actionErr && <p className="game-err">{actionErr}</p>}
+            </div>
+
             <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <span className="game-caret">{open ? "▾" : "▸"}</span>
               recent games
@@ -113,5 +195,5 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

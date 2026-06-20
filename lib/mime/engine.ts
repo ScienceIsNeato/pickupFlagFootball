@@ -3,9 +3,10 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 import * as schema from "@/lib/db/schema";
 import {
   areas, interestSignals, formationAttempts, suggestions,
-  formationOptions, softPromises, games, gameRoster, notificationsSent,
+  formationOptions, softPromises, games, gameRoster, notificationsSent, users,
 } from "@/lib/db/schema";
 import { diskCells } from "@/lib/geo/h3";
+import { gameColor } from "@/lib/brand";
 import { resolveTunables } from "./tunables";
 import { onInterest, onSuggestionClose, onAvailabilityClose } from "./fsm";
 import type { Decision, SuggestionInput, OptionTally } from "./types";
@@ -59,7 +60,7 @@ export async function evaluate(
   const t = await loadTunables(db, activityTypeId, area);
 
   const disk = diskCells(area.h3Cell, 1);
-  const interestCount = await catchmentCount(db, activityTypeId, disk);
+  const interestCount = await catchmentCount(db, activityTypeId, area.centerLat, area.centerLng);
 
   const decision = onInterest({
     status: area.status,
@@ -70,7 +71,7 @@ export async function evaluate(
   });
   if (decision.kind !== "SPARK") return decision;
 
-  const cohort = await catchmentUsers(db, activityTypeId, disk);
+  const cohort = await catchmentUsers(db, activityTypeId, area.centerLat, area.centerLng);
   const attemptNumber = await nextAttemptNumber(db, areaId);
 
   // Spark atomically: the attempt insert, the area → IN_FORMATION flip and the
@@ -168,7 +169,7 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
     id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
     proposedStart: s.proposedStart, createdAt: s.createdAt,
   }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
+  const interestCount = await catchmentCount(db, att.activityTypeId, area.centerLat, area.centerLng);
 
   const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
 
@@ -220,7 +221,7 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
     proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
   }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, att.catchmentCells);
+  const interestCount = await catchmentCount(db, att.activityTypeId, area.centerLat, area.centerLng);
 
   const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
 
@@ -248,6 +249,9 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
     scheduledStart: winner.proposedStart,
     status: "STAGED", confirmedCount: roster.length,
+    // Color is keyed off the AREA, so this week's instance and every future
+    // recurring instance of the same standing game share one color.
+    color: gameColor(att.areaId),
     ...(recur ? { isStanding: true, recurDow: recur.dow, recurTime: recur.time } : {}),
   }).returning({ id: games.id });
 
@@ -272,24 +276,44 @@ async function stall(
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-async function catchmentCount(db: EngineDb, activityTypeId: string, disk: bigint[]): Promise<number> {
+
+/** SQL predicate: the joined user's home is within their OWN travel radius of a
+ *  fixed point (an area centroid). Inline haversine in km (R=6371, matching
+ *  lib/geo/distance.ts); runs identically on neon-http and the pglite sim. This
+ *  is the automatic-proximity model — interest reaches everywhere a user said
+ *  they'd travel, not just their home cell. */
+function withinTravelRadius(lat: number, lng: number) {
+  return sql`${users.homeLat} is not null and ${users.homeLng} is not null
+    and 6371 * 2 * asin(least(1, sqrt(
+      power(sin(radians(${users.homeLat} - ${lat}) / 2), 2)
+      + cos(radians(${lat})) * cos(radians(${users.homeLat}))
+      * power(sin(radians(${users.homeLng} - ${lng}) / 2), 2)
+    ))) <= ${users.maxTravelKm}`;
+}
+
+async function catchmentCount(db: EngineDb, activityTypeId: string, lat: number, lng: number): Promise<number> {
   const [{ c }] = await db.select({ c: sql<number>`count(distinct ${interestSignals.userId})::int` })
     .from(interestSignals)
+    .innerJoin(users, eq(users.id, interestSignals.userId))
     .where(and(
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
-      inArray(interestSignals.h3Base, disk),
+      withinTravelRadius(lat, lng),
     ));
   return c;
 }
 
-async function catchmentUsers(db: EngineDb, activityTypeId: string, disk: bigint[]): Promise<string[]> {
+/** The set of users an area's formation should notify/freeze: active for the
+ *  activity AND within their travel radius of the area centroid. Exported for
+ *  the manual map-propose spark, which must use the identical rule. */
+export async function catchmentUsers(db: EngineDb, activityTypeId: string, lat: number, lng: number): Promise<string[]> {
   const rows = await db.selectDistinct({ userId: interestSignals.userId })
     .from(interestSignals)
+    .innerJoin(users, eq(users.id, interestSignals.userId))
     .where(and(
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
-      inArray(interestSignals.h3Base, disk),
+      withinTravelRadius(lat, lng),
     ));
   return rows.map((r) => r.userId);
 }

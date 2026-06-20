@@ -2,8 +2,12 @@ import Link from "next/link";
 import { Ball } from "@/components/Ball";
 import { AccountMenu } from "@/components/AccountMenu";
 import { skin } from "@/lib/skin";
+import { auth } from "@/lib/auth";
+import { hasActiveInterest } from "@/lib/db/interest";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  const showMine = !!session?.user?.id && (await hasActiveInterest(session.user.id));
   return (
     <>
       <header className="nav nav-float">
@@ -14,12 +18,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="nav-right">
           <nav>
             <Link href="/play">find a game</Link>
+            {showMine && <Link href="/my-games">my games</Link>}
             <Link href="/account">account</Link>
           </nav>
           <AccountMenu />
         </div>
       </header>
 
+      <div className="app-frost" aria-hidden />
       <div className="app-body">{children}</div>
 
       <footer className="app-foot">

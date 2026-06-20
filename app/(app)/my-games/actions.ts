@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, games, interestSignals } from "@/lib/db/schema";
+import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
+import { reachableActiveGame } from "@/lib/db/gameMembership";
+import { occurrenceDatesInRange } from "@/lib/datetime";
 
 /**
  * Toggle whether I'm "in" for a game.
@@ -25,18 +27,10 @@ export async function setAttendance(formData: FormData) {
   if (!gameId || (status !== "in" && status !== "out")) throw new Error("bad params");
 
   if (status === "in") {
-    // Authorize the join: the gameId param alone isn't trust-bearing — the
-    // server must verify (a) the game is active and (b) I have active interest
-    // in its area. Otherwise anyone could roster onto any active game.
-    const [eligible] = await db.select({ id: games.id }).from(games)
-      .innerJoin(interestSignals, and(
-        eq(interestSignals.areaId, games.areaId),
-        eq(interestSignals.userId, me),
-        eq(interestSignals.active, true),
-      ))
-      .where(and(eq(games.id, gameId), inArray(games.status, ["STAGED", "STANDING"])))
-      .limit(1);
-    if (!eligible) throw new Error("not eligible for this game");
+    // Authorize the join with the radius rule: the game must be active AND
+    // within my travel radius (matches the engine's catchment). The gameId
+    // param alone isn't trust-bearing, so anyone can't roster onto any game.
+    if (!(await reachableActiveGame(me, gameId))) throw new Error("not eligible for this game");
     await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
     await db.update(games).set({ confirmedCount: sql`(select count(*) from game_roster where game_id = ${gameId})` })
       .where(eq(games.id, gameId));
@@ -47,5 +41,59 @@ export async function setAttendance(formData: FormData) {
       .where(eq(games.id, gameId));
   }
 
+  revalidatePath("/my-games");
+}
+
+/** Override my RSVP for one upcoming occurrence (a specific date), departing from
+ *  the site default. Requires roster membership. */
+export async function setOccurrenceRsvp(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
+  const me = session.user.id;
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!gameId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || (status !== "in" && status !== "out")) throw new Error("bad params");
+
+  // Must be on the roster AND the date must be a real upcoming occurrence of
+  // this game — otherwise a crafted POST could write arbitrary past/off-schedule
+  // dates into the attendance/history record.
+  const [game] = await db.select({
+    isStanding: games.isStanding, recurDow: games.recurDow,
+    scheduledStart: games.scheduledStart, status: games.status,
+  }).from(games)
+    .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
+    .where(eq(games.id, gameId)).limit(1);
+  if (!game || (game.status !== "STAGED" && game.status !== "STANDING")) throw new Error("not on this roster");
+
+  const now = new Date();
+  const validDates = occurrenceDatesInRange(
+    { isStanding: game.isStanding, recurDow: game.recurDow, scheduledStart: String(game.scheduledStart) },
+    now, new Date(now.getTime() + 42 * 86_400_000),
+  );
+  if (!validDates.includes(date)) throw new Error("bad occurrence date");
+
+  await db.insert(gameAttendance)
+    .values({ gameId, userId: me, occurrenceDate: date, status })
+    .onConflictDoUpdate({
+      target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
+      set: { status },
+    });
+  revalidatePath("/my-games");
+}
+
+/** Set my per-site default ("usually come" = in / "usually won't" = out). */
+export async function setSiteDefault(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
+  const me = session.user.id;
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const value = String(formData.get("default") ?? "");
+  if (!gameId || (value !== "in" && value !== "out")) throw new Error("bad params");
+
+  await db.update(gameRoster).set({ defaultStatus: value })
+    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
   revalidatePath("/my-games");
 }

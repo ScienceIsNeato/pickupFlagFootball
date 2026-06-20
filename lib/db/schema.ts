@@ -1,6 +1,6 @@
 import {
   pgTable, pgEnum, uuid, text, doublePrecision, bigint, jsonb, boolean,
-  timestamp, integer, time, primaryKey, index, uniqueIndex,
+  timestamp, integer, time, date, primaryKey, index, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ── enums ──────────────────────────────────────────────────────────────────
@@ -196,6 +196,7 @@ export const games = pgTable("games", {
   scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
   status:          gameStatusEnum("status").notNull().default("STAGED"),
   confirmedCount:  integer("confirmed_count").notNull().default(0),
+  color:           text("color"),  // assigned at insert time; consumers fall back to gameColor(id) for legacy rows
   isStanding:      boolean("is_standing").notNull().default(false),
   recurDow:        integer("recur_dow"),
   recurTime:       time("recur_time"),
@@ -209,9 +210,25 @@ export const gameRoster = pgTable("game_roster", {
   gameId:    uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
   userId:    uuid("user_id").notNull().references(() => users.id),
   source:    text("source").notNull().default("soft_promise"),
+  // Per-site default RSVP ("usually come" = in, "usually won't" = out). Occurrences
+  // inherit this unless explicitly overridden in game_attendance.
+  defaultStatus: text("default_status").notNull().default("in"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.gameId, t.userId] }),
+]);
+
+// ── game_attendance ────────────────────────────────────────────────────────
+// Per-occurrence RSVP for a game: a roster member says "in"/"out" for a specific
+// date. game_roster is the standing membership; this is the weekly layer on top.
+export const gameAttendance = pgTable("game_attendance", {
+  gameId:         uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  userId:         uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  occurrenceDate: date("occurrence_date").notNull(),
+  status:         text("status").notNull(), // 'in' | 'out'
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.gameId, t.userId, t.occurrenceDate] }),
 ]);
 
 // ── notifications_sent ─────────────────────────────────────────────────────
