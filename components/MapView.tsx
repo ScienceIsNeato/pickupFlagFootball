@@ -241,6 +241,7 @@ export function MapView({
     ro.observe(container);
 
     let mx = CURSOR_OFF, my = CURSOR_OFF;
+    let overYou = false; // cursor is over the "you are here" marker (→ account)
     let lastMoveAt = 0; // for the "settle → right-click to propose" idle hint
     const onMove = (e: PointerEvent) => {
       const b = container.getBoundingClientRect();
@@ -356,6 +357,7 @@ export function MapView({
     function drawBadgesPass(morph: number): "game" | "forming" | null {
       let over: "game" | "forming" | null = null;
       const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
+      overYou = false;
       // "You are here" — your home point (geocoded address, or ZIP centroid as
       // the fallback). Drawn clipped to a circle so the square badge art reads
       // as a round marker, with a white rim for contrast against the grass.
@@ -363,6 +365,7 @@ export function MapView({
       if (me && youBadge.complete && youBadge.naturalWidth) {
         const p = map.project([me.lng, me.lat]);
         const r = YOU_BADGE / 2;
+        overYou = on && Math.hypot(mx - p.x, my - p.y) <= r;
         ctx.save();
         ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
         ctx.drawImage(youBadge, p.x - r, p.y - r, YOU_BADGE, YOU_BADGE);
@@ -484,8 +487,9 @@ export function MapView({
       // over a badge → "click…" immediately; over open space + settled → propose.
       let hoverText: string | null = null;
       if (overBadge) hoverText = overBadge === "game" ? "click to see game details" : "click to see this proposal";
+      else if (overYou) hoverText = "that's you — click for your account";
       else if (!mineOnly && on && performance.now() - lastMoveAt > 120) hoverText = "right-click to propose a game here";
-      mapEl.style.cursor = overBadge ? "pointer" : "crosshair";
+      mapEl.style.cursor = (overBadge || overYou) ? "pointer" : "crosshair";
       const tip = tipRef.current;
       if (tip) {
         if (hoverText) {
@@ -531,6 +535,15 @@ export function MapView({
       return best;
     };
     map.on("click", async (e) => {
+      // Click your own marker → your account.
+      const meHome = homeRef.current;
+      if (meHome) {
+        const yp = map.project([meHome.lng, meHome.lat]);
+        if (Math.hypot(e.point.x - yp.x, e.point.y - yp.y) <= YOU_BADGE / 2) {
+          window.location.href = "/account";
+          return;
+        }
+      }
       const hit = nearestCluster(e.point.x, e.point.y);
       if (!hit) return;
       // Click an existing game → its details (works at any zoom).
