@@ -62,10 +62,11 @@
     "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",
     "heading": "gear",
     "blurb": "what you need to get a game going. these are affiliate links - they help cover server costs.",
+    "affiliateTag": "REPLACE_ME-20",
     "items": [
-      { "name": "footballs", "desc": "game-ready, all sizes.", "url": "https://www.amazon.com" },
-      { "name": "cones", "desc": "mark your field in seconds.", "url": "https://www.amazon.com" },
-      { "name": "flag belts", "desc": "sets for a full game.", "url": "https://www.amazon.com" }
+      { "name": "footballs", "desc": "game-ready, all sizes.", "url": "https://www.amazon.com/s?k=flag+football" },
+      { "name": "cones", "desc": "mark your field in seconds.", "url": "https://www.amazon.com/s?k=field+marker+cones" },
+      { "name": "flag belts", "desc": "sets for a full game.", "url": "https://www.amazon.com/s?k=flag+football+belts" }
     ]
   },
   "faqPage": {
