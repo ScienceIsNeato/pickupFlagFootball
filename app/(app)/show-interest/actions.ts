@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { ensureArea, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
 import { txnDb } from "@/lib/db/pool";
-import { evaluate } from "@/lib/mime/engine";
+import { evaluateForUser } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { str } from "@/lib/forms";
 
@@ -69,9 +69,10 @@ export async function setLocationAndInterest(formData: FormData) {
   // strand the user with zero active interest on neon-http (no transactions).
   await setActiveInterest(activityTypeId, session.user.id, areaId, r7);
 
-  // run the engine: this new interest may cross n_spark and open a window
+  // run the engine: this new interest reaches every area within the user's
+  // travel radius, any of which may now cross n_spark and open a window
   // (transactional spark — needs the pooled client)
-  await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
+  await evaluateForUser(txnDb as unknown as EngineDb, activityTypeId, session.user.id, new Date());
 
   redirect("/play");
 }

@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { users, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
-import { evaluate } from "@/lib/mime/engine";
+import { evaluateForUser } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
@@ -80,8 +80,9 @@ export async function updateAccount(_prev: SaveResult | null, formData: FormData
         // active interest either.
         await db.update(users).set(update).where(eq(users.id, session.user.id!));
         await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
-        // the move may spark the new area (transactional — needs the pooled client)
-        await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
+        // a moved home / changed radius reaches a new set of areas — re-evaluate
+        // every area now in range, any of which may spark (pooled client for txn)
+        await evaluateForUser(txnDb as unknown as EngineDb, activityTypeId, session.user.id!, new Date());
         revalidatePath("/account");
         return { ok: true };
       } else {
@@ -99,6 +100,15 @@ export async function updateAccount(_prev: SaveResult | null, formData: FormData
     .update(users)
     .set(update)
     .where(eq(users.id, session.user.id!));
+
+  // A radius change with no ZIP change still widens the set of areas the user
+  // reaches — re-run the engine for the new radius so newly-covered areas can
+  // spark (no-op if nothing crosses n_spark).
+  if (update.maxTravelKm !== undefined) {
+    const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
+      .where(eq(activityTypes.slug, "flag-football")).limit(1);
+    if (act) await evaluateForUser(txnDb as unknown as EngineDb, act.id, session.user.id!, new Date());
+  }
 
   revalidatePath("/account");
   return { ok: true };
