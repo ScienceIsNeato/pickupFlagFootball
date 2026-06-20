@@ -63,7 +63,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="game-details-title"
-      style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <div className="game-card">

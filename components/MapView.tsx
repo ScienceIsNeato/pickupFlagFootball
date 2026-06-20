@@ -191,7 +191,7 @@ export function MapView({
     const map = new maplibregl.Map({
       container, style: STYLE, center, zoom, attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     mapRef.current = map;
     const mapEl = map.getCanvasContainer();
     mapEl.style.opacity = "0"; // fade in as the flags morph into place
@@ -438,7 +438,10 @@ export function MapView({
             let targetRot: number, targetE: number;
             if (f.gameLl) {                 // claimed → point at the game, ignore cursor
               const gp = map.project(f.gameLl);
-              targetRot = Math.atan2(gp.y - f.y, gp.x - f.x); targetE = 0.42;
+              // Match free-idle energy: the "pointing" comes from rotation; we
+              // don't want claimed flags wiggling like crazy just because we're
+              // showing more of them now (multi-game rosters, my-games view).
+              targetRot = Math.atan2(gp.y - f.y, gp.x - f.x); targetE = 0.1;
             } else if (waving) {            // free + courted → point at cursor
               targetRot = Math.atan2(my - f.y, mx - f.x); targetE = 0.55;
             } else {                        // free + idle

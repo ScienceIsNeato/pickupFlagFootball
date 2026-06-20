@@ -114,7 +114,7 @@ export function ProposeModal({
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="propose-title"
-      style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(6,10,8,.72)",
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       {state?.ok ? <ProposeSuccessCard onClose={onClose} /> : (
