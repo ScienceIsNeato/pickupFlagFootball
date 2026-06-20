@@ -401,6 +401,21 @@ section h2::after {
 .reg-form input:focus, .reg-form select:focus, .reg-form textarea:focus { outline: none; border-color: var(--green); }
 .field-err { color: #ff8b84; font-size: 12px; margin-top: 2px; }
 
+/* "Changes saved" popup — fixed near the top, above everything, auto-dismisses */
+.save-toast {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 1100; display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
+  color: #fff; background: var(--green); border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  animation: save-toast-in 0.2s ease-out;
+}
+.save-toast-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.25); font-size: 13px;
+}
+@keyframes save-toast-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
 /* my-games panel — floats over the fullscreen map */
 .mine-panel {
   position: absolute; top: 64px; left: 12px; bottom: 12px; width: 360px; max-width: calc(100% - 24px);

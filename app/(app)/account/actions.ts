@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, activityTypes } from "@/lib/db/schema";
@@ -12,7 +13,9 @@ import { txnDb } from "@/lib/db/pool";
 import { setActiveInterest } from "@/lib/db/interest";
 import { str } from "@/lib/forms";
 
-export async function updateAccount(formData: FormData) {
+export type SaveResult = { ok: true } | { ok: false; error: string };
+
+export async function updateAccount(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
@@ -35,7 +38,7 @@ export async function updateAccount(formData: FormData) {
 
   if (zip && /^\d{5}$/.test(zip)) {
     const home = await resolveHome({ zip, line1, line2, city, state });
-    if (!home) throw new Error("ZIP code not found");
+    if (!home) return { ok: false, error: "We couldn't find that ZIP code." };
     {
       const { displayCity, homeLat, homeLng, snapLat, snapLng, r5, r6, r7, r8, r9 } = home;
 
@@ -79,12 +82,13 @@ export async function updateAccount(formData: FormData) {
         await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
         // the move may spark the new area (transactional — needs the pooled client)
         await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
-        redirect("/account");
+        revalidatePath("/account");
+        return { ok: true };
       } else {
         // A valid ZIP was given but the activity isn't configured. Don't write
         // the new home while leaving interest_signals pointed at the old area —
         // that desyncs the profile from the map. Fail the whole save instead.
-        throw new Error("activity not configured");
+        return { ok: false, error: "Flag football isn't configured yet." };
       }
     }
   } else if (city) {
@@ -96,7 +100,8 @@ export async function updateAccount(formData: FormData) {
     .set(update)
     .where(eq(users.id, session.user.id!));
 
-  redirect("/account");
+  revalidatePath("/account");
+  return { ok: true };
 }
 
 // Donation preference is self-declared and independent of location, so it has
