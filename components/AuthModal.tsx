@@ -1,31 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
-
-type GsiButtonConfig = { theme?: string; size?: string; width?: number; text?: string; shape?: string };
-type Gsi = {
-  accounts: { id: {
-    initialize: (o: { client_id: string; callback: (r: { credential: string }) => void }) => void;
-    renderButton: (el: HTMLElement, o: GsiButtonConfig) => void;
-  } };
-};
-declare global { interface Window { google?: Gsi } }
-
-let gsiPromise: Promise<void> | null = null;
-function loadGsi(): Promise<void> {
-  if (gsiPromise) return gsiPromise;
-  gsiPromise = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://accounts.google.com/gsi/client";
-    s.async = true; s.defer = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("gsi load failed"));
-    document.head.appendChild(s);
-  });
-  return gsiPromise;
-}
+import { GoogleButton } from "./GoogleButton";
 
 export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?: string }) {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -34,39 +12,10 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [googleOff, setGoogleOff] = useState(false);
-  const gbtn = useRef<HTMLDivElement>(null);
 
   // only same-origin relative paths — never an absolute/protocol-relative URL
   const safe = callbackUrl && /^\/(?![/\\])/.test(callbackUrl) ? callbackUrl : null;
   const dest = safe || "/play";
-
-  // Google Identity Services popup
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const cfg = await (await fetch("/api/google-config")).json();
-        if (!cfg.clientId) { setGoogleOff(true); return; }
-        await loadGsi();
-        if (cancelled || !window.google || !gbtn.current) return;
-        window.google.accounts.id.initialize({
-          client_id: cfg.clientId,
-          callback: async (resp) => {
-            setBusy(true); setError("");
-            const res = await signIn("google-onetap", { credential: resp.credential, redirect: false });
-            if (res?.ok) window.location.href = dest;
-            else { setError("google sign-in failed"); setBusy(false); }
-          },
-        });
-        window.google.accounts.id.renderButton(gbtn.current, {
-          theme: "filled_black", size: "large", width: 300, text: "continue_with", shape: "pill",
-        });
-      } catch { setGoogleOff(true); }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -96,9 +45,7 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
         <p className="auth-sub">sign in to show interest and see who&apos;s nearby.</p>
 
         <div className="auth-google">
-          {googleOff
-            ? <p className="auth-note">google sign-in isn&apos;t configured yet — use email below.</p>
-            : <div ref={gbtn} />}
+          <GoogleButton dest={dest} onError={setError} />
         </div>
 
         <div className="auth-or"><span>or</span></div>

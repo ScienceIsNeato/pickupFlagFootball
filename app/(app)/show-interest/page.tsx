@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { setLocationAndInterest } from "./actions";
+import { RegisterInterestForm } from "@/components/RegisterInterestForm";
 
 export const metadata = {
   title: skin.register.seoTitle,
@@ -15,16 +16,27 @@ export default async function ShowInterestPage() {
   const session = await auth();
   const uid = session?.user?.id;
 
-  const u = uid
-    ? (await db
-        .select({
-          line1: users.addressLine1, line2: users.addressLine2,
-          city: users.city, state: users.state, zip: users.zip,
-        })
-        .from(users)
-        .where(eq(users.id, uid))
-        .limit(1))[0]
-    : undefined;
+  // Anonymous visitors land here as the registration window: account + interest
+  // in one step. Signed-in users get the location-only form below.
+  if (!uid) {
+    return (
+      <main className="reg">
+        <Link href="/" className="back">&larr; back</Link>
+        <h1 className="reg-h">{skin.register.heading}</h1>
+        <p className="reg-blurb">{skin.register.blurb}</p>
+        <RegisterInterestForm />
+      </main>
+    );
+  }
+
+  const u = (await db
+    .select({
+      line1: users.addressLine1, line2: users.addressLine2,
+      city: users.city, state: users.state, zip: users.zip,
+    })
+    .from(users)
+    .where(eq(users.id, uid))
+    .limit(1))[0];
 
   return (
     <main className="reg">

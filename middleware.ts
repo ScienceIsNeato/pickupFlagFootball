@@ -19,7 +19,10 @@ export const config = {
   matcher: [
     "/play/:path*",
     "/account/:path*",
-    "/show-interest/:path*",
+    // /show-interest is intentionally NOT gated — it's the registration window
+    // (account + interest in one step) for anonymous visitors. The page itself
+    // shows the register form to anonymous users and the location form to
+    // signed-in ones.
     "/nearby/:path*",
     "/map/:path*",
     "/areas/:path*",
