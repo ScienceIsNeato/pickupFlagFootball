@@ -62,8 +62,20 @@ export async function gameMembership(
       (select status from game_attendance a
          where a.game_id = ${game.id} and a.user_id = ${userId} and a.occurrence_date = ${occ}) as my_rsvp,
       (select count(*)::int from game_roster r where r.game_id = ${game.id}) as roster_count,
-      (select count(*)::int from game_attendance a
-         where a.game_id = ${game.id} and a.occurrence_date = ${occ} and a.status = 'in') as in_count
+      (select count(*)::int from (
+         -- roster members: explicit override wins, else their site default
+         select r.user_id
+           from game_roster r
+           left join game_attendance a
+             on a.game_id = r.game_id and a.user_id = r.user_id and a.occurrence_date = ${occ}
+           where r.game_id = ${game.id} and coalesce(a.status, r.default_status) = 'in'
+         union
+         -- drop-ins: explicit "in" with no roster row
+         select a.user_id
+           from game_attendance a
+           where a.game_id = ${game.id} and a.occurrence_date = ${occ} and a.status = 'in'
+             and not exists (select 1 from game_roster r where r.game_id = a.game_id and r.user_id = a.user_id)
+       ) eff) as in_count
   `)).rows as Array<{ my_default: string | null; my_rsvp: string | null; roster_count: number; in_count: number }>;
   return {
     occurrence: occ,

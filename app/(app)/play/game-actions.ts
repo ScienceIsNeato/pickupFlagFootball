@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
@@ -15,6 +14,18 @@ async function syncRosterCount(gameId: string) {
   await db.update(games)
     .set({ confirmedCount: sql`(select count(*) from game_roster where game_id = ${gameId})` })
     .where(eq(games.id, gameId));
+}
+
+/** Persist an explicit RSVP for one occurrence. We always store "in"/"out" (never
+ *  delete on "out"): a default-"in" regular who skips one week needs an explicit
+ *  "out" row, else effective-RSVP logic (override ?? default) reads them as in. */
+async function upsertAttendance(gameId: string, userId: string, occ: string, status: "in" | "out") {
+  await db.insert(gameAttendance)
+    .values({ gameId, userId, occurrenceDate: occ, status })
+    .onConflictDoUpdate({
+      target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
+      set: { status },
+    });
 }
 
 /** Join (or update) a weekly game in one shot, from the popup's slider form:
@@ -33,27 +44,16 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   await db.insert(gameRoster).values({ gameId, userId: me, defaultStatus: def })
     .onConflictDoUpdate({ target: [gameRoster.gameId, gameRoster.userId], set: { defaultStatus: def } });
 
-  const occ = nextOccurrenceYMD(g, new Date());
-  if (nextIn) {
-    await db.insert(gameAttendance)
-      .values({ gameId, userId: me, occurrenceDate: occ, status: "in" })
-      .onConflictDoUpdate({
-        target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
-        set: { status: "in" },
-      });
-  } else {
-    await db.delete(gameAttendance).where(and(
-      eq(gameAttendance.gameId, gameId), eq(gameAttendance.userId, me), eq(gameAttendance.occurrenceDate, occ),
-    ));
-  }
+  await upsertAttendance(gameId, me, nextOccurrenceYMD(g, new Date()), nextIn ? "in" : "out");
   await syncRosterCount(gameId);
   revalidatePath("/my-games");
   return { ok: true };
 }
 
 /** "I'll probably be there every week" — standing roster membership. Independent
- *  of the per-game RSVP below. Joining is gated on the radius rule (your travel
- *  radius must reach the game's area); leaving is a self-edit. */
+ *  of the per-game RSVP below. Joining is gated on the radius rule; leaving is a
+ *  self-edit that also clears any future RSVPs so a departed member can't keep
+ *  inflating upcoming/freeze headcounts. */
 export async function setRosterMembership(gameId: string, on: boolean): Promise<JoinResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
@@ -63,6 +63,10 @@ export async function setRosterMembership(gameId: string, on: boolean): Promise<
     if (!(await reachableActiveGame(me, gameId))) return { ok: false, error: "this game is outside your travel area" };
     await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
   } else {
+    await db.delete(gameAttendance).where(and(
+      eq(gameAttendance.gameId, gameId), eq(gameAttendance.userId, me),
+      gte(gameAttendance.occurrenceDate, sql`current_date`),
+    ));
     await db.delete(gameRoster).where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
   }
   await syncRosterCount(gameId);
@@ -70,9 +74,8 @@ export async function setRosterMembership(gameId: string, on: boolean): Promise<
   return { ok: true };
 }
 
-/** "I'll be there for the next game on <date>" — a one-off RSVP for the next
- *  occurrence, independent of weekly membership (so a drop-in can commit to just
- *  one game). On = an "in" row for that date; off = remove it. */
+/** RSVP in/out for the next occurrence, independent of weekly membership (a
+ *  drop-in can commit to a single game). Always stores an explicit row. */
 export async function setNextGameRsvp(gameId: string, on: boolean): Promise<JoinResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
@@ -80,22 +83,7 @@ export async function setNextGameRsvp(gameId: string, on: boolean): Promise<Join
 
   const g = on ? await reachableActiveGame(me, gameId) : await activeGame(gameId);
   if (!g) return { ok: false, error: on ? "this game is outside your travel area" : "game unavailable" };
-  const occ = nextOccurrenceYMD(g, new Date());
-
-  if (on) {
-    await db.insert(gameAttendance)
-      .values({ gameId, userId: me, occurrenceDate: occ, status: "in" })
-      .onConflictDoUpdate({
-        target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
-        set: { status: "in" },
-      });
-  } else {
-    await db.delete(gameAttendance).where(and(
-      eq(gameAttendance.gameId, gameId),
-      eq(gameAttendance.userId, me),
-      eq(gameAttendance.occurrenceDate, occ),
-    ));
-  }
+  await upsertAttendance(gameId, me, nextOccurrenceYMD(g, new Date()), on ? "in" : "out");
   revalidatePath("/my-games");
   return { ok: true };
 }

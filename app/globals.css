@@ -505,8 +505,9 @@ section h2::after {
 .mine-you-in { color: var(--grass-l); }
 
 @media (max-width: 560px) {
-  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; }
-  .mine-right { display: none; }
+  /* stack the two panels: upcoming on top, past below (don't hide past) */
+  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; bottom: auto; max-height: calc(50vh - 64px); }
+  .mine-right { left: 8px; right: 8px; top: calc(58px + 50vh - 56px); bottom: 8px; max-height: none; }
 }
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;

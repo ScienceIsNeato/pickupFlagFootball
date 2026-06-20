@@ -84,7 +84,9 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   useEffect(() => {
     if (!game) return;
     setPref(game.myDefault === "out" ? "occasional" : "regular");
-    setNextIn(game.onRoster ? game.myRsvp === "in" : true);
+    // Effective next-game RSVP: explicit override wins, else the site default.
+    const effectiveNext = game.myRsvp ?? game.myDefault ?? "in";
+    setNextIn(game.onRoster ? effectiveNext === "in" : true);
   }, [game?.gameId, game?.onRoster, game?.myDefault, game?.myRsvp]);
 
   async function run(action: () => Promise<{ ok: boolean; error?: string }>) {
@@ -141,16 +143,16 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                   <p className="game-join-h">join weekly game</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
                     <button type="button" className={pref === "regular" ? "seg-on" : ""}
-                      disabled={busy} onClick={() => setPref("regular")}>regular player</button>
+                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => setPref("regular")}>regular player</button>
                     <button type="button" className={pref === "occasional" ? "seg-on" : ""}
-                      disabled={busy} onClick={() => setPref("occasional")}>occasional player</button>
+                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => setPref("occasional")}>occasional player</button>
                   </div>
                   <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
                   <div className="seg" role="group" aria-label="next game">
                     <button type="button" className={nextIn ? "seg-on" : ""}
-                      disabled={busy} onClick={() => setNextIn(true)}>i&apos;m in</button>
+                      aria-pressed={nextIn} disabled={busy} onClick={() => setNextIn(true)}>i&apos;m in</button>
                     <button type="button" className={!nextIn ? "seg-on seg-on-out" : ""}
-                      disabled={busy} onClick={() => setNextIn(false)}>i&apos;m out</button>
+                      aria-pressed={!nextIn} disabled={busy} onClick={() => setNextIn(false)}>i&apos;m out</button>
                   </div>
                   <button type="button" className="btn-green game-join" disabled={busy}
                     onClick={() => run(() => joinWeeklyGame(game.gameId, pref === "regular", nextIn))}>

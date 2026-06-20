@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
+import { occurrenceDatesInRange } from "@/lib/datetime";
 
 /**
  * Toggle whether I'm "in" for a game.
@@ -55,9 +56,23 @@ export async function setOccurrenceRsvp(formData: FormData) {
   const status = String(formData.get("status") ?? "");
   if (!gameId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || (status !== "in" && status !== "out")) throw new Error("bad params");
 
-  const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
-    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
-  if (!member) throw new Error("not on this roster");
+  // Must be on the roster AND the date must be a real upcoming occurrence of
+  // this game — otherwise a crafted POST could write arbitrary past/off-schedule
+  // dates into the attendance/history record.
+  const [game] = await db.select({
+    isStanding: games.isStanding, recurDow: games.recurDow,
+    scheduledStart: games.scheduledStart, status: games.status,
+  }).from(games)
+    .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
+    .where(eq(games.id, gameId)).limit(1);
+  if (!game || (game.status !== "STAGED" && game.status !== "STANDING")) throw new Error("not on this roster");
+
+  const now = new Date();
+  const validDates = occurrenceDatesInRange(
+    { isStanding: game.isStanding, recurDow: game.recurDow, scheduledStart: String(game.scheduledStart) },
+    now, new Date(now.getTime() + 42 * 86_400_000),
+  );
+  if (!validDates.includes(date)) throw new Error("bad occurrence date");
 
   await db.insert(gameAttendance)
     .values({ gameId, userId: me, occurrenceDate: date, status })

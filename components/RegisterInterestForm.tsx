@@ -15,6 +15,9 @@ import { str } from "@/lib/forms";
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Once the account is created + signed in, a retry (e.g. a bad ZIP) must skip
+  // registration — else registerWithPassword rejects the now-existing email.
+  const [accountReady, setAccountReady] = useState(false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,12 +26,22 @@ export function RegisterInterestForm() {
     const email = str(fd.get("email"));
     const username = str(fd.get("username"));
     const password = str(fd.get("password"));
+    // Only the location fields go to the location action — never forward the
+    // password through that unrelated server-action path.
+    const locationFd = new FormData();
+    for (const key of ["zip", "address_line1", "address_line2", "city", "state"] as const) {
+      const value = fd.get(key);
+      if (value !== null) locationFd.set(key, value);
+    }
     try {
-      const reg = await registerWithPassword({ email, password, name: username });
-      if (!reg.ok) { setError(reg.error); setBusy(false); return; }
-      const res = await signIn("password", { email, password, redirect: false });
-      if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
-      const loc = await saveLocationAndInterest(fd);
+      if (!accountReady) {
+        const reg = await registerWithPassword({ email, password, name: username });
+        if (!reg.ok) { setError(reg.error); setBusy(false); return; }
+        const res = await signIn("password", { email, password, redirect: false });
+        if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
+        setAccountReady(true);
+      }
+      const loc = await saveLocationAndInterest(locationFd);
       if (!loc.ok) { setError(loc.error); setBusy(false); return; }
       window.location.href = "/play";
     } catch { setError("something went wrong — please try again"); setBusy(false); }

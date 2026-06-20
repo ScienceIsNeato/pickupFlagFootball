@@ -6,8 +6,6 @@ export const DOW_NAMES = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ] as const;
 
-const DAY_MS = 86_400_000;
-
 /** Local YYYY-MM-DD for a Date (not UTC — we want the proposer's calendar day). */
 export function toYMD(d: Date): string {
   const y = d.getFullYear();
@@ -29,7 +27,9 @@ export function upcomingDatesForDow(dow: number, count: number, from: Date): str
   if (delta === 0) delta = 7; // strictly future: skip today even if it matches
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
-    out.push(toYMD(new Date(start.getTime() + (delta + i * 7) * DAY_MS)));
+    const d = new Date(start);
+    d.setDate(d.getDate() + delta + i * 7); // setDate (not ms math) is DST-safe
+    out.push(toYMD(d));
   }
   return out;
 }
@@ -47,7 +47,8 @@ export function nextOccurrenceYMD(
   if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
     const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
     const delta = (game.recurDow - start.getDay() + 7) % 7; // 0 = today is game day
-    return toYMD(new Date(start.getTime() + delta * DAY_MS));
+    start.setDate(start.getDate() + delta); // setDate (not ms math) is DST-safe
+    return toYMD(start);
   }
   return toYMD(new Date(game.scheduledStart));
 }
@@ -68,10 +69,11 @@ export function occurrenceDatesInRange(
   if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
     const out: string[] = [];
     const delta = (game.recurDow - fromMid.getDay() + 7) % 7;
-    let d = new Date(fromMid.getTime() + delta * DAY_MS);
+    const d = new Date(fromMid);
+    d.setDate(d.getDate() + delta); // setDate (not ms math) is DST-safe
     while (d.getTime() <= toMid.getTime()) {
       out.push(toYMD(d));
-      d = new Date(d.getTime() + 7 * DAY_MS);
+      d.setDate(d.getDate() + 7);
     }
     return out;
   }

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { games } from "@/lib/db/schema";
 import { occurrenceDatesInRange } from "@/lib/datetime";
 import type { EngineDb } from "./engine";
@@ -22,7 +22,10 @@ const DAY_MS = 86_400_000;
 export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> {
   const standing = await db.select({
     id: games.id, recurDow: games.recurDow, scheduledStart: games.scheduledStart,
-  }).from(games).where(eq(games.status, "STANDING"));
+  }).from(games).where(and(
+    eq(games.isStanding, true),
+    inArray(games.status, ["STAGED", "STANDING"]),
+  ));
 
   const yesterday = new Date(now.getTime() - DAY_MS);
   const twoWeeksAgo = new Date(now.getTime() - 14 * DAY_MS);

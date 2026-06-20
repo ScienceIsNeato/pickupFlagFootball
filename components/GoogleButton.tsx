@@ -45,9 +45,15 @@ export function GoogleButton({ dest, onError }: { dest: string; onError?: (msg: 
         window.google.accounts.id.initialize({
           client_id: cfg.clientId,
           callback: async (resp) => {
-            const res = await signIn("google-onetap", { credential: resp.credential, redirect: false });
-            if (res?.ok) window.location.href = dest;
-            else onError?.("google sign-in failed");
+            // This runs after init, so a rejection here escapes the outer catch —
+            // handle it locally or the user gets no feedback.
+            try {
+              const res = await signIn("google-onetap", { credential: resp.credential, redirect: false });
+              if (res?.ok) { window.location.href = dest; return; }
+              onError?.("google sign-in failed");
+            } catch {
+              onError?.("google sign-in failed — please try again");
+            }
           },
         });
         window.google.accounts.id.renderButton(ref.current, {

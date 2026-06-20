@@ -26,16 +26,18 @@ async function applyLocationAndInterest(userId: string, formData: FormData): Pro
   if (!home) return { ok: false, error: "We couldn't find that ZIP code." };
   const { displayCity, homeLat, homeLng, snapLat, snapLng, r5, r6, r7, r8, r9 } = home;
 
+  // Verify the activity exists BEFORE writing the user's home — otherwise a
+  // missing config leaves the profile half-saved with no interest activated.
+  const [activity] = await db.select({ id: activityTypes.id }).from(activityTypes)
+    .where(eq(activityTypes.slug, "flag-football")).limit(1);
+  if (!activity) return { ok: false, error: "Flag football isn't configured yet." };
+
   await db.update(users).set({
     addressLine1: line1 || null, addressLine2: line2 || null,
     city: displayCity, state: state || null, zip,
     homeLat, homeLng, h3R5: r5, h3R6: r6, h3R7: r7, h3R8: r8, h3R9: r9,
     updatedAt: new Date(),
   }).where(eq(users.id, userId));
-
-  const [activity] = await db.select({ id: activityTypes.id }).from(activityTypes)
-    .where(eq(activityTypes.slug, "flag-football")).limit(1);
-  if (!activity) return { ok: false, error: "Flag football isn't configured yet." };
 
   const areaId = await ensureArea(activity.id, r7, {
     city: displayCity, zip, centerLat: snapLat, centerLng: snapLng,

@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { users, areas, games, gameRoster, gameAttendance } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
-import { occurrenceDatesInRange } from "@/lib/datetime";
+import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
+import { hasActiveInterest } from "@/lib/db/interest";
 import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
 export const metadata = { title: "Upcoming Games — MIME-FF" };
@@ -32,6 +33,14 @@ export default async function UpcomingGamesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
   const me = session.user.id;
+  // Match the nav gate: this page is for registered + interested users.
+  if (!(await hasActiveInterest(me))) redirect("/show-interest");
+
+  const now = new Date();
+  // Only load attendance within the displayed window (last 8 / next 6 weeks) so
+  // the queries don't grow unbounded as weekly rows accumulate.
+  const windowStart = toYMD(new Date(now.getTime() - 56 * DAY));
+  const windowEnd = toYMD(new Date(now.getTime() + 42 * DAY));
 
   const [u] = await db
     .select({ homeLat: users.homeLat, homeLng: users.homeLng, maxTravelKm: users.maxTravelKm,
@@ -57,20 +66,23 @@ export default async function UpcomingGamesPage() {
   // My RSVP overrides (covers upcoming + past), and per-occurrence "in" headcounts.
   const myAtt = rosterIds.length
     ? await db.select({ gameId: gameAttendance.gameId, date: gameAttendance.occurrenceDate, status: gameAttendance.status })
-        .from(gameAttendance).where(and(eq(gameAttendance.userId, me), inArray(gameAttendance.gameId, rosterIds)))
+        .from(gameAttendance).where(and(
+          eq(gameAttendance.userId, me), inArray(gameAttendance.gameId, rosterIds),
+          gte(gameAttendance.occurrenceDate, windowStart), lte(gameAttendance.occurrenceDate, windowEnd),
+        ))
     : [];
   const myByKey = new Map(myAtt.map((a) => [`${a.gameId}|${a.date}`, a.status]));
 
   const headRows = rosterIds.length
     ? await db.select({ gameId: gameAttendance.gameId, date: gameAttendance.occurrenceDate, c: sql<number>`count(*)::int` })
         .from(gameAttendance)
-        .where(and(eq(gameAttendance.status, "in"), inArray(gameAttendance.gameId, rosterIds)))
+        .where(and(
+          eq(gameAttendance.status, "in"), inArray(gameAttendance.gameId, rosterIds),
+          gte(gameAttendance.occurrenceDate, windowStart), lte(gameAttendance.occurrenceDate, windowEnd),
+        ))
         .groupBy(gameAttendance.gameId, gameAttendance.occurrenceDate)
     : [];
   const headByKey = new Map(headRows.map((r) => [`${r.gameId}|${r.date}`, Number(r.c)]));
-
-  const now = new Date();
-  const byGame = new Map(rosterGames.map((g) => [g.id, g]));
 
   // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
   const upcoming = rosterGames
