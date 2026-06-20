@@ -229,20 +229,33 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
 .game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .game-muted { color: var(--muted); }
-.app-body { min-height: 100vh; padding-top: 64px; }
+/* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
+.app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 
+/* THE frost: one fixed layer directly on top of the page background and UNDER
+ * every other layer (content z:1, chrome z:30, modals z:100). backdrop-filter
+ * blurs only what's painted behind it — the fixed map/flag background — never
+ * the content, which paints in front. Hidden on the fullscreen map page, where
+ * the interactive map IS the background and must stay crisp. */
+.app-frost {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  background: rgba(11, 18, 16, 0.30);
+}
+body:has(.dash-map) .app-frost { display: none; }
+
+/* Chrome bars are SOLID (no backdrop-filter): content scrolling underneath is
+ * cleanly hidden, never blurred. The frost shows in the page margins, not here. */
 .nav-float {
   position: fixed; top: 0; left: 0; right: 0; z-index: 30; max-width: none;
   padding: 14px 22px;
-  background: linear-gradient(to bottom, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.35) 70%, transparent);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: #0b1210; border-bottom: 1px solid var(--border);
 }
 .app-foot {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
   display: flex; align-items: center; justify-content: center; gap: 14px;
   padding: 10px 20px; font-size: 13px; color: var(--muted);
-  background: linear-gradient(to top, rgba(11, 18, 16, 0.85), rgba(11, 18, 16, 0.3) 70%, transparent);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: #0b1210; border-top: 1px solid var(--border);
 }
 .app-foot a { color: var(--muted); }
 .app-foot a:hover { color: var(--ink); }

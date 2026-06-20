@@ -20,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      <div className="app-frost" aria-hidden />
       <div className="app-body">{children}</div>
 
       <footer className="app-foot">
