@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
+import { joinGame, leaveGame, setWeeklyAttendance } from "@/app/(app)/play/game-actions";
 
 type GameInfo = {
+  gameId: string;
   placeText: string;
   placeLat: number | null; placeLng: number | null;
   scheduledStart: string;
@@ -12,6 +14,10 @@ type GameInfo = {
   confirmedCount: number; status: string;
   city: string | null; zip: string | null;
   captains: string[];
+  eligible: boolean; onRoster: boolean;
+  myRsvp: "in" | "out" | null;
+  rosterCount: number; inCount: number;
+  nextOccurrence: string;
 };
 type Week = { weekStart: string; played: boolean; count: number };
 
@@ -31,31 +37,37 @@ function weeklyTime(g: GameInfo): string {
     weekday: "long", hour: "numeric", minute: "2-digit",
   });
 }
+/** Parse a local YYYY-MM-DD without UTC drift, format as "Sun, Jun 22". */
+function fmtDate(ymd: string): string {
+  return new Date(`${ymd}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short", month: "short", day: "numeric",
+  });
+}
 
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
   // Portal the modal to document.body so it escapes .dash-map's stacking
   // context (z:0) and renders above the floating site header (z:30).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEscape(onClose);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
-        if (!r.ok) throw new Error();
-        const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
-        if (!cancelled) setState({ game: d.game, weeks: d.weeks ?? [] });
-      } catch {
-        if (!cancelled) setState("error");
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+      if (!r.ok) throw new Error();
+      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
+      setState({ game: d.game, weeks: d.weeks ?? [] });
+    } catch {
+      setState("error");
+    }
   }, [lat, lng]);
+
+  useEffect(() => { load(); }, [load]);
 
   const game = state !== "loading" && state !== "error" ? state.game : null;
   const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
@@ -63,6 +75,19 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   const maps = game?.placeLat != null && game?.placeLng != null
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
+
+  async function run(action: () => Promise<{ ok: boolean; error?: string }>) {
+    setBusy(true); setActionErr("");
+    try {
+      const res = await action();
+      if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
+      await load();
+    } catch {
+      setActionErr("something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!mounted) return null;
   return createPortal((
@@ -89,8 +114,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               </dd>
               <dt>weekly time</dt>
               <dd>{weeklyTime(game)}</dd>
-              <dt>players in</dt>
-              <dd>{game.confirmedCount}</dd>
+              <dt>regulars</dt>
+              <dd>{game.rosterCount}</dd>
               {game.captains.length > 0 && (
                 <>
                   <dt>captain{game.captains.length > 1 ? "s" : ""}</dt>
@@ -98,6 +123,39 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                 </>
               )}
             </dl>
+
+            <div className="game-join-box">
+              {game.onRoster ? (
+                <>
+                  <p className="game-rsvp-q">
+                    coming {fmtDate(game.nextOccurrence)}?
+                    <span className="game-muted"> · {game.inCount} in so far</span>
+                  </p>
+                  <div className="game-rsvp-row">
+                    <button type="button" disabled={busy}
+                      className={`game-rsvp-btn${game.myRsvp === "in" ? " is-in" : ""}`}
+                      onClick={() => run(() => setWeeklyAttendance(game.gameId, "in"))}>i&apos;m in</button>
+                    <button type="button" disabled={busy}
+                      className={`game-rsvp-btn${game.myRsvp === "out" ? " is-out" : ""}`}
+                      onClick={() => run(() => setWeeklyAttendance(game.gameId, "out"))}>can&apos;t make it</button>
+                  </div>
+                  <button type="button" className="game-leave" disabled={busy}
+                    onClick={() => run(() => leaveGame(game.gameId))}>leave this game</button>
+                </>
+              ) : game.eligible ? (
+                <>
+                  <p className="game-rsvp-q">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
+                  <button type="button" className="btn-green game-join" disabled={busy}
+                    onClick={() => run(() => joinGame(game.gameId))}>
+                    {busy ? "…" : "join this game"}
+                  </button>
+                </>
+              ) : (
+                <p className="game-muted">this game is outside your travel radius — widen it in your <a href="/account">account</a> to join.</p>
+              )}
+              {actionErr && <p className="game-err">{actionErr}</p>}
+            </div>
+
             <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <span className="game-caret">{open ? "▾" : "▸"}</span>
               recent games

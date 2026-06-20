@@ -229,6 +229,27 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-recent { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
 .game-recent li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
 .game-muted { color: var(--muted); }
+/* join / leave / weekly RSVP block in the game popup */
+.game-join-box { margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.game-rsvp-q { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+.game-rsvp-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.game-rsvp-btn {
+  flex: 1; height: 38px; cursor: pointer; font-family: var(--font-barlow), sans-serif;
+  font-weight: 700; font-size: 14px; color: var(--ink);
+  background: transparent; border: 1px solid var(--border); border-radius: 8px;
+}
+.game-rsvp-btn:hover { border-color: var(--muted); }
+.game-rsvp-btn.is-in { background: var(--green); border-color: var(--green); color: #fff; }
+.game-rsvp-btn.is-out { background: var(--red); border-color: var(--red); color: #fff; }
+.game-rsvp-btn:disabled { opacity: 0.6; cursor: default; }
+.game-join { width: 100%; height: 42px; }
+.game-leave {
+  width: 100%; height: 34px; margin-top: 2px; cursor: pointer; background: transparent;
+  border: none; color: var(--faint); font-size: 13px; text-decoration: underline;
+}
+.game-leave:hover { color: var(--red); }
+.game-leave:disabled { opacity: 0.6; cursor: default; }
+.game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
 .app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 

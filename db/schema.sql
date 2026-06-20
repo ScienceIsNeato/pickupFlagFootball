@@ -304,6 +304,20 @@ CREATE TABLE game_roster (
   PRIMARY KEY (game_id, user_id)
 );
 
+-- ============================================================ game_attendance
+-- Per-occurrence RSVP. game_roster is standing membership; this is the weekly
+-- layer: a roster member marks "in"/"out" for a specific date.
+CREATE TABLE game_attendance (
+  game_id         uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  occurrence_date date NOT NULL,
+  status          text NOT NULL CHECK (status IN ('in', 'out')),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (game_id, user_id, occurrence_date)
+);
+CREATE INDEX idx_game_attendance_occurrence
+  ON game_attendance(game_id, occurrence_date) WHERE status = 'in';
+
 -- ============================================================ notifications_sent
 -- Idempotency (claim-before-send) + anti-spam ledger.
 CREATE TABLE notifications_sent (

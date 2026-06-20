@@ -35,6 +35,24 @@ export function upcomingDatesForDow(dow: number, count: number, from: Date): str
 }
 
 /**
+ * The next occurrence date (local YYYY-MM-DD) for a game: for a standing game,
+ * the soonest date on/after today whose weekday matches recur_dow (today counts
+ * if it's game day); otherwise the scheduled start's calendar date. Server-local
+ * for now — refine with the user's timezone later.
+ */
+export function nextOccurrenceYMD(
+  game: { isStanding: boolean; recurDow: number | null; scheduledStart: string | Date },
+  from: Date,
+): string {
+  if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
+    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const delta = (game.recurDow - start.getDay() + 7) % 7; // 0 = today is game day
+    return toYMD(new Date(start.getTime() + delta * DAY_MS));
+  }
+  return toYMD(new Date(game.scheduledStart));
+}
+
+/**
  * Combine a local date (YYYY-MM-DD) + time (HH:MM) into an absolute ISO instant,
  * interpreted in the runtime's local timezone (the proposer's browser). Returns
  * "" if either part is missing or the result is invalid.
