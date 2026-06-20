@@ -210,6 +210,9 @@ export const gameRoster = pgTable("game_roster", {
   gameId:    uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
   userId:    uuid("user_id").notNull().references(() => users.id),
   source:    text("source").notNull().default("soft_promise"),
+  // Per-site default RSVP ("usually come" = in, "usually won't" = out). Occurrences
+  // inherit this unless explicitly overridden in game_attendance.
+  defaultStatus: text("default_status").notNull().default("in"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.gameId, t.userId] }),

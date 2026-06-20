@@ -470,9 +470,28 @@ section h2::after {
 .rsvp-btn:hover { border-color: var(--green); }
 .rsvp-in[data-active] { background: var(--green); border-color: var(--green); color: #fff; }
 .rsvp-out:hover { border-color: #e23b2e; color: #e23b2e; }
+.rsvp-out[data-active] { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* right-hand "past games" panel mirrors the left one */
+.mine-right { left: auto; right: 12px; }
+/* per-site default pref toggle */
+.mine-pref { margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mine-pref-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+/* a single occurrence row (upcoming override / past result) */
+.mine-occ { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; background: rgba(0,0,0,.22); border: 1px solid var(--border); border-radius: 8px; }
+.mine-occ-when { min-width: 0; font-size: 13px; color: var(--ink); }
+.mine-occ-when strong { display: block; }
+.mine-occ-site { font-size: 12px; color: var(--muted); display: block; max-width: 150px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mine-occ-def { font-size: 11px; color: var(--faint); }
+.mine-past-result { font-size: 13px; display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.mine-you { font-size: 11px; color: var(--faint); }
+.mine-you-in { color: var(--grass-l); }
 
 @media (max-width: 560px) {
   .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; }
+  .mine-right { display: none; }
 }
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;

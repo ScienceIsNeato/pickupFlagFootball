@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, games } from "@/lib/db/schema";
+import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
 
 /**
@@ -40,5 +40,45 @@ export async function setAttendance(formData: FormData) {
       .where(eq(games.id, gameId));
   }
 
+  revalidatePath("/my-games");
+}
+
+/** Override my RSVP for one upcoming occurrence (a specific date), departing from
+ *  the site default. Requires roster membership. */
+export async function setOccurrenceRsvp(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
+  const me = session.user.id;
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!gameId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || (status !== "in" && status !== "out")) throw new Error("bad params");
+
+  const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
+    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
+  if (!member) throw new Error("not on this roster");
+
+  await db.insert(gameAttendance)
+    .values({ gameId, userId: me, occurrenceDate: date, status })
+    .onConflictDoUpdate({
+      target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
+      set: { status },
+    });
+  revalidatePath("/my-games");
+}
+
+/** Set my per-site default ("usually come" = in / "usually won't" = out). */
+export async function setSiteDefault(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
+  const me = session.user.id;
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const value = String(formData.get("default") ?? "");
+  if (!gameId || (value !== "in" && value !== "out")) throw new Error("bad params");
+
+  await db.update(gameRoster).set({ defaultStatus: value })
+    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
   revalidatePath("/my-games");
 }

@@ -297,10 +297,12 @@ ALTER TABLE formation_attempts
 
 -- ============================================================ game_roster
 CREATE TABLE game_roster (
-  game_id    uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  user_id    uuid NOT NULL REFERENCES users(id),
-  source     text NOT NULL DEFAULT 'soft_promise',  -- v2: 'weekly_rsvp'
-  created_at timestamptz NOT NULL DEFAULT now(),
+  game_id        uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id        uuid NOT NULL REFERENCES users(id),
+  source         text NOT NULL DEFAULT 'soft_promise',  -- v2: 'weekly_rsvp'
+  -- per-site default RSVP: 'in' = usually come, 'out' = usually won't
+  default_status text NOT NULL DEFAULT 'in' CHECK (default_status IN ('in', 'out')),
+  created_at     timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (game_id, user_id)
 );
 

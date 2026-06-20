@@ -53,6 +53,34 @@ export function nextOccurrenceYMD(
 }
 
 /**
+ * All occurrence dates (local YYYY-MM-DD) for a game within an inclusive date
+ * range. Standing games yield every recur_dow date in range; one-off games yield
+ * their scheduled date if it falls in range. `from`/`to` are compared by calendar
+ * day. Used to build the upcoming list and the past-occurrence history.
+ */
+export function occurrenceDatesInRange(
+  game: { isStanding: boolean; recurDow: number | null; scheduledStart: string | Date },
+  from: Date,
+  to: Date,
+): string[] {
+  const fromMid = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const toMid = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  if (game.isStanding && game.recurDow != null && game.recurDow >= 0 && game.recurDow <= 6) {
+    const out: string[] = [];
+    const delta = (game.recurDow - fromMid.getDay() + 7) % 7;
+    let d = new Date(fromMid.getTime() + delta * DAY_MS);
+    while (d.getTime() <= toMid.getTime()) {
+      out.push(toYMD(d));
+      d = new Date(d.getTime() + 7 * DAY_MS);
+    }
+    return out;
+  }
+  const s = new Date(game.scheduledStart);
+  const sMid = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  return sMid >= fromMid && sMid <= toMid ? [toYMD(sMid)] : [];
+}
+
+/**
  * Combine a local date (YYYY-MM-DD) + time (HH:MM) into an absolute ISO instant,
  * interpreted in the runtime's local timezone (the proposer's browser). Returns
  * "" if either part is missing or the result is invalid.
