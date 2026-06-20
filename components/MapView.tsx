@@ -23,6 +23,7 @@ const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
 const PROPOSED_BADGE = 68; // px size of the proposed-site marker (smaller)
+const YOU_BADGE = 54;    // px size of the "you are here" marker
 // Cursor sentinel: mx/my are set to CURSOR_OFF when the pointer leaves the map;
 // CURSOR_ON_THRESHOLD is the "off-map" check that tolerates rounding/jitter.
 const CURSOR_OFF = -99999;
@@ -199,6 +200,7 @@ export function MapView({
     // Badge markers: established game + proposed (forming) site.
     const gameBadge = new Image(); gameBadge.src = "/game-badge.png";
     const proposedBadge = new Image(); proposedBadge.src = "/proposed-badge.png";
+    const youBadge = new Image(); youBadge.src = "/you-badge.png";
 
     function sizeCanvas() {
       const r = container.getBoundingClientRect();
@@ -354,6 +356,20 @@ export function MapView({
     function drawBadgesPass(morph: number): "game" | "forming" | null {
       let over: "game" | "forming" | null = null;
       const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
+      // "You are here" — your home point (geocoded address, or ZIP centroid as
+      // the fallback). Drawn clipped to a circle so the square badge art reads
+      // as a round marker, with a white rim for contrast against the grass.
+      const me = homeRef.current;
+      if (me && youBadge.complete && youBadge.naturalWidth) {
+        const p = map.project([me.lng, me.lat]);
+        const r = YOU_BADGE / 2;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+        ctx.drawImage(youBadge, p.x - r, p.y - r, YOU_BADGE, YOU_BADGE);
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.stroke();
+      }
       for (const cl of clustersRef.current) {
         if (!cl.hasGame && !cl.forming) continue;
         const home = map.project(cl.ll);
@@ -572,6 +588,7 @@ export function MapView({
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
       <div className="map-legend">
+        {home && <span className="legend-item"><img src="/you-badge.png" alt="" className="legend-badge" /> you</span>}
         <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player <span ref={cInterested} className="legend-n">0</span></span>
         <span className="legend-item"><Streamer color={TEAM_YELLOW} wave /> would play near your cursor <span ref={cWaving} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>
