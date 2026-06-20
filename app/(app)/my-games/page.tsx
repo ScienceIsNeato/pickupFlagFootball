@@ -184,7 +184,8 @@ export default async function UpcomingGamesPage() {
               const key = `${g.id}|${date}`;
               const head = headByKey.get(key) ?? 0;
               const played = head >= PLAYED_MIN;
-              const youIn = myByKey.get(key) === "in";
+              // "were you in" is effective: explicit row wins, else the site default.
+              const youIn = (myByKey.get(key) ?? defaultByGame.get(g.id) ?? "out") === "in";
               return (
                 <li key={key} className="mine-occ">
                   <div className="mine-occ-when">

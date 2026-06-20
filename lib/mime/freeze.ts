@@ -28,12 +28,15 @@ export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> 
   ));
 
   const yesterday = new Date(now.getTime() - DAY_MS);
-  const twoWeeksAgo = new Date(now.getTime() - 14 * DAY_MS);
+  // Cover the same window the Past panel displays (8 weeks) so a freshly-deployed
+  // system backfills the whole visible history on its first runs, not just the
+  // last fortnight. Idempotent inserts make the wider sweep cheap to repeat.
+  const windowStart = new Date(now.getTime() - 56 * DAY_MS);
 
   for (const g of standing) {
     const dates = occurrenceDatesInRange(
       { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) },
-      twoWeeksAgo, yesterday,
+      windowStart, yesterday,
     );
     for (const date of dates) {
       await db.execute(sql`

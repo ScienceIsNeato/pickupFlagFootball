@@ -32,10 +32,12 @@ export async function reachableActiveGame(userId: string, gameId: string): Promi
     where g.id = ${gameId}
       and g.status in ('STAGED', 'STANDING')
       and u.home_lat is not null and u.home_lng is not null
+      -- measure to the game's actual venue (how the map/API locate it), falling
+      -- back to the area centroid only when no venue point is stored
       and 6371 * 2 * asin(least(1, sqrt(
-        power(sin(radians(u.home_lat - a.center_lat) / 2), 2)
-        + cos(radians(a.center_lat)) * cos(radians(u.home_lat))
-        * power(sin(radians(u.home_lng - a.center_lng) / 2), 2)
+        power(sin(radians(u.home_lat - coalesce(g.place_lat, a.center_lat)) / 2), 2)
+        + cos(radians(coalesce(g.place_lat, a.center_lat))) * cos(radians(u.home_lat))
+        * power(sin(radians(u.home_lng - coalesce(g.place_lng, a.center_lng)) / 2), 2)
       ))) <= u.max_travel_km
     limit 1`)).rows as GameOccurrenceInputs[];
   return rows[0] ?? null;

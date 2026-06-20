@@ -18,12 +18,13 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
-  users, areas, interestSignals, games, gameRoster, activityTypes, areaCaptains,
+  users, areas, interestSignals, games, gameRoster, gameAttendance, activityTypes, areaCaptains,
   formationAttempts, suggestions, formationOptions,
 } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { milesToKm, haversineKm } from "@/lib/geo/distance";
+import { occurrenceDatesInRange } from "@/lib/datetime";
 import { gameColor } from "@/lib/brand";
 
 // Deliberate population pools — replaces the old population-weighted ZIP scatter
@@ -409,6 +410,29 @@ async function seedRosters(activityId: string) {
     const total = fill.length + crossCity.length;
     await db.update(games).set({ confirmedCount: total }).where(eq(games.id, g.id));
     console.log(`  rostered ${total} into ${g.city} (cap ${cap}; ${crossCity.length} cross-city + ${fill.length} home-zone)`);
+  }
+
+  // PHASE 3 — backfill ~8 weeks of past attendance so the Past panel shows real
+  // history on a fresh seed (otherwise it stays empty until the tick freeze runs).
+  const histNow = new Date();
+  const standingRows = await db.select({ id: games.id, recurDow: games.recurDow, scheduledStart: games.scheduledStart })
+    .from(games).where(and(eq(games.isStanding, true), inArray(games.status, ["STAGED", "STANDING"])));
+  for (const g of standingRows) {
+    const roster = (await db.select({ u: gameRoster.userId }).from(gameRoster).where(eq(gameRoster.gameId, g.id))).map((r) => r.u);
+    if (!roster.length) continue;
+    const dates = occurrenceDatesInRange(
+      { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) },
+      new Date(histNow.getTime() - 56 * 86_400_000), new Date(histNow.getTime() - 86_400_000),
+    );
+    for (const date of dates) {
+      const noGame = Math.random() < 0.15; // some weeks just didn't draw a crowd
+      const frac = noGame ? Math.random() * 0.08 : 0.5 + Math.random() * 0.45;
+      const who = [...roster].sort(() => Math.random() - 0.5).slice(0, Math.round(roster.length * frac));
+      if (!who.length) continue;
+      await db.insert(gameAttendance)
+        .values(who.map((uid) => ({ gameId: g.id, userId: uid, occurrenceDate: date, status: "in" as const })))
+        .onConflictDoNothing();
+    }
   }
 }
 
