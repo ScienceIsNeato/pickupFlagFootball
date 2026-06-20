@@ -53,7 +53,7 @@ preview); `--status` / `--logs` / `--stop` manage it.
 ## What's here
 
 ### `app/`
-- **Marketing** (`(marketing)/`): landing, faq, gear, donate, privacy. Copy is a
+- **Marketing** (`(marketing)/`): landing, faq, donate, privacy. Copy is a
   skin — all text in `config/skins/<activity>.json`, validated by `lib/skin/schema.ts`.
 - **App** (`(app)/`, auth-gated):
   - `play` — the fullscreen MapLibre map. Anonymous flags represent interest

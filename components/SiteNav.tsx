@@ -14,7 +14,6 @@ export function SiteNav() {
       <div className="nav-right">
         <nav>
           <HeaderPlayLink />
-          <Link href="/gear">gear</Link>
           <Link href="/faq">faq</Link>
         </nav>
         <AccountMenu />

@@ -42,9 +42,6 @@ export default function PrivacyPage() {
       <h2>what we do with it</h2>
       <p>only what the product needs: count interest near you, measure your distance to games, help the group form one, and notify you about it. nothing else. we don&apos;t sell or rent your data, and we don&apos;t share it except where it&apos;s part of the game forming (above).</p>
 
-      <h2>gear links</h2>
-      <p>the gear page links to amazon and are affiliate links. if you click one, amazon&apos;s own privacy policy covers what happens on their site. the affiliate cut helps cover server costs.</p>
-
       <h2>email</h2>
       <p>we only email you about games and interest in your areas. you can opt out anytime.</p>
 

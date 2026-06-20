@@ -51,17 +51,6 @@ export const SkinSchema = z.object({
       })
     ),
   }),
-  gear: z.object({
-    seoTitle: z.string(),
-    seoDescription: z.string(),
-    heading: z.string(),
-    blurb: z.string(),
-    // Amazon Associates tag, applied to every gear link. Until it's a real tag
-    // (not the REPLACE_ME placeholder) the links are plain product searches that
-    // earn nothing; set it once here to turn them all into affiliate links.
-    affiliateTag: z.string(),
-    items: z.array(z.object({ name: z.string(), desc: z.string(), url: z.string() })),
-  }),
   faqPage: z.object({
     seoTitle: z.string(),
     seoDescription: z.string(),

@@ -34,7 +34,7 @@
     { "q": "why a weekly standing game instead of one-off events?", "a": "a standing slot lasts. once it's 'sundays at noon,' nobody renegotiates every week - people just show up. one-offs make you start from zero every time." },
     { "q": "why flag football?", "a": "it's underserved - plenty of software for youth leagues, almost nothing for adults who just want a regular pickup game. and it's easy to start: small-sided, light on gear, no pads." },
     { "q": "what do you do with my info?", "aHtml": "as little as possible. email so we can tell you a game's forming, a display name (a username is fine - no real name needed) so others know who's coming, and your zip to group you with people nearby. never your street address. full details on the <a href=\"privacy.html\">privacy page</a>." },
-    { "q": "how much does this cost?", "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we ask for a $5/month <a href=\"{donate}\">subscription</a> to keep the servers on, but it's an ask, not a gate. one-time tips and <a href=\"gear.html\">affiliate gear</a> help too." }
+    { "q": "how much does this cost?", "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we ask for a $5/month <a href=\"{donate}\">subscription</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too." }
   ],
   "register": {
     "seoTitle": "show interest · MIME-FF",
@@ -57,18 +57,6 @@
       { "name": "just show up", "desc": "money's tight? no problem. the best support is being there - bring a friend, fill a roster, keep your local game alive.", "cta": "find your game →", "url": "/show-interest" }
     ]
   },
-  "gear": {
-    "seoTitle": "gear · MIME-FF",
-    "seoDescription": "footballs, cones, and flag belts to get a game going - affiliate links.",
-    "heading": "gear",
-    "blurb": "what you need to get a game going. these are affiliate links - they help cover server costs.",
-    "affiliateTag": "REPLACE_ME-20",
-    "items": [
-      { "name": "footballs", "desc": "game-ready, all sizes.", "url": "https://www.amazon.com/s?k=flag+football" },
-      { "name": "cones", "desc": "mark your field in seconds.", "url": "https://www.amazon.com/s?k=field+marker+cones" },
-      { "name": "flag belts", "desc": "sets for a full game.", "url": "https://www.amazon.com/s?k=flag+football+belts" }
-    ]
-  },
   "faqPage": {
     "seoTitle": "faq · MIME-FF",
     "seoDescription": "how MIME-FF works, what it costs, and who picks the field.",
@@ -77,7 +65,7 @@
   "footer": {
     "tagline": "free, open source pickup flag football. no organizer, no fees.",
     "githubUrl": "https://github.com/ScienceIsNeato/pickupFlagFootball",
-    "note": "open source · gear links are affiliate and help cover server costs · not affiliated with the nfl or nfl flag"
+    "note": "open source · not affiliated with the nfl or nfl flag"
   },
   "privacy": {
     "seoTitle": "privacy · MIME-FF",
