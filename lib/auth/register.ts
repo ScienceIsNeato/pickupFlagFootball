@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { sendBrevoEmail } from "@/lib/email/brevo";
+import { buildWelcomeEmail } from "@/lib/email/templates";
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
 
@@ -34,5 +36,14 @@ export async function registerWithPassword(input: {
     // concurrent insert lost the race on the unique email index
     return { ok: false, error: exists };
   }
+
+  // Welcome email — best-effort: a Brevo hiccup must not fail the signup.
+  try {
+    const mail = buildWelcomeEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com");
+    await sendBrevoEmail({ to: email, toName: name, ...mail });
+  } catch (e) {
+    console.error("[email] welcome send failed for", email, e);
+  }
+
   return { ok: true };
 }

@@ -10,8 +10,9 @@ export type BrevoEmail = {
 };
 
 const sender = () => ({
-  name: process.env.BREVO_SENDER_NAME ?? "pickup flag football",
-  email: process.env.BREVO_SENDER_EMAIL ?? "noreply@pickupflagfootball.com",
+  // Defaults match the Brevo-verified sender for pickupflagfootball.com.
+  name: process.env.BREVO_SENDER_NAME ?? "Pickup Flag Football",
+  email: process.env.BREVO_SENDER_EMAIL ?? "support@pickupflagfootball.com",
 });
 
 /** Best-effort local outbox so you can eyeball outgoing mail in dev without a
