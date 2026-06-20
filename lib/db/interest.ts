@@ -1,5 +1,16 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./index";
+import { interestSignals } from "./schema";
+
+/** True if the user has any active interest signal — i.e. they've been through
+ *  the location/interest step. Gates the "my games" nav link: it stays hidden
+ *  until a user has registered AND shown interest in an area. */
+export async function hasActiveInterest(userId: string): Promise<boolean> {
+  const [row] = await db.select({ id: interestSignals.id }).from(interestSignals)
+    .where(and(eq(interestSignals.userId, userId), eq(interestSignals.active, true)))
+    .limit(1);
+  return !!row;
+}
 
 /**
  * Point a user's active interest for an activity at exactly one area, atomically.
