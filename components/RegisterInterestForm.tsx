@@ -58,16 +58,16 @@ export function RegisterInterestForm() {
 
       <label>
         email
-        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" required />
+        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" required={!accountReady} />
       </label>
       <label>
         username
-        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" required />
+        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" required={!accountReady} />
       </label>
       <label>
         password
         <input type="password" name="password" placeholder="at least 8 characters"
-          autoComplete="new-password" minLength={8} required />
+          autoComplete="new-password" minLength={8} required={!accountReady} />
       </label>
 
       <p className="reg-section">where you play</p>
