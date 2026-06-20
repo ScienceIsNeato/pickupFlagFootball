@@ -101,31 +101,6 @@ export async function evaluate(
   return decision;
 }
 
-/** Radius model: a user's interest reaches every area within their travel
- *  radius, not just their home cell. After a registration / location / radius /
- *  interest change, re-evaluate every EXISTING area the user can now reach, so a
- *  newly-covered area can cross n_spark. Replaces the old single-home-area
- *  evaluate() call at the write sites. Each evaluate() sparks in its own
- *  transaction; a lost one-live-attempt race is a NOOP. */
-export async function evaluateForUser(
-  db: EngineDb, activityTypeId: string, userId: string, now: Date
-): Promise<void> {
-  const [u] = await db.select({
-    lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm,
-  }).from(users).where(eq(users.id, userId)).limit(1);
-  if (!u || u.lat == null || u.lng == null) return;
-  const km = u.km ?? 24.14;
-  const near = await db.select({ id: areas.id }).from(areas).where(and(
-    eq(areas.activityTypeId, activityTypeId),
-    sql`6371 * 2 * asin(least(1, sqrt(
-      power(sin(radians(${areas.centerLat} - ${u.lat}) / 2), 2)
-      + cos(radians(${u.lat})) * cos(radians(${areas.centerLat}))
-      * power(sin(radians(${areas.centerLng} - ${u.lng}) / 2), 2)
-    ))) <= ${km}`,
-  ));
-  for (const a of near) await evaluate(db, activityTypeId, a.id, now);
-}
-
 // ── tick: time-based entry point (Vercel Cron) ───────────────────────────────
 /** Closes due windows: suggestion → compile/stall, availability → schedule/stall.
  *  Idempotent — only acts on rows whose close time has passed. */

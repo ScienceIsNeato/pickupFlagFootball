@@ -7,9 +7,6 @@ import { users, activityTypes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureArea, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
-import { txnDb } from "@/lib/db/pool";
-import { evaluateForUser } from "@/lib/mime/engine";
-import type { EngineDb } from "@/lib/mime/engine";
 import { str } from "@/lib/forms";
 
 export async function setLocationAndInterest(formData: FormData) {
@@ -69,10 +66,8 @@ export async function setLocationAndInterest(formData: FormData) {
   // strand the user with zero active interest on neon-http (no transactions).
   await setActiveInterest(activityTypeId, session.user.id, areaId, r7);
 
-  // run the engine: this new interest reaches every area within the user's
-  // travel radius, any of which may now cross n_spark and open a window
-  // (transactional spark — needs the pooled client)
-  await evaluateForUser(txnDb as unknown as EngineDb, activityTypeId, session.user.id, new Date());
-
+  // No auto-spark on interest: under the radius model every metro cell would
+  // cross n_spark at once and flood the map with proposed sites. Interest just
+  // feeds the counts/cohort; a formation starts when a human proposes a place.
   redirect("/play");
 }
