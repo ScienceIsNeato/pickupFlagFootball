@@ -90,6 +90,8 @@ export async function GET(req: Request) {
         byName: users.displayName,
         placeText: suggestions.placeText,
         proposedStart: suggestions.proposedStart,
+        recurDow: suggestions.recurDow,
+        recurTime: suggestions.recurTime,
         at: suggestions.createdAt,
       }).from(suggestions)
         .innerJoin(users, eq(users.id, suggestions.userId))
@@ -132,6 +134,16 @@ export async function GET(req: Request) {
   ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
   const firstPlaceText = sRows[0]?.placeText ?? null;
+  // Proposer's when — the recurring weekly slot if they specified one, plus the
+  // first-game datetime. Rendered prominently in the popup so the day/time is
+  // visible without scanning the activity log.
+  const firstWhen = sRows[0]
+    ? {
+        firstGameAt: new Date(sRows[0].proposedStart).toISOString(),
+        recurDow: sRows[0].recurDow,
+        recurTime: sRows[0].recurTime,
+      }
+    : null;
 
   const captainRows = await db.select({ name: users.displayName })
     .from(areaCaptains).innerJoin(users, eq(users.id, areaCaptains.userId))
@@ -143,6 +155,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     site: { city: best.city, zip: best.zip, status: attempt?.status ?? null, captains },
     firstPlaceText,
+    firstWhen,
     activity,
   });
 }

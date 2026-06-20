@@ -5,7 +5,10 @@ import { useEscape } from "@/lib/useEscape";
 
 type Site = { city: string | null; zip: string | null; status: string | null; captains: string[] };
 type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
-type Data = { site: Site | null; firstPlaceText: string | null; activity: Activity[] };
+type FirstWhen = { firstGameAt: string; recurDow: number | null; recurTime: string | null };
+type Data = { site: Site | null; firstPlaceText: string | null; firstWhen: FirstWhen | null; activity: Activity[] };
+
+const DOW_PLURAL = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 const STATUS_LABEL: Record<string, string> = {
   SUGGESTING: "collecting suggestions",
@@ -23,6 +26,27 @@ function whenAbsolute(iso: string): string {
 function firstLine(placeText: string): string {
   // Suggestions are stored as "street, city zip — notes". Show the street line.
   return placeText.split(" — ")[0];
+}
+/** "Mondays at 6:30 pm" for a recurring slot, or "Mon Jun 23 at 6:30 pm" for a
+ *  one-off. The first-game date is returned separately so the renderer can show
+ *  it under the recurring label. */
+function fmtWhen(w: FirstWhen): { primary: string; firstDate: string | null } {
+  const start = new Date(w.firstGameAt);
+  const timeStr = (raw: string | null, fallback: Date): string => {
+    const [h, m] = raw ? raw.split(":").map(Number) : [fallback.getHours(), fallback.getMinutes()];
+    return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  };
+  const recurring = w.recurDow != null && w.recurDow >= 0 && w.recurDow < 7;
+  if (recurring) {
+    return {
+      primary: `${DOW_PLURAL[w.recurDow!]} at ${timeStr(w.recurTime, start)}`,
+      firstDate: `first game ${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`,
+    };
+  }
+  return {
+    primary: `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at ${timeStr(null, start)}`,
+    firstDate: null,
+  };
 }
 
 /** Details for a proposed (forming) game site, opened by clicking its badge.
@@ -81,6 +105,8 @@ export function ProposedDetailsModal({
   const site = data?.site ?? null;
   const activity = data?.activity ?? [];
   const firstPlaceText = data?.firstPlaceText ?? null;
+  const firstWhen = data?.firstWhen ?? null;
+  const when = firstWhen ? fmtWhen(firstWhen) : null;
 
   return (
     <div
@@ -110,6 +136,15 @@ export function ProposedDetailsModal({
                   : (site.city ?? "this area")}
                 {site.zip ? <span className="game-muted"> · {site.zip}</span> : null}
               </dd>
+              {when && (
+                <>
+                  <dt>when</dt>
+                  <dd>
+                    <strong>{when.primary}</strong>
+                    {when.firstDate && <div className="game-muted">{when.firstDate}</div>}
+                  </dd>
+                </>
+              )}
               <dt>status</dt>
               <dd>{(site.status && STATUS_LABEL[site.status]) ?? "forming"}</dd>
               {site.captains.length > 0 && (
