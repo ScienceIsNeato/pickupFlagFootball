@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 
 type Site = { city: string | null; zip: string | null; status: string | null; captains: string[] };
@@ -64,6 +65,9 @@ export function ProposedDetailsModal({
   const [state, setState] = useState<Data | "loading" | "error">("loading");
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // Portal to document.body to escape .dash-map's stacking context.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEscape(onClose);
 
   useEffect(() => {
@@ -108,7 +112,8 @@ export function ProposedDetailsModal({
   const firstWhen = data?.firstWhen ?? null;
   const when = firstWhen ? fmtWhen(firstWhen) : null;
 
-  return (
+  if (!mounted) return null;
+  return createPortal((
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="proposed-details-title"
@@ -176,5 +181,5 @@ export function ProposedDetailsModal({
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

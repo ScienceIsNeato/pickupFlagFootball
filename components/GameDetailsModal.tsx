@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 
 type GameInfo = {
@@ -35,6 +36,10 @@ function weeklyTime(g: GameInfo): string {
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
+  // Portal the modal to document.body so it escapes .dash-map's stacking
+  // context (z:0) and renders above the floating site header (z:30).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEscape(onClose);
 
   useEffect(() => {
@@ -59,7 +64,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
 
-  return (
+  if (!mounted) return null;
+  return createPortal((
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="game-details-title"
@@ -113,5 +119,5 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

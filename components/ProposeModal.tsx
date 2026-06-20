@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useEscape } from "@/lib/useEscape";
 import { proposeGame } from "@/app/(app)/play/propose-actions";
@@ -53,6 +54,9 @@ export function ProposeModal({
   onClose: () => void; onProposed: (p: { lat: number; lng: number }) => void;
 }) {
   const [state, formAction, pending] = useActionState(proposeGame, null);
+  // Portal to document.body to escape .dash-map's stacking context.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEscape(onClose);
 
   // Is the right-clicked spot inside the user's travel radius? If not, the
@@ -110,7 +114,8 @@ export function ProposeModal({
     if (!ready) { e.preventDefault(); setShowInvalid(true); }
   };
 
-  return (
+  if (!mounted) return null;
+  return createPortal((
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="propose-title"
@@ -222,5 +227,5 @@ export function ProposeModal({
       </form>
       )}
     </div>
-  );
+  ), document.body);
 }

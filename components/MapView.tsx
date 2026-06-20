@@ -450,7 +450,11 @@ export function MapView({
             f.rot = easeAngle(f.rot, targetRot, f.gameLl || waving ? 0.2 : 0.08);
             f.energy += (targetE - f.energy) * 0.12;
           }
-          f.phase += 0.16 + 0.18 * f.energy;
+          // Wiggle rate — calmed down from the original 0.16 + 0.18*e formula.
+          // With more claimed flags onscreen (multi-game rosters + my-games view)
+          // the original base read as frantic in aggregate; halving keeps the
+          // individual-flag character without the swarm flicker.
+          f.phase += 0.09 + 0.10 * f.energy;
           drawFlag(f);
         }
       }
