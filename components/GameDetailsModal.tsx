@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
-import { joinGame, leaveGame, setWeeklyAttendance } from "@/app/(app)/play/game-actions";
+import { setRosterMembership, setNextGameRsvp } from "@/app/(app)/play/game-actions";
 
 type GameInfo = {
   gameId: string;
@@ -125,30 +125,20 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
             </dl>
 
             <div className="game-join-box">
-              {game.onRoster ? (
+              {game.eligible || game.onRoster ? (
                 <>
-                  <p className="game-rsvp-q">
-                    coming {fmtDate(game.nextOccurrence)}?
-                    <span className="game-muted"> · {game.inCount} in so far</span>
-                  </p>
-                  <div className="game-rsvp-row">
-                    <button type="button" disabled={busy}
-                      className={`game-rsvp-btn${game.myRsvp === "in" ? " is-in" : ""}`}
-                      onClick={() => run(() => setWeeklyAttendance(game.gameId, "in"))}>i&apos;m in</button>
-                    <button type="button" disabled={busy}
-                      className={`game-rsvp-btn${game.myRsvp === "out" ? " is-out" : ""}`}
-                      onClick={() => run(() => setWeeklyAttendance(game.gameId, "out"))}>can&apos;t make it</button>
-                  </div>
-                  <button type="button" className="game-leave" disabled={busy}
-                    onClick={() => run(() => leaveGame(game.gameId))}>leave this game</button>
-                </>
-              ) : game.eligible ? (
-                <>
-                  <p className="game-rsvp-q">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
-                  <button type="button" className="btn-green game-join" disabled={busy}
-                    onClick={() => run(() => joinGame(game.gameId))}>
-                    {busy ? "…" : "join this game"}
-                  </button>
+                  <p className="game-join-h">join weekly game</p>
+                  <label className="game-toggle">
+                    <input type="checkbox" checked={game.onRoster} disabled={busy}
+                      onChange={(e) => run(() => setRosterMembership(game.gameId, e.target.checked))} />
+                    <span>I&apos;ll probably be there every week</span>
+                  </label>
+                  <label className="game-toggle">
+                    <input type="checkbox" checked={game.myRsvp === "in"} disabled={busy}
+                      onChange={(e) => run(() => setNextGameRsvp(game.gameId, e.target.checked))} />
+                    <span>I&apos;ll be there for the next game on {fmtDate(game.nextOccurrence)}</span>
+                  </label>
+                  <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
                 </>
               ) : (
                 <p className="game-muted">this game is outside your travel radius — widen it in your <a href="/account">account</a> to join.</p>

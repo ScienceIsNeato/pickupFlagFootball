@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
@@ -16,64 +17,51 @@ async function syncRosterCount(gameId: string) {
     .where(eq(games.id, gameId));
 }
 
-/** Join a game's standing roster. Gated on the radius rule (your travel radius
- *  must reach the game's area) — the same rule the engine uses for catchment.
- *  Defaults you "in" for the next occurrence, since you joined to play. */
-export async function joinGame(gameId: string): Promise<JoinResult> {
+/** "I'll probably be there every week" — standing roster membership. Independent
+ *  of the per-game RSVP below. Joining is gated on the radius rule (your travel
+ *  radius must reach the game's area); leaving is a self-edit. */
+export async function setRosterMembership(gameId: string, on: boolean): Promise<JoinResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const me = session.user.id;
 
-  const g = await reachableActiveGame(me, gameId);
-  if (!g) return { ok: false, error: "this game is outside your travel area" };
-
-  await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
-  const occ = nextOccurrenceYMD(g, new Date());
-  await db.insert(gameAttendance)
-    .values({ gameId, userId: me, occurrenceDate: occ, status: "in" })
-    .onConflictDoUpdate({
-      target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
-      set: { status: "in" },
-    });
+  if (on) {
+    if (!(await reachableActiveGame(me, gameId))) return { ok: false, error: "this game is outside your travel area" };
+    await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
+  } else {
+    await db.delete(gameRoster).where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
+  }
   await syncRosterCount(gameId);
   revalidatePath("/my-games");
   return { ok: true };
 }
 
-/** Leave a game entirely: off the roster and clear your RSVPs for it. */
-export async function leaveGame(gameId: string): Promise<JoinResult> {
+/** "I'll be there for the next game on <date>" — a one-off RSVP for the next
+ *  occurrence, independent of weekly membership (so a drop-in can commit to just
+ *  one game). On = an "in" row for that date; off = remove it. */
+export async function setNextGameRsvp(gameId: string, on: boolean): Promise<JoinResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const me = session.user.id;
 
-  await db.delete(gameAttendance).where(and(eq(gameAttendance.gameId, gameId), eq(gameAttendance.userId, me)));
-  await db.delete(gameRoster).where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
-  await syncRosterCount(gameId);
-  revalidatePath("/my-games");
-  return { ok: true };
-}
-
-/** RSVP in/out for the next occurrence. Requires roster membership (you join
- *  first, then choose week to week); does not re-check radius. */
-export async function setWeeklyAttendance(gameId: string, status: "in" | "out"): Promise<JoinResult> {
-  const session = await auth();
-  if (!session?.user?.id) return { ok: false, error: "sign in first" };
-  const me = session.user.id;
-  if (status !== "in" && status !== "out") return { ok: false, error: "bad status" };
-
-  const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
-    .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
-  if (!member) return { ok: false, error: "join the game first" };
-
-  const g = await activeGame(gameId);
-  if (!g) return { ok: false, error: "game unavailable" };
+  const g = on ? await reachableActiveGame(me, gameId) : await activeGame(gameId);
+  if (!g) return { ok: false, error: on ? "this game is outside your travel area" : "game unavailable" };
   const occ = nextOccurrenceYMD(g, new Date());
-  await db.insert(gameAttendance)
-    .values({ gameId, userId: me, occurrenceDate: occ, status })
-    .onConflictDoUpdate({
-      target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
-      set: { status },
-    });
+
+  if (on) {
+    await db.insert(gameAttendance)
+      .values({ gameId, userId: me, occurrenceDate: occ, status: "in" })
+      .onConflictDoUpdate({
+        target: [gameAttendance.gameId, gameAttendance.userId, gameAttendance.occurrenceDate],
+        set: { status: "in" },
+      });
+  } else {
+    await db.delete(gameAttendance).where(and(
+      eq(gameAttendance.gameId, gameId),
+      eq(gameAttendance.userId, me),
+      eq(gameAttendance.occurrenceDate, occ),
+    ));
+  }
   revalidatePath("/my-games");
   return { ok: true };
 }
