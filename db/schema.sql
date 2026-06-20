@@ -330,9 +330,12 @@ CREATE TABLE notifications_sent (
   kind        notification_kind NOT NULL,
   channel     notification_channel NOT NULL,
   sent_at     timestamptz NOT NULL DEFAULT now(),
+  emailed_at  timestamptz,                            -- NULL = claimed but not yet sent (cron flush)
   UNIQUE (user_id, attempt_id, kind, channel)        -- exactly-once per round message
 );
 CREATE INDEX idx_notif_user_week ON notifications_sent(user_id, sent_at);  -- per-user cap
+CREATE INDEX idx_notif_unsent ON notifications_sent(sent_at)
+  WHERE emailed_at IS NULL AND channel = 'email';     -- unsent email backlog
 
 -- ============================================================ map_aggregates
 -- Materialized interest counts per (activity, resolution, cell) for the zoom map.
