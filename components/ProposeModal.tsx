@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useEscape } from "@/lib/useEscape";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { proposeGame } from "@/app/(app)/play/propose-actions";
 import { reverseGeocode } from "@/lib/geo/reverseGeocode";
 import { haversineKm } from "@/lib/geo/distance";
@@ -58,6 +59,8 @@ export function ProposeModal({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEscape(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, mounted);
 
   // Is the right-clicked spot inside the user's travel radius? If not, the
   // dialog leads with an "increase your radius" message and disables submit.
@@ -117,6 +120,7 @@ export function ProposeModal({
   if (!mounted) return null;
   return createPortal((
     <div
+      ref={dialogRef} tabIndex={-1}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="propose-title"
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",

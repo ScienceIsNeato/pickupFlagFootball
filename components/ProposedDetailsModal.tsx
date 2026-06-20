@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 type Site = { city: string | null; zip: string | null; status: string | null; captains: string[] };
 type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
@@ -69,6 +70,8 @@ export function ProposedDetailsModal({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEscape(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, mounted);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +118,7 @@ export function ProposedDetailsModal({
   if (!mounted) return null;
   return createPortal((
     <div
+      ref={dialogRef} tabIndex={-1}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="proposed-details-title"
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.42)" }}

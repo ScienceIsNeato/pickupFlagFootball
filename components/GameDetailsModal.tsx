@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
 
 type GameInfo = {
@@ -58,6 +59,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEscape(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, mounted);
 
   const load = useCallback(async () => {
     try {
@@ -105,6 +108,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   if (!mounted) return null;
   return createPortal((
     <div
+      ref={dialogRef} tabIndex={-1}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog" aria-modal="true" aria-labelledby="game-details-title"
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
