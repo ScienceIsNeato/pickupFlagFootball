@@ -184,8 +184,10 @@ export default async function UpcomingGamesPage() {
               const key = `${g.id}|${date}`;
               const head = headByKey.get(key) ?? 0;
               const played = head >= PLAYED_MIN;
-              // "were you in" is effective: explicit row wins, else the site default.
-              const youIn = (myByKey.get(key) ?? defaultByGame.get(g.id) ?? "out") === "in";
+              // Past attendance is read from frozen rows only — never today's
+              // default, which would rewrite history when a member changes their
+              // pref. The tick freeze materializes a row for everyone who was in.
+              const youIn = myByKey.get(key) === "in";
               return (
                 <li key={key} className="mine-occ">
                   <div className="mine-occ-when">

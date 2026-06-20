@@ -44,6 +44,8 @@ export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> 
         select r.game_id, r.user_id, ${date}::date, 'in'
         from game_roster r
         where r.game_id = ${g.id} and r.default_status = 'in'
+          -- only weeks on/after the member joined — never backfill pre-join weeks
+          and ${date}::date >= r.created_at::date
           and not exists (
             select 1 from game_attendance a
             where a.game_id = r.game_id and a.user_id = r.user_id and a.occurrence_date = ${date}::date

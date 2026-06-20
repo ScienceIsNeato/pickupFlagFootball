@@ -427,7 +427,11 @@ async function seedRosters(activityId: string) {
     for (const date of dates) {
       const noGame = Math.random() < 0.15; // some weeks just didn't draw a crowd
       const frac = noGame ? Math.random() * 0.08 : 0.5 + Math.random() * 0.45;
-      const who = [...roster].sort(() => Math.random() - 0.5).slice(0, Math.round(roster.length * frac));
+      const shuffled = [...roster];
+      for (let k = shuffled.length - 1; k > 0; k--) {
+        const j = (Math.random() * (k + 1)) | 0; [shuffled[k], shuffled[j]] = [shuffled[j], shuffled[k]];
+      }
+      const who = shuffled.slice(0, Math.round(roster.length * frac));
       if (!who.length) continue;
       await db.insert(gameAttendance)
         .values(who.map((uid) => ({ gameId: g.id, userId: uid, occurrenceDate: date, status: "in" as const })))

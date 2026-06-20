@@ -52,7 +52,7 @@ export function LocationForm({ initial, cta, note }: { initial: Initial; cta: st
         we only use your address to measure how far games are from you. we never
         show it to anyone or sell it — see our <Link href="/privacy">privacy page</Link>.
       </p>
-      {state && !state.ok && <p className="field-err">{state.error}</p>}
+      {state && !state.ok && <p className="field-err" role="alert" aria-live="assertive">{state.error}</p>}
       <button type="submit" className="btn-green" disabled={pending}>{pending ? "…" : cta}</button>
       <p className="reg-note">{note}</p>
     </form>
