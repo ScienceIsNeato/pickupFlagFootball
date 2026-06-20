@@ -6,6 +6,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { setLocationAndInterest } from "./actions";
 import { RegisterInterestForm } from "@/components/RegisterInterestForm";
+import { hasActiveInterest } from "@/lib/db/interest";
 
 export const metadata = {
   title: skin.register.seoTitle,
@@ -29,6 +30,24 @@ export default async function ShowInterestPage() {
     );
   }
 
+  // Already set up (registered AND shown interest): the form is redundant —
+  // location lives on the account page now. Point them at their games instead.
+  if (await hasActiveInterest(uid)) {
+    return (
+      <main className="reg">
+        <Link href="/play" className="back">&larr; back</Link>
+        <h1 className="reg-h">you&apos;re all set</h1>
+        <p className="reg-blurb">
+          you&apos;ve shown interest in your area. edit your location anytime from your{" "}
+          <Link href="/account">account</Link>.
+        </p>
+        <Link href="/my-games" className="btn-green-link">take me to my games</Link>
+      </main>
+    );
+  }
+
+  // Logged in but no interest yet (e.g. just signed in with Google): finish
+  // onboarding with the location form.
   const u = (await db
     .select({
       line1: users.addressLine1, line2: users.addressLine2,
