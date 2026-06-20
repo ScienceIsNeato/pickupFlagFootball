@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -26,24 +27,18 @@ export default async function VerifyEmailPage({
     ok = !!u;
   }
 
+  // Confirmed → straight to the map (find a game). If they're not signed in on
+  // this device, /play sends them through sign-in first.
+  if (ok) redirect("/play");
+
   return (
     <main className="prose">
-      {ok ? (
-        <>
-          <h1>email confirmed ✓</h1>
-          <p>you&apos;re all set — you can now join and propose games near you.</p>
-          <p><Link href="/play">find a game →</Link></p>
-        </>
-      ) : (
-        <>
-          <h1>this link didn&apos;t work</h1>
-          <p>
-            it may have already been used, or it&apos;s not valid. if your email is still
-            unconfirmed, open your <Link href="/account">account</Link> and resend the
-            confirmation.
-          </p>
-        </>
-      )}
+      <h1>this link didn&apos;t work</h1>
+      <p>
+        it may have already been used, or it&apos;s not valid. if your email is still
+        unconfirmed, open your <Link href="/account">account</Link> and resend the
+        confirmation.
+      </p>
     </main>
   );
 }

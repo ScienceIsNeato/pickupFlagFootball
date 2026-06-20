@@ -54,10 +54,10 @@ export function buildVerificationEmail(
   const base = appBaseUrl.replace(/\/+$/, "");
   const ctaUrl = `${base}/verify-email?token=${encodeURIComponent(token)}`;
   const greeting = `hey ${displayName ?? "there"},`;
-  const intro = `welcome to ${skin.brandName} — pickup games that organize themselves. confirm your email to start joining and proposing games near you.`;
+  const intro = `you're on the map — nice. one last step: click below to confirm your email. you won't be able to join or propose local games until you do.`;
   return {
-    subject: `confirm your email · ${skin.brandName}`,
-    htmlContent: layout({ title: "confirm your email", intro, cta: "confirm email", ctaUrl, greeting, footer: null, base }),
+    subject: `confirm your email to play · ${skin.brandName}`,
+    htmlContent: layout({ title: "confirm your email", intro, cta: "confirm my email", ctaUrl, greeting, footer: null, base }),
     textContent: `${greeting}\n\n${intro}\n\nconfirm your email: ${ctaUrl}\n\nif you didn't sign up, you can ignore this.\n\n${skin.brandName}`,
   };
 }
