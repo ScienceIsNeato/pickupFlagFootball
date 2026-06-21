@@ -67,4 +67,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    // A signed JWT can outlive its user — the account is deleted or the dev DB is
+    // wiped while a browser still holds the cookie. Without this, the app reports
+    // a phantom "logged-in" user (no row, no interest) and strands them on
+    // show-interest forever (the "ghost"). Verify the user still exists on the
+    // Node side; if not, return a session with no user so the app reads them as
+    // logged out and routes them to register / sign-in. (Edge middleware can't
+    // hit the DB, so it still lets them through — the page-level auth() bounces.)
+    async session({ session, token }) {
+      if (token.uid && session.user) session.user.id = token.uid as string;
+      const uid = session.user?.id;
+      if (uid) {
+        const [u] = await db.select({ id: users.id }).from(users).where(eq(users.id, uid)).limit(1);
+        if (!u) return { ...session, user: undefined } as unknown as typeof session;
+      }
+      return session;
+    },
+  },
 });
