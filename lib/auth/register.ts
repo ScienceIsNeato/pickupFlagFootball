@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { sendBrevoEmail } from "@/lib/email/brevo";
+import { sendEmail } from "@/lib/email/send";
 import { buildVerificationEmail } from "@/lib/email/templates";
 import { newToken, hashToken } from "./tokens";
 
@@ -47,7 +47,7 @@ export async function registerWithPassword(input: {
   // The raw token is emailed; only its hash is stored.
   try {
     const mail = buildVerificationEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", rawToken);
-    await sendBrevoEmail({ to: email, toName: name, ...mail });
+    await sendEmail({ to: email, toName: name, ...mail });
   } catch (e) {
     console.error("[email] verification send failed", e); // no recipient in logs
   }

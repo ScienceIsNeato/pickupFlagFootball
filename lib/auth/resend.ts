@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { sendBrevoEmail } from "@/lib/email/brevo";
+import { sendEmail, isEmailConfigured } from "@/lib/email/send";
 import { buildVerificationEmail } from "@/lib/email/templates";
 import { newToken, hashToken } from "./tokens";
 
@@ -15,8 +15,8 @@ export async function resendVerification(): Promise<ResendResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
 
-  // Don't claim success when email isn't wired up (no key = no-op send).
-  if (!process.env.BREVO_API_KEY) return { ok: false, error: "email isn't set up yet" };
+  // Don't claim success when email isn't wired up (no transport configured).
+  if (!isEmailConfigured()) return { ok: false, error: "email isn't set up yet" };
 
   const [u] = await db.select({ email: users.email, name: users.displayName, verified: users.emailVerified })
     .from(users).where(eq(users.id, session.user.id)).limit(1);
@@ -36,7 +36,7 @@ export async function resendVerification(): Promise<ResendResult> {
   }
   try {
     const mail = buildVerificationEmail(u.name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", rawToken);
-    await sendBrevoEmail({ to: u.email, toName: u.name, ...mail });
+    await sendEmail({ to: u.email, toName: u.name, ...mail });
   } catch (e) {
     console.error("[email] resend verification failed", e);
     return { ok: false, error: "couldn't send — try again in a moment" };

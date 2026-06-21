@@ -1,5 +1,7 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
+import { drizzle as drizzleNeon, type NeonDatabase } from "drizzle-orm/neon-serverless";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
+import { Pool as PgPool } from "pg";
 import * as schema from "./schema";
 
 /**
@@ -9,17 +11,24 @@ import * as schema from "./schema";
  * its own HTTP request, so it can't hold an interactive (read → compute → write)
  * transaction open. The MIME engine needs exactly that — closing a window or
  * sparking a formation is several dependent writes that must commit all-or-
- * nothing — so it runs on this pooled WebSocket connection instead, where
+ * nothing — so it runs on this pooled connection instead, where
  * `txnDb.transaction(...)` is a real Postgres transaction with rollback.
+ *
+ * Prod uses Neon's WebSocket pool; the e2e tests (DATABASE_DRIVER=node-postgres)
+ * use a plain `pg` pool against local Docker Postgres, which gives the same real
+ * transactions.
  */
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is not set");
 
 // Node 21+ ships a global WHATWG WebSocket; the neon serverless driver can use
-// it directly, so we avoid pulling in the `ws` package. Only set it once.
+// it directly, so we avoid pulling in the `ws` package. (No effect in pg mode.)
 if (!neonConfig.webSocketConstructor && typeof WebSocket !== "undefined") {
   neonConfig.webSocketConstructor = WebSocket as unknown as typeof neonConfig.webSocketConstructor;
 }
 
-const pool = new Pool({ connectionString });
-export const txnDb = drizzle({ client: pool, schema });
+export const txnDb: NeonDatabase<typeof schema> = (
+  process.env.DATABASE_DRIVER === "node-postgres"
+    ? drizzlePg(new PgPool({ connectionString }), { schema })
+    : drizzleNeon({ client: new NeonPool({ connectionString }), schema })
+) as unknown as NeonDatabase<typeof schema>;

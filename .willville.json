@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Putting up a PR for this round — email (real sends now), email confirmation, and a pile of map/games flow fixes. Buffing it before the next push.",
-    "direction": "Get this merged to a clean main, then design the testing setup.",
-    "last_update": "2026-06-21T00:00:00Z"
+    "status": "Building the heavy test setup — a real database and a real inbox running locally in Docker, with the app wired to both so nothing's faked.",
+    "direction": "Next: drive the actual user-story flows through a real browser and snap screenshots at each step.",
+    "last_update": "2026-06-21T08:00:00Z"
   }
 }
