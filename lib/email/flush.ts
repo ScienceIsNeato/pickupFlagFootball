@@ -49,8 +49,15 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     try {
       const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer });
-      await sendEmail({ to: r.email, toName: r.displayName, ...mail });
-      sent++;
+      const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
+      if (delivered) {
+        sent++;
+      } else {
+        // Transport declined without throwing (e.g. not actually configured) —
+        // nothing was sent, so release the claim rather than lose the row.
+        await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));
+        failed++;
+      }
     } catch (e) {
       // Release the claim so it retries next tick (no duplicate, no permanent loss).
       await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));

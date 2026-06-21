@@ -6,10 +6,11 @@ function transport(): "smtp" | "brevo" {
   return process.env.EMAIL_TRANSPORT === "smtp" ? "smtp" : "brevo";
 }
 
-/** Is a delivery transport actually configured? (brevo needs a key; smtp is
- *  assumed configured when selected). Callers use this to no-op gracefully. */
+/** Is a delivery transport actually configured? brevo needs a key; smtp needs a
+ *  URL to point at. Callers use this to no-op gracefully (leave the backlog
+ *  intact) rather than claim rows that can never be delivered. */
 export function isEmailConfigured(): boolean {
-  return transport() === "smtp" ? true : !!process.env.BREVO_API_KEY;
+  return transport() === "smtp" ? !!process.env.SMTP_URL : !!process.env.BREVO_API_KEY;
 }
 
 /**
