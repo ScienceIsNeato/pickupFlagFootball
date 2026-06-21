@@ -16,7 +16,11 @@ export default defineConfig({
   fullyParallel: false,
   // Paths below are resolved relative to this config's dir (tests/e2e).
   outputDir: "test-results",
-  reporter: [["list"], ["html", { outputFolder: ".playwright-report", open: "never" }]],
+  reporter: [
+    ["list"],
+    ["./report/reporter.ts"], // visual story report: beats → screenshots
+    ["html", { outputFolder: ".playwright-report", open: "never" }],
+  ],
   use: {
     baseURL: E2E.appBaseUrl,
     screenshot: "off", // we take per-beat screenshots ourselves

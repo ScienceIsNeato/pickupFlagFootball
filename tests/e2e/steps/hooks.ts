@@ -13,12 +13,13 @@ Before(async () => {
 AfterStep(async ({ page, $step, $testInfo }) => {
   try {
     if (!page || page.isClosed() || page.url() === "about:blank") return;
-    const png = await page.screenshot();
+    // JPEG keeps the self-contained (base64-inlined) report small as coverage grows.
+    const shot = await page.screenshot({ type: "jpeg", quality: 72 });
     const title =
       typeof $step === "string"
         ? $step
         : ((($step as unknown) as { title?: string })?.title ?? "step");
-    await $testInfo.attach(`beat:${title}`, { body: png, contentType: "image/png" });
+    await $testInfo.attach(`beat:${title}`, { body: shot, contentType: "image/jpeg" });
   } catch {
     // best-effort: never fail a scenario over a missed screenshot
   }
