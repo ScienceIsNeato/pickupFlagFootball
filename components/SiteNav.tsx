@@ -4,11 +4,10 @@ import { AccountMenu } from "./AccountMenu";
 import { HeaderPlayLink } from "./HeaderPlayLink";
 import { skin } from "@/lib/skin";
 import { auth } from "@/lib/auth";
-import { hasActiveInterest } from "@/lib/db/interest";
 
 export async function SiteNav() {
   const session = await auth();
-  const showMine = !!session?.user?.id && (await hasActiveInterest(session.user.id));
+  const loggedIn = !!session?.user?.id;
   return (
     <header className="nav">
       <Link href="/" className="brand">
@@ -17,7 +16,7 @@ export async function SiteNav() {
       </Link>
       <div className="nav-right">
         <nav>
-          <HeaderPlayLink showMine={showMine} />
+          <HeaderPlayLink loggedIn={loggedIn} />
           <Link href="/faq">faq</Link>
         </nav>
         <AccountMenu />

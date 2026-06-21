@@ -21,6 +21,7 @@ const ERRORS: Record<string, string> = {
   cooldown: "This area is cooling down after a recent attempt — try again later.",
   nolocation: "Set your home address on your account before proposing.",
   outofrange: "This spot is outside your travel radius — raise it from /account to propose here.",
+  unverified: "Confirm your email before proposing a game — check your inbox.",
   retry: "Something hiccuped — please try again.",
 };
 

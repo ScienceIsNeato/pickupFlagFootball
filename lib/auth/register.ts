@@ -4,6 +4,9 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { sendBrevoEmail } from "@/lib/email/brevo";
+import { buildVerificationEmail } from "@/lib/email/templates";
+import { newToken, hashToken } from "./tokens";
 
 export type RegisterResult = { ok: true } | { ok: false; error: string };
 
@@ -28,11 +31,26 @@ export async function registerWithPassword(input: {
   if (existing) return { ok: false, error: exists };
 
   const hash = await bcrypt.hash(password, 10);
+  const rawToken = newToken();
   try {
-    await db.insert(users).values({ email, displayName: name, passwordHash: hash });
-  } catch {
-    // concurrent insert lost the race on the unique email index
-    return { ok: false, error: exists };
+    await db.insert(users).values({ email, displayName: name, passwordHash: hash, verificationToken: hashToken(rawToken) });
+  } catch (e) {
+    // Only a unique-violation means the email is taken; anything else is a real
+    // (likely transient) DB error and must not masquerade as "already exists".
+    const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (code === "23505" || /unique|duplicate|23505/i.test(msg)) return { ok: false, error: exists };
+    throw e;
   }
+
+  // Confirm-your-email — best-effort: a Brevo hiccup must not fail the signup.
+  // The raw token is emailed; only its hash is stored.
+  try {
+    const mail = buildVerificationEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", rawToken);
+    await sendBrevoEmail({ to: email, toName: name, ...mail });
+  } catch (e) {
+    console.error("[email] verification send failed", e); // no recipient in logs
+  }
+
   return { ok: true };
 }

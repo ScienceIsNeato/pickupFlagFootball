@@ -46,9 +46,15 @@ preview); `--status` / `--logs` / `--stop` manage it.
 - `DATABASE_URL` — pooled Neon connection (app).
 - `DATABASE_URL_UNPOOLED` — direct connection (migrations / scripts).
 - `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` — NextAuth.
-- `CRON_SECRET` — bearer token guarding `/api/mime/tick`.
+- `CRON_SECRET` — bearer token guarding `/api/mime/tick` (which also flushes the
+  email backlog).
 - `GEOCODER_URL` — optional; self-hosted Nominatim base URL. Falls back to the
   public instance / ZIP centroids when unset.
+- `BREVO_API_KEY` — transactional email via Brevo. Unset = a logged no-op (dev/CI
+  don't send). `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` set the From identity.
+- `APP_BASE_URL` — optional; absolute base for links in emails (default the prod URL).
+- `EMAIL_OUTBOX_PATH` — optional; appends every outgoing email to this file for
+  local inspection without a real key.
 
 ## What's here
 

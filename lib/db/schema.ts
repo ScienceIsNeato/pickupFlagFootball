@@ -75,6 +75,7 @@ export const users = pgTable("users", {
   timezone:         text("timezone"),
   passwordHash:     text("password_hash"),
   emailVerified:    timestamp("email_verified", { withTimezone: true }),
+  verificationToken: text("verification_token"), // single-use confirm-email secret
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
   donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
@@ -240,6 +241,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   kind:      notificationKindEnum("kind").notNull(),
   channel:   notificationChannelEnum("channel").notNull(),
   sentAt:    timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  // When the email was actually delivered via Brevo. NULL = claimed (row exists,
+  // exactly-once) but not yet sent — the cron flush sends these and stamps it.
+  emailedAt: timestamp("emailed_at", { withTimezone: true }),
 }, (t) => [
   uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
 ]);

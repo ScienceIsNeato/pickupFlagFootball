@@ -7,7 +7,6 @@ import { users, areas, games, gameRoster, gameAttendance } from "@/lib/db/schema
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
 import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
-import { hasActiveInterest } from "@/lib/db/interest";
 import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
 export const metadata = { title: "Upcoming Games — MIME-FF" };
@@ -33,8 +32,7 @@ export default async function UpcomingGamesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/my-games");
   const me = session.user.id;
-  // Match the nav gate: this page is for registered + interested users.
-  if (!(await hasActiveInterest(me))) redirect("/show-interest");
+  // Open to any signed-in user — no roster yet just shows the empty state.
 
   const now = new Date();
   // Only load attendance within the displayed window (last 8 / next 6 weeks) so

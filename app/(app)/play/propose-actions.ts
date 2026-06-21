@@ -15,6 +15,7 @@ import { haversineKm } from "@/lib/geo/distance";
 import { shouldRetrigger } from "@/lib/mime";
 import { loadTunables, catchmentUsers } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
+import { isEmailVerified } from "@/lib/auth/verified";
 
 const edb = () => db as unknown as EngineDb;
 function coord(raw: string, lo: number, hi: number): number | null {
@@ -33,6 +34,7 @@ export type ProposeResult = { ok: true } | { ok: false; reason: string };
 export async function proposeGame(_prev: ProposeResult | null, formData: FormData): Promise<ProposeResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/play");
+  if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
 
   const h3 = String(formData.get("h3") ?? "").trim();
   const start = String(formData.get("start") ?? "").trim();

@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
 import { activeGame, reachableActiveGame } from "@/lib/db/gameMembership";
+import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 import { nextOccurrenceYMD } from "@/lib/datetime";
 
 export type JoinResult = { ok: true } | { ok: false; error: string };
@@ -41,6 +42,8 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   // their pref/RSVP or save even if they've since moved or narrowed their radius.
   const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
     .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
+  // New joins require a confirmed email; existing members can still tweak prefs.
+  if (!member && !(await isEmailVerified(me))) return { ok: false, error: UNVERIFIED_MSG };
   const g = member ? await activeGame(gameId) : await reachableActiveGame(me, gameId);
   if (!g) return { ok: false, error: member ? "game unavailable" : "this game is outside your travel area" };
   const def = regular ? "in" : "out";
@@ -64,6 +67,7 @@ export async function setRosterMembership(gameId: string, on: boolean): Promise<
   const me = session.user.id;
 
   if (on) {
+    if (!(await isEmailVerified(me))) return { ok: false, error: UNVERIFIED_MSG };
     if (!(await reachableActiveGame(me, gameId))) return { ok: false, error: "this game is outside your travel area" };
     await db.insert(gameRoster).values({ gameId, userId: me }).onConflictDoNothing();
   } else {
@@ -84,6 +88,7 @@ export async function setNextGameRsvp(gameId: string, on: boolean): Promise<Join
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const me = session.user.id;
+  if (on && !(await isEmailVerified(me))) return { ok: false, error: UNVERIFIED_MSG };
 
   const g = on ? await reachableActiveGame(me, gameId) : await activeGame(gameId);
   if (!g) return { ok: false, error: on ? "this game is outside your travel area" : "game unavailable" };

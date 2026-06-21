@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { txnDb } from "@/lib/db/pool";
 import { tick } from "@/lib/mime/engine";
 import { freezeOccurrences } from "@/lib/mime/freeze";
+import { flushNotificationEmails } from "@/lib/email/flush";
 import type { EngineDb } from "@/lib/mime/engine";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,17 @@ async function handle(req: Request) {
   // Snapshot recently-passed occurrences into the attendance record (regulars who
   // relied on their site default never wrote an RSVP row themselves).
   await freezeOccurrences(txnDb as unknown as EngineDb, now);
-  return NextResponse.json({ ok: true, ranAt: now.toISOString() });
+  // Send the backlog of claimed-but-unsent email notifications via Brevo. Isolated
+  // from the engine result: a Brevo hiccup must not 500 a successful tick (which
+  // would trigger noisy retries / duplicate engine work).
+  let email: unknown;
+  try {
+    email = await flushNotificationEmails(now);
+  } catch (e) {
+    console.error("[cron] email flush failed", e);
+    email = { error: true };
+  }
+  return NextResponse.json({ ok: true, ranAt: now.toISOString(), email });
 }
 
 export const GET = handle;

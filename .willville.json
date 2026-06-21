@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Big map + games update ready — propose/join games, weekly RSVP, upcoming & past panels, the registration flow, and a little 'you are here' player marker. PR going up.",
-    "direction": "Get the PR reviewed and merged, then circle back to the 'not interested' opt-out",
-    "last_update": "2026-06-20T00:00:00Z"
+    "status": "Putting up a PR for this round — email (real sends now), email confirmation, and a pile of map/games flow fixes. Buffing it before the next push.",
+    "direction": "Get this merged to a clean main, then design the testing setup.",
+    "last_update": "2026-06-21T00:00:00Z"
   }
 }
