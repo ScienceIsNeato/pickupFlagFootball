@@ -32,3 +32,10 @@ Feature: Registration & email confirmation
     Then the propose form opens
     When I fill in the proposal and submit it
     Then I am told to confirm my email before proposing
+
+  Scenario: an unconfirmed player cannot join a game
+    Given an established weekly game near me
+    And I register as "Joi Ner" with email "joingate@example.com" password "hunter2pass" in ZIP "78701"
+    When I open the game on the map
+    And I try to join the weekly game
+    Then I am told to confirm my email

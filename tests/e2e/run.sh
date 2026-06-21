@@ -17,8 +17,8 @@ DATABASE_URL="$DB_URL" npx drizzle-kit push --config tests/e2e/drizzle.config.ts
 echo "▸ seed reference data"
 PGPASSWORD=mimeff psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f tests/e2e/seed.sql
 
-echo "▸ build app"
-npm run build
+echo "▸ build app (with the e2e map seam)"
+NEXT_PUBLIC_E2E=1 npm run build
 
 echo "▸ generate BDD specs from features"
 npx bddgen --config tests/e2e/playwright.config.ts

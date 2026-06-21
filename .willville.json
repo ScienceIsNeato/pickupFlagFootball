@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Test harness is live — the real signup-and-confirm flow now runs through a real browser against the real app, real database, and a real inbox, snapping a screenshot at every step. Both flows pass green.",
-    "direction": "Next: build the visual report that pairs each screenshot with its story step, then expand coverage to the rest of the user stories.",
-    "last_update": "2026-06-21T08:30:00Z"
+    "status": "Full set of user-story flows now runs end to end through a real browser — signup, email confirm, resending, the can't-play-until-confirmed cases, joining a game on the map, out-of-range, and the deleted-account case. All nine pass, each with a screenshot-by-screenshot report.",
+    "direction": "Next: get this whole testing layer reviewed and merged to a clean main.",
+    "last_update": "2026-06-21T09:30:00Z"
   }
 }
