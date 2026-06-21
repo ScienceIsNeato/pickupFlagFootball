@@ -577,6 +577,10 @@ export function MapView({
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
       container.removeEventListener("contextmenu", onCtxMenu);
+      if (process.env.NEXT_PUBLIC_E2E === "1") {
+        const w = window as unknown as { __e2eMap?: maplibregl.Map };
+        if (w.__e2eMap === map) delete w.__e2eMap; // don't leave a destroyed handle behind
+      }
       map.remove();
       mapRef.current = null;
     };

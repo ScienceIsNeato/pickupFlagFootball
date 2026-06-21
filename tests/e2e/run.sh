@@ -8,6 +8,16 @@ cd "$(dirname "$0")/../.."
 
 DB_URL="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"
 
+# Fail closed: pin every seam to local e2e backends so an ambient DATABASE_URL /
+# BREVO_API_KEY in the shell can never route these tests at a real service.
+# (Playwright's webServer.env re-pins the app process too; this covers the
+# schema-push and any tooling run directly from this script.)
+export DATABASE_URL="$DB_URL"
+export DATABASE_DRIVER="node-postgres"
+export EMAIL_TRANSPORT="smtp"
+export SMTP_URL="smtp://127.0.0.1:11025"
+unset BREVO_API_KEY
+
 echo "▸ docker stack up (Postgres + Mailpit)"
 docker compose -f tests/e2e/docker-compose.yml up -d --wait
 

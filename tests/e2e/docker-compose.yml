@@ -21,7 +21,7 @@ services:
       - /var/lib/postgresql/data # in-memory: fast, and gone when the container stops
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.21 # pinned for reproducible inbox/API behavior
     ports:
       - "11025:1025" # SMTP — the app delivers here (SMTP_URL=smtp://127.0.0.1:11025)
       - "18025:8025" # HTTP API + web UI — tests read messages from here

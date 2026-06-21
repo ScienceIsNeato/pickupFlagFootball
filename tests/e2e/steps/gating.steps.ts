@@ -68,7 +68,8 @@ When("I reload the page", async ({ page }) => {
 });
 
 Then("I am sent to sign in", async ({ page }) => {
-  // Bounced off /play back to the public landing → no longer signed in.
-  await expect(page).not.toHaveURL(/\/play/);
+  // Bounced off /play back to the public landing (the ?signin=1 param is stripped
+  // once the sign-in modal opens) → no longer signed in.
+  await expect(page).toHaveURL(/\/($|\?)/);
   await expect(page.locator('a[href="/show-interest"]').first()).toBeVisible();
 });

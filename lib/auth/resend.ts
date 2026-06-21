@@ -36,7 +36,13 @@ export async function resendVerification(): Promise<ResendResult> {
   }
   try {
     const mail = buildVerificationEmail(u.name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", rawToken);
-    await sendEmail({ to: u.email, toName: u.name, ...mail });
+    const delivered = await sendEmail({ to: u.email, toName: u.name, ...mail });
+    // sendEmail can decline without throwing (transport returns false) — don't
+    // report success to the banner when nothing was actually accepted.
+    if (!delivered) {
+      console.error("[email] resend verification not accepted by transport");
+      return { ok: false, error: "couldn't send — try again in a moment" };
+    }
   } catch (e) {
     console.error("[email] resend verification failed", e);
     return { ok: false, error: "couldn't send — try again in a moment" };

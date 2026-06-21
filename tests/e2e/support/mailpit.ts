@@ -2,7 +2,8 @@ import { E2E } from "./env";
 
 /** Throw away every captured message (run before each scenario). */
 export async function clearMailpit(): Promise<void> {
-  await fetch(`${E2E.mailpitApi}/api/v1/messages`, { method: "DELETE" });
+  const res = await fetch(`${E2E.mailpitApi}/api/v1/messages`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`mailpit clear failed: ${res.status} ${res.statusText}`);
 }
 
 type MailpitListItem = { ID: string; To: { Address: string }[]; Subject: string };
@@ -17,14 +18,15 @@ export async function waitForEmailTo(email: string, timeoutMs = 15000): Promise<
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await fetch(`${E2E.mailpitApi}/api/v1/messages`);
+    if (!res.ok) throw new Error(`mailpit list failed: ${res.status} ${res.statusText}`);
     const data = (await res.json()) as { messages?: MailpitListItem[] };
     const hit = (data.messages ?? []).find((m) =>
       (m.To ?? []).some((t) => t.Address?.toLowerCase() === want),
     );
     if (hit) {
-      const full = (await (await fetch(`${E2E.mailpitApi}/api/v1/message/${hit.ID}`)).json()) as {
-        HTML?: string;
-      };
+      const detail = await fetch(`${E2E.mailpitApi}/api/v1/message/${hit.ID}`);
+      if (!detail.ok) throw new Error(`mailpit fetch ${hit.ID} failed: ${detail.status} ${detail.statusText}`);
+      const full = (await detail.json()) as { HTML?: string };
       return { id: hit.ID, subject: hit.Subject, html: full.HTML ?? "" };
     }
     await new Promise((r) => setTimeout(r, 300));

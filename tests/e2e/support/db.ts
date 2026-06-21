@@ -57,12 +57,16 @@ export async function seedStandingGame(o: {
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
   );
+  // Anchor the standing game's first occurrence a week ago so it's never a
+  // hard-coded date that drifts into staleness; the weekly slot (recur_dow/time)
+  // is what the app projects forward to the next occurrence.
+  const anchor = new Date(Date.now() - 7 * 86_400_000).toISOString();
   await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
         scheduled_start, status, is_standing, recur_dow, recur_time, color)
-     VALUES ($1, $2, $3, $4, $5, '2026-01-03T10:00:00Z', 'STANDING', true, 6, '10:00', '#16633a')`,
-    [act.id, area.id, o.placeText, o.lat, o.lng],
+     VALUES ($1, $2, $3, $4, $5, $6, 'STANDING', true, 6, '10:00', '#16633a')`,
+    [act.id, area.id, o.placeText, o.lat, o.lng, anchor],
   );
   return { lat: o.lat, lng: o.lng, placeText: o.placeText };
 }

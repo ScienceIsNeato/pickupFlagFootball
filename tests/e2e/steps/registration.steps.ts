@@ -1,27 +1,7 @@
-import { expect, type Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import type { World } from "./world";
 import { waitForEmailTo, extractConfirmLink } from "../support/mailpit";
-
-async function register(
-  page: Page,
-  world: World,
-  name: string,
-  email: string,
-  password: string,
-  zip: string,
-) {
-  if (!page.url().includes("/show-interest")) await page.goto("/show-interest");
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="username"]', name);
-  await page.fill('input[name="password"]', password);
-  await page.fill('input[name="zip"]', zip);
-  world.email = email;
-  await Promise.all([
-    page.waitForURL("**/play", { timeout: 30000 }),
-    page.getByRole("button", { name: "count me in" }).click(),
-  ]);
-}
+import { registerViaUi } from "../support/flows";
 
 Given("I open the landing page", async ({ page }) => {
   await page.goto("/");
@@ -42,7 +22,7 @@ Then("I see the registration form", async ({ page }) => {
 When(
   "I register as {string} with email {string} password {string} in ZIP {string}",
   async ({ page, world }, name: string, email: string, password: string, zip: string) => {
-    await register(page, world, name, email, password, zip);
+    await registerViaUi(page, world, { name, email, password, zip });
   },
 );
 

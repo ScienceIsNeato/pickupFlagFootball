@@ -65,7 +65,12 @@ export default class BeatReporter implements Reporter {
 }
 
 const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;"); // also safe inside attribute contexts (alt="…")
 
 function renderHtml(scenarios: Scenario[], result: FullResult): string {
   const byFeature = new Map<string, Scenario[]>();
