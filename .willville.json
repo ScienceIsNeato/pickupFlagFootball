@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Building the heavy test setup — a real database and a real inbox running locally in Docker, with the app wired to both so nothing's faked.",
-    "direction": "Next: drive the actual user-story flows through a real browser and snap screenshots at each step.",
-    "last_update": "2026-06-21T08:00:00Z"
+    "status": "Test harness is live — the real signup-and-confirm flow now runs through a real browser against the real app, real database, and a real inbox, snapping a screenshot at every step. Both flows pass green.",
+    "direction": "Next: build the visual report that pairs each screenshot with its story step, then expand coverage to the rest of the user stories.",
+    "last_update": "2026-06-21T08:30:00Z"
   }
 }

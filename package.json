@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node --import tsx --test tests/unit/*.test.ts",
-    "sim": "tsx tests/sim/run.ts"
+    "sim": "tsx tests/sim/run.ts",
+    "test:e2e": "bash tests/e2e/run.sh",
+    "e2e:up": "docker compose -f tests/e2e/docker-compose.yml up -d --wait",
+    "e2e:down": "docker compose -f tests/e2e/docker-compose.yml down -v"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.2",
+    "@playwright/test": "^1.61.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.0",
     "@types/nodemailer": "^8.0.1",
@@ -35,6 +39,7 @@
     "@types/react-dom": "^19.1.0",
     "drizzle-kit": "^0.31.10",
     "pg": "^8.22.0",
+    "playwright-bdd": "^9.2.0",
     "tsx": "^4.22.4",
     "typescript": "^5.9.0"
   }
