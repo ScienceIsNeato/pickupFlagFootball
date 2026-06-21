@@ -1,8 +1,20 @@
 import { E2E } from "./env";
 
+/** fetch with a hard abort timeout, so a stalled Mailpit call can't hang a run
+ *  past its own deadline. */
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Throw away every captured message (run before each scenario). */
 export async function clearMailpit(): Promise<void> {
-  const res = await fetch(`${E2E.mailpitApi}/api/v1/messages`, { method: "DELETE" });
+  const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages`, { method: "DELETE" });
   if (!res.ok) throw new Error(`mailpit clear failed: ${res.status} ${res.statusText}`);
 }
 
@@ -17,14 +29,14 @@ export async function waitForEmailTo(email: string, timeoutMs = 15000): Promise<
   const want = email.toLowerCase();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const res = await fetch(`${E2E.mailpitApi}/api/v1/messages`);
+    const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages`);
     if (!res.ok) throw new Error(`mailpit list failed: ${res.status} ${res.statusText}`);
     const data = (await res.json()) as { messages?: MailpitListItem[] };
     const hit = (data.messages ?? []).find((m) =>
       (m.To ?? []).some((t) => t.Address?.toLowerCase() === want),
     );
     if (hit) {
-      const detail = await fetch(`${E2E.mailpitApi}/api/v1/message/${hit.ID}`);
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${hit.ID}`);
       if (!detail.ok) throw new Error(`mailpit fetch ${hit.ID} failed: ${detail.status} ${detail.statusText}`);
       const full = (await detail.json()) as { HTML?: string };
       return { id: hit.ID, subject: hit.Subject, html: full.HTML ?? "" };
