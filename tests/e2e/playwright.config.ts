@@ -31,7 +31,10 @@ export default defineConfig({
     command: `npx next start -p ${E2E.appPort}`,
     url: E2E.appBaseUrl,
     cwd: process.cwd(), // run from repo root, not the config's dir (where .next isn't)
-    reuseExistingServer: true,
+    // Always start our own server so it carries the pinned e2e env below — never
+    // reuse a stray process that might point at prod DB/email. run.sh frees the
+    // port first so this doesn't collide.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       DATABASE_URL: E2E.dbUrl,

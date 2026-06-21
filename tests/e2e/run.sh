@@ -33,5 +33,8 @@ NEXT_PUBLIC_E2E=1 npm run build
 echo "▸ generate BDD specs from features"
 npx bddgen --config tests/e2e/playwright.config.ts
 
+echo "▸ free port 3100 (so Playwright starts a fresh, e2e-env server)"
+lsof -ti tcp:3100 | xargs kill -9 2>/dev/null || true
+
 echo "▸ run e2e"
 npx playwright test --config tests/e2e/playwright.config.ts "$@"
