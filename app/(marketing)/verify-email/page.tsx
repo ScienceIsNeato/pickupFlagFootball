@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { hashToken } from "@/lib/auth/tokens";
 
 export const metadata = { title: "confirm your email — MIME-FF" };
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function VerifyEmailPage({
   if (token && /^[a-f0-9]{64}$/.test(token)) {
     const [u] = await db.update(users)
       .set({ emailVerified: new Date(), verificationToken: null })
-      .where(eq(users.verificationToken, token))
+      .where(eq(users.verificationToken, hashToken(token)))
       .returning({ id: users.id });
     ok = !!u;
   }

@@ -4,13 +4,22 @@
 # unique.will.martin / martin.family) so you can re-run the registration and
 # email-verification flow from a clean slate. FK-safe and idempotent.
 #
-#   ./scripts/clear_my_users.sh
+#   ./scripts/clear_my_users.sh        # prompts to confirm
+#   ./scripts/clear_my_users.sh --yes  # skip the prompt (non-interactive)
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
 # match by local-part prefix so the gmail domain (or +tags) doesn't matter
 WHERE="email ilike 'quarkswithforks%' or email ilike 'unique.will.martin%' or email ilike 'martin.family%'"
+
+# Destructive: require explicit confirmation unless --yes/-y is passed.
+if [ "${1:-}" != "--yes" ] && [ "${1:-}" != "-y" ]; then
+  echo "⚠️  This DELETES users matching: quarkswithforks* / unique.will.martin* / martin.family*"
+  echo "    and all their data (interest, roster, attendance, etc.). FK-safe, irreversible."
+  read -r -p "    Type 'yes' to proceed: " confirm
+  [ "$confirm" = "yes" ] || { echo "aborted."; exit 1; }
+fi
 
 SQL="$(mktemp)"
 trap 'rm -f "$SQL"' EXIT

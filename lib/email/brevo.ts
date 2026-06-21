@@ -34,7 +34,7 @@ async function appendOutbox(payload: unknown): Promise<void> {
  * no-op when BREVO_API_KEY is unset (so dev/CI don't send), and an optional file
  * outbox. Throws on a non-2xx so the caller can leave the row unsent and retry.
  */
-export async function sendBrevoEmail(email: BrevoEmail): Promise<void> {
+export async function sendBrevoEmail(email: BrevoEmail): Promise<boolean> {
   const payload = {
     sender: sender(),
     to: [{ email: email.to, ...(email.toName ? { name: email.toName } : {}) }],
@@ -46,16 +46,24 @@ export async function sendBrevoEmail(email: BrevoEmail): Promise<void> {
 
   const apiKey = process.env.BREVO_API_KEY ?? "";
   if (apiKey === "") {
-    console.warn("[email] BREVO_API_KEY not set — not sending:", email.subject, "→", email.to);
-    return;
+    // no recipient in the log — avoid leaking PII when email isn't configured
+    console.warn("[email] BREVO_API_KEY not set — not sending:", email.subject);
+    return false;
   }
 
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { accept: "application/json", "api-key": apiKey, "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    throw new Error(`Brevo send failed (${res.status}): ${await res.text()}`);
+  // Bound the call so a hung Brevo request can't stall the cron flush.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { accept: "application/json", "api-key": apiKey, "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`Brevo send failed (${res.status}): ${await res.text()}`);
+    return true;
+  } finally {
+    clearTimeout(timer);
   }
 }

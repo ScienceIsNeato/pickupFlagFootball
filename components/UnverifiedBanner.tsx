@@ -18,8 +18,12 @@ export function UnverifiedBanner() {
         disabled={state === "sending" || state === "sent"}
         onClick={async () => {
           setState("sending");
-          const r = await resendVerification();
-          setState(r.ok ? "sent" : "error");
+          try {
+            const r = await resendVerification();
+            setState(r.ok ? "sent" : "error");
+          } catch {
+            setState("error");
+          }
         }}
       >
         {state === "sent" ? "sent ✓" : state === "sending" ? "sending…" : state === "error" ? "retry" : "resend"}

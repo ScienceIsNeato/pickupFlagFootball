@@ -8,13 +8,21 @@ import { donationFooterFor } from "./donationFooter";
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
 /**
- * Send the backlog of claimed-but-unsent email notifications via Brevo, stamping
- * emailed_at on success. The notifications_sent row is the exactly-once claim;
- * this runs OUTSIDE any DB transaction (it makes network calls) and is safe to
- * re-run — a row stays unsent (and retries next tick) until Brevo accepts it.
- * Called from the tick cron. Bounded per run so one tick can't fan out forever.
+ * Send the backlog of claimed-but-unsent email notifications via Brevo. Runs
+ * from the tick cron, OUTSIDE any DB transaction.
+ *
+ * Safety:
+ *  - no API key → no-op (don't mark anything sent, so the backlog survives until
+ *    email is configured).
+ *  - each row is claimed atomically (set emailed_at WHERE emailed_at IS NULL,
+ *    RETURNING) *before* sending — so overlapping ticks can't both grab it and a
+ *    successful send can't be re-sent later. On send failure we clear the claim
+ *    so it retries next tick.
  */
 export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ sent: number; skipped: number; failed: number }> {
+  let sent = 0, skipped = 0, failed = 0;
+  if (!process.env.BREVO_API_KEY) return { sent, skipped, failed }; // email not configured — leave the backlog intact
+
   const rows = await db.select({
     id: notificationsSent.id,
     kind: notificationsSent.kind,
@@ -28,23 +36,24 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     .orderBy(notificationsSent.sentAt)
     .limit(limit);
 
-  let sent = 0, skipped = 0, failed = 0;
   for (const r of rows) {
+    // Claim atomically: only the worker whose UPDATE returns the row sends it.
+    const claimed = await db.update(notificationsSent).set({ emailedAt: now })
+      .where(and(eq(notificationsSent.id, r.id), isNull(notificationsSent.emailedAt)))
+      .returning({ id: notificationsSent.id });
+    if (!claimed.length) continue; // another worker already took it
+
+    // Opted out / no address: stays claimed so it leaves the backlog, no send.
+    if (!r.emailOptIn || !r.email) { skipped++; continue; }
+
     try {
-      // Opted out or no address: mark handled so it leaves the backlog (the
-      // donation footer is independently suppressed too).
-      if (!r.emailOptIn || !r.email) {
-        await db.update(notificationsSent).set({ emailedAt: now }).where(eq(notificationsSent.id, r.id));
-        skipped++;
-        continue;
-      }
       const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer });
       await sendBrevoEmail({ to: r.email, toName: r.displayName, ...mail });
-      await db.update(notificationsSent).set({ emailedAt: now }).where(eq(notificationsSent.id, r.id));
       sent++;
     } catch (e) {
-      // Leave emailed_at NULL → retried next tick. One bad row never blocks the rest.
+      // Release the claim so it retries next tick (no duplicate, no permanent loss).
+      await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));
       console.error("[email] flush failed for notification", r.id, e);
       failed++;
     }
