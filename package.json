@@ -11,7 +11,9 @@
     "sim": "tsx tests/sim/run.ts",
     "test:e2e": "bash tests/e2e/run.sh",
     "e2e:up": "docker compose -f tests/e2e/docker-compose.yml up -d --wait",
-    "e2e:down": "docker compose -f tests/e2e/docker-compose.yml down -v"
+    "e2e:down": "docker compose -f tests/e2e/docker-compose.yml down -v",
+    "e2e:report": "open tests/e2e/report/output/index.html",
+    "test:e2e:open": "npm run test:e2e && npm run e2e:report"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
