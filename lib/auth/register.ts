@@ -34,9 +34,13 @@ export async function registerWithPassword(input: {
   const rawToken = newToken();
   try {
     await db.insert(users).values({ email, displayName: name, passwordHash: hash, verificationToken: hashToken(rawToken) });
-  } catch {
-    // concurrent insert lost the race on the unique email index
-    return { ok: false, error: exists };
+  } catch (e) {
+    // Only a unique-violation means the email is taken; anything else is a real
+    // (likely transient) DB error and must not masquerade as "already exists".
+    const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (code === "23505" || /unique|duplicate|23505/i.test(msg)) return { ok: false, error: exists };
+    throw e;
   }
 
   // Confirm-your-email — best-effort: a Brevo hiccup must not fail the signup.

@@ -33,6 +33,13 @@ export async function resendVerification(): Promise<ResendResult> {
     console.error("[email] resend verification failed", e);
     return { ok: false, error: "couldn't send — try again in a moment" };
   }
-  await db.update(users).set({ verificationToken: hashToken(rawToken) }).where(eq(users.id, session.user.id));
+  // Persist the new token only after the send; if THIS fails, report it (don't
+  // claim success) — the user's existing link still works since we didn't rotate.
+  try {
+    await db.update(users).set({ verificationToken: hashToken(rawToken) }).where(eq(users.id, session.user.id));
+  } catch (e) {
+    console.error("[email] resend token persist failed", e);
+    return { ok: false, error: "couldn't send — try again in a moment" };
+  }
   return { ok: true };
 }
