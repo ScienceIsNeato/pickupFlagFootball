@@ -25,3 +25,8 @@ const WIPE = [
 export async function resetData(): Promise<void> {
   await pool.query(`TRUNCATE ${WIPE.join(", ")} RESTART IDENTITY CASCADE`);
 }
+
+/** Delete an account out from under a live session (the "ghost" case). */
+export async function deleteUserByEmail(email: string): Promise<void> {
+  await pool.query("DELETE FROM users WHERE lower(email) = lower($1)", [email]);
+}

@@ -14,3 +14,21 @@ Feature: Registration & email confirmation
     When I click the confirm link in my email
     Then I land on the map
     And I do not see the "email unconfirmed" banner
+
+  Scenario: a stale or used confirm link
+    When I open an invalid confirm link
+    Then I see the "this link didn't work" page
+
+  Scenario: resending the confirmation email
+    Given I register as "Re Send" with email "resend@example.com" password "hunter2pass" in ZIP "78701"
+    And my inbox is empty
+    When I click "resend" on the banner
+    Then the resend button shows "sent"
+    And I receive a confirmation email
+
+  Scenario: an unconfirmed player cannot propose a game
+    Given I register as "Pro Pose" with email "propose@example.com" password "hunter2pass" in ZIP "78701"
+    When I right-click the map to propose a spot
+    Then the propose form opens
+    When I fill in the proposal and submit it
+    Then I am told to confirm my email before proposing
