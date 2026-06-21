@@ -44,15 +44,12 @@ Given(
   async ({ page, world }, name: string, email: string, zip: string) => {
     await registerViaUi(page, world, { name, email, zip });
     await markEmailVerified(email);
+    await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   },
 );
 
 When("I open the game on the map", async ({ page, world }) => {
   await openGameOnMap(page, world);
-});
-
-When("I try to join the weekly game", async ({ page }) => {
-  await page.getByRole("button", { name: "join weekly game" }).click();
 });
 
 When("I join the weekly game", async ({ page }) => {
@@ -61,19 +58,17 @@ When("I join the weekly game", async ({ page }) => {
   await expect(page.locator(".game-leave")).toBeVisible({ timeout: 10000 });
 });
 
-Then("I am told to confirm my email", async ({ page }) => {
-  await expect(page.locator(".game-err")).toContainText(/confirm your email/i);
-});
-
-Then("I am on the game's roster", async ({ page }) => {
-  await expect(page.locator(".game-leave")).toBeVisible();
-});
-
 Then("the game shows in my games", async ({ page, world }) => {
   await page.goto("/my-games");
   await expect(page.getByText(world.game!.placeText).first()).toBeVisible({ timeout: 10000 });
 });
 
-Then("I am told the game is outside my travel radius", async ({ page }) => {
+Then("opening the game tells me it's outside my travel radius", async ({ page, world }) => {
+  await openGameOnMap(page, world);
   await expect(page.locator(".game-card")).toContainText(/outside your travel radius/i);
+});
+
+Then("trying to join tells me to confirm my email", async ({ page }) => {
+  await page.getByRole("button", { name: "join weekly game" }).click();
+  await expect(page.locator(".game-err")).toContainText(/confirm your email/i);
 });

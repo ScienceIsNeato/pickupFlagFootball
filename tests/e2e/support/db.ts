@@ -50,8 +50,9 @@ export async function seedStandingGame(o: {
   regulars?: number;    // background players on the roster → "claimed (in a game)"
   interested?: number;  // background players with interest nearby → "interested player"
 }): Promise<{ lat: number; lng: number; placeText: string }> {
-  const regulars = o.regulars ?? 5;
-  const interested = o.interested ?? 4;
+  const regulars = o.regulars ?? 15;
+  const interested = o.interested ?? 6;
+  const DAY = 86_400_000;
   const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
   const { rows: [act] } = await pool.query(
     "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
@@ -61,10 +62,10 @@ export async function seedStandingGame(o: {
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
   );
-  // Anchor the standing game's first occurrence a week ago so it's never a
-  // hard-coded date that drifts into staleness; the weekly slot (recur_dow/time)
-  // is what the app projects forward to the next occurrence.
-  const anchor = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  // An established game that's been running ~4 weeks: its first occurrence was
+  // 4 weeks ago. The weekly slot (recur_dow/time) is what the app projects
+  // forward to the next occurrence.
+  const anchor = new Date(Date.now() - 28 * DAY).toISOString();
   const { rows: [game] } = await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
@@ -73,6 +74,18 @@ export async function seedStandingGame(o: {
      RETURNING id`,
     [act.id, area.id, o.placeText, o.lat, o.lng, anchor],
   );
+
+  // Track record: 3 of the last 4 weeks actually had a game (one week skipped).
+  // These COMPLETED rows feed the popup's "recent games · played 3 of …" list.
+  for (const [daysAgo, count] of [[6, 13], [13, 15], [20, 12]] as const) {
+    await pool.query(
+      `INSERT INTO games
+         (activity_type_id, area_id, place_text, place_lat, place_lng,
+          scheduled_start, status, is_standing, confirmed_count, color)
+       VALUES ($1, $2, $3, $4, $5, $6, 'COMPLETED', false, $7, '#16633a')`,
+      [act.id, area.id, o.placeText, o.lat, o.lng, new Date(Date.now() - daysAgo * DAY).toISOString(), count],
+    );
+  }
 
   // A real established game has regulars and interested neighbors — without them
   // the map shows a game badge with zero players, which is nonsensical. Seed a
