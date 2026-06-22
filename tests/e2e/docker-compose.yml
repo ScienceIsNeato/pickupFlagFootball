@@ -1,0 +1,35 @@
+# Deterministic local stack for the full-stack e2e tests. Nothing here ever
+# talks to the internet: a throwaway Postgres and a Mailpit inbox that captures
+# the real emails the app sends over SMTP. Brought up by `npm run test:e2e`.
+name: mimeff-e2e
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mimeff
+      POSTGRES_PASSWORD: mimeff
+      POSTGRES_DB: mimeff_test
+    ports:
+      - "55433:5432" # high host port so it never clashes with other local Postgres/dev stacks
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mimeff -d mimeff_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data # in-memory: fast, and gone when the container stops
+
+  mailpit:
+    image: axllent/mailpit:v1.21 # pinned for reproducible inbox/API behavior
+    ports:
+      - "11025:1025" # SMTP — the app delivers here (SMTP_URL=smtp://127.0.0.1:11025)
+      - "18025:8025" # HTTP API + web UI — tests read messages from here
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8025/readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

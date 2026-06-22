@@ -194,6 +194,13 @@ export function MapView({
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     mapRef.current = map;
+    // E2E seam: the game/proposed badges are drawn on a canvas, so tests can't
+    // select them. Under the e2e build flag only, expose the map so a test can
+    // center on a seeded game and click its badge for real. Dead-code-eliminated
+    // from every normal build (NEXT_PUBLIC_E2E is inlined at build time).
+    if (process.env.NEXT_PUBLIC_E2E === "1") {
+      (window as unknown as { __e2eMap?: maplibregl.Map }).__e2eMap = map;
+    }
     const mapEl = map.getCanvasContainer();
     mapEl.style.opacity = "0"; // fade in as the flags morph into place
 
@@ -570,6 +577,10 @@ export function MapView({
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
       container.removeEventListener("contextmenu", onCtxMenu);
+      if (process.env.NEXT_PUBLIC_E2E === "1") {
+        const w = window as unknown as { __e2eMap?: maplibregl.Map };
+        if (w.__e2eMap === map) delete w.__e2eMap; // don't leave a destroyed handle behind
+      }
       map.remove();
       mapRef.current = null;
     };

@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationsSent, users } from "@/lib/db/schema";
-import { sendBrevoEmail } from "./brevo";
+import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
 
@@ -21,7 +21,7 @@ const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com
  */
 export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ sent: number; skipped: number; failed: number }> {
   let sent = 0, skipped = 0, failed = 0;
-  if (!process.env.BREVO_API_KEY) return { sent, skipped, failed }; // email not configured — leave the backlog intact
+  if (!isEmailConfigured()) return { sent, skipped, failed }; // no transport — leave the backlog intact
 
   const rows = await db.select({
     id: notificationsSent.id,
@@ -49,8 +49,15 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     try {
       const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer });
-      await sendBrevoEmail({ to: r.email, toName: r.displayName, ...mail });
-      sent++;
+      const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
+      if (delivered) {
+        sent++;
+      } else {
+        // Transport declined without throwing (e.g. not actually configured) —
+        // nothing was sent, so release the claim rather than lose the row.
+        await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));
+        failed++;
+      }
     } catch (e) {
       // Release the claim so it retries next tick (no duplicate, no permanent loss).
       await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));

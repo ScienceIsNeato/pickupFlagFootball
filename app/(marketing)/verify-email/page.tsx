@@ -36,9 +36,9 @@ export default async function VerifyEmailPage({
     <main className="prose">
       <h1>this link didn&apos;t work</h1>
       <p>
-        it may have already been used, or it&apos;s not valid. if your email is still
-        unconfirmed, open your <Link href="/account">account</Link> and resend the
-        confirmation.
+        it may have already been used, or it&apos;s not valid. <Link href="/play">sign in</Link>{" "}
+        — if your email is still unconfirmed, use the <strong>resend</strong> link on the
+        banner at the top.
       </p>
     </main>
   );

@@ -25,3 +25,9 @@ next-env.d.ts
 .vercel
 *.tsbuildinfo
 .env*.local
+
+# e2e test artifacts
+tests/e2e/.features-gen/
+tests/e2e/.playwright-report/
+tests/e2e/report/output/
+tests/e2e/test-results/
