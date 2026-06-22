@@ -3,7 +3,9 @@ import type { DonationFooter } from "./donationFooter";
 
 export type NotifKind =
   | "SPARK_ASK" | "OPTIONS_AVAILABLE" | "GAME_ON"
-  | "SUGGEST_NUDGE" | "SUGGEST_LASTCALL" | "AVAIL_NUDGE" | "AVAIL_LASTCALL" | "STALLED_NOTICE";
+  | "SUGGEST_NUDGE" | "SUGGEST_LASTCALL" | "AVAIL_NUDGE" | "AVAIL_LASTCALL" | "STALLED_NOTICE"
+  // weekly occurrence poll
+  | "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
 
 type Copy = { subject: string; title: string; intro: string; cta: string; path: string };
 
@@ -17,6 +19,9 @@ const COPY: Record<NotifKind, Copy> = {
   AVAIL_NUDGE:       { subject: "don't forget to vote", title: "your vote keeps it alive", intro: "say which of the suggested spots and times you'd come to — the game only forms if enough of you commit.", cta: "vote now", path: "/play" },
   AVAIL_LASTCALL:    { subject: "last call to vote", title: "voting closes soon", intro: "last chance to weigh in on where and when to play.", cta: "vote now", path: "/play" },
   STALLED_NOTICE:    { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough commitment to lock a game this round — but interest sticks around and we'll try again. tell a friend who'd play.", cta: "find a game", path: "/play" },
+  POLL_ASK:          { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
+  WEEK_ON:           { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in — this week's game is on. check the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
+  WEEK_OFF:          { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week — and you can still rally folks.", cta: "see your games", path: "/my-games" },
 };
 
 function esc(s: string): string {

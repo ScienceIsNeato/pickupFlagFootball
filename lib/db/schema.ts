@@ -1,7 +1,8 @@
 import {
   pgTable, pgEnum, uuid, text, doublePrecision, bigint, jsonb, boolean,
-  timestamp, integer, time, date, interval, primaryKey, index, uniqueIndex,
+  timestamp, integer, time, date, interval, primaryKey, index, uniqueIndex, check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ── enums ──────────────────────────────────────────────────────────────────
 export const areaStatusEnum = pgEnum("area_status", [
@@ -24,6 +25,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
   "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
   "GAME_ON", "STALLED_NOTICE",
+  // weekly occurrence poll
+  "POLL_ASK", "WEEK_ON", "WEEK_OFF",
 ]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
 // Self-declared donation preference. Drives the (Phase 6) email donation footer:
@@ -269,7 +272,10 @@ export const gameOccurrences = pgTable("game_occurrences", {
 export const notificationsSent = pgTable("notifications_sent", {
   id:        uuid("id").primaryKey().defaultRandom(),
   userId:    uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  attemptId: uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  // Exactly one parent: a formation attempt (formation emails) OR an occurrence
+  // (weekly poll emails). Enforced by the check below.
+  attemptId: uuid("attempt_id").references(() => formationAttempts.id, { onDelete: "cascade" }),
+  occurrenceId: uuid("occurrence_id").references(() => gameOccurrences.id, { onDelete: "cascade" }),
   gameId:    uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
   kind:      notificationKindEnum("kind").notNull(),
   channel:   notificationChannelEnum("channel").notNull(),
@@ -278,7 +284,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   // exactly-once) but not yet sent — the cron flush sends these and stamps it.
   emailedAt: timestamp("emailed_at", { withTimezone: true }),
 }, (t) => [
-  uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
+  check("notif_one_parent", sql`(${t.attemptId} is not null) <> (${t.occurrenceId} is not null)`),
+  uniqueIndex("uq_notif_attempt").on(t.userId, t.attemptId, t.kind, t.channel).where(sql`${t.attemptId} is not null`),
+  uniqueIndex("uq_notif_occurrence").on(t.userId, t.occurrenceId, t.kind, t.channel).where(sql`${t.occurrenceId} is not null`),
 ]);
 
 // ── area_captains ──────────────────────────────────────────────────────────

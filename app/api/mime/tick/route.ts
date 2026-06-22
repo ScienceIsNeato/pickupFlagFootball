@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { txnDb } from "@/lib/db/pool";
 import { tick } from "@/lib/mime/engine";
+import { runOccurrences } from "@/lib/mime/occurrences";
 import { freezeOccurrences } from "@/lib/mime/freeze";
 import { flushNotificationEmails } from "@/lib/email/flush";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -25,6 +26,9 @@ async function handle(req: Request) {
   }
   const now = new Date();
   await tick(txnDb as unknown as EngineDb, now);
+  // Drive the weekly poll cycle for established games: open polls, tally, decide
+  // scheduled/skipped, notify, mark played.
+  await runOccurrences(txnDb as unknown as EngineDb, now);
   // Snapshot recently-passed occurrences into the attendance record (regulars who
   // relied on their site default never wrote an RSVP row themselves).
   await freezeOccurrences(txnDb as unknown as EngineDb, now);
