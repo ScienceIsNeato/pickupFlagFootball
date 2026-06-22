@@ -12,9 +12,8 @@ export const attemptStatusEnum = pgEnum("attempt_status", [
   "SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING",
   "CONFIRMED", "FAILED", "CANCELLED",
 ]);
-export const gameStatusEnum = pgEnum("game_status", [
-  "STAGED", "STANDING", "CANCELLED", "COMPLETED",
-]);
+// The standing game (series) lifecycle. The per-week lifecycle is occurrenceStatusEnum.
+export const seriesStatusEnum = pgEnum("series_status", ["active", "paused", "retired"]);
 // Per-week occurrence lifecycle (see docs/state-machines.md). "tallying" and
 // "notifying" are transient cron steps.
 export const occurrenceStatusEnum = pgEnum("occurrence_status", [
@@ -208,7 +207,7 @@ export const games = pgTable("games", {
   placeLat:        doublePrecision("place_lat"),
   placeLng:        doublePrecision("place_lng"),
   scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
-  status:          gameStatusEnum("status").notNull().default("STAGED"),
+  status:          seriesStatusEnum("status").notNull().default("active"),
   confirmedCount:  integer("confirmed_count").notNull().default(0),
   color:           text("color"),  // assigned at insert time; consumers fall back to gameColor(id) for legacy rows
   isStanding:      boolean("is_standing").notNull().default(false),

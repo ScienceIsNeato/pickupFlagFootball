@@ -66,7 +66,7 @@ export async function setOccurrenceRsvp(formData: FormData) {
   }).from(games)
     .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
     .where(eq(games.id, gameId)).limit(1);
-  if (!game || (game.status !== "STAGED" && game.status !== "STANDING")) throw new Error("not on this roster");
+  if (!game || game.status !== "active") throw new Error("not on this roster");
 
   const now = new Date();
   const validDates = occurrenceDatesInRange(

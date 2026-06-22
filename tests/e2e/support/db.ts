@@ -70,20 +70,20 @@ export async function seedStandingGame(o: {
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
         scheduled_start, status, is_standing, recur_dow, recur_time, color)
-     VALUES ($1, $2, $3, $4, $5, $6, 'STANDING', true, 6, '10:00', '#16633a')
+     VALUES ($1, $2, $3, $4, $5, $6, 'active', true, 6, '10:00', '#16633a')
      RETURNING id`,
     [act.id, area.id, o.placeText, o.lat, o.lng, anchor],
   );
 
   // Track record: 3 of the last 4 weeks actually had a game (one week skipped).
-  // These COMPLETED rows feed the popup's "recent games · played 3 of …" list.
+  // These played occurrences feed the popup's "recent games · played 3 of …" list.
   for (const [daysAgo, count] of [[6, 13], [13, 15], [20, 12]] as const) {
+    const kickoff = new Date(Date.now() - daysAgo * DAY);
     await pool.query(
-      `INSERT INTO games
-         (activity_type_id, area_id, place_text, place_lat, place_lng,
-          scheduled_start, status, is_standing, confirmed_count, color)
-       VALUES ($1, $2, $3, $4, $5, $6, 'COMPLETED', false, $7, '#16633a')`,
-      [act.id, area.id, o.placeText, o.lat, o.lng, new Date(Date.now() - daysAgo * DAY).toISOString(), count],
+      `INSERT INTO game_occurrences
+         (game_id, occurrence_date, status, kickoff_at, poll_opens_at, poll_closes_at, in_count)
+       VALUES ($1, $2::date, 'played', $2, $2, $2, $3)`,
+      [game.id, kickoff.toISOString(), count],
     );
   }
 

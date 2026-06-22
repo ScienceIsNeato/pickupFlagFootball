@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       h3Cell: areas.h3Cell, centerLat: areas.centerLat, centerLng: areas.centerLng,
     })
     .from(games).innerJoin(areas, eq(games.areaId, areas.id))
-    .where(inArray(games.status, ["STAGED", "STANDING"]));
+    .where(eq(games.status, "active"));
 
   // "mine" mode: a game is mine if I'm on its roster OR I have active interest in
   // its area. Filter the cluster feed down to those games' badges + their claims;

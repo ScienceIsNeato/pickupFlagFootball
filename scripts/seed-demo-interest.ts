@@ -18,7 +18,7 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
-  users, areas, interestSignals, games, gameRoster, gameAttendance, activityTypes, areaCaptains,
+  users, areas, interestSignals, games, gameRoster, gameAttendance, gameOccurrences, activityTypes, areaCaptains,
   formationAttempts, suggestions, formationOptions,
 } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
@@ -160,25 +160,26 @@ async function seedGamesAndSites(activityId: string) {
     // One color per area — shared by this week's instance and every history row,
     // so a recurring game keeps the same color across its weekly instances.
     const color = gameColor(a.id);
-    await db.insert(games).values({
+    const [g] = await db.insert(games).values({
       activityTypeId: activityId, areaId: a.id, placeText: gc.place,
       scheduledStart: nextStart,
-      status: "STANDING", confirmedCount: gc.base, isStanding: true,
+      status: "active", confirmedCount: gc.base, isStanding: true,
       color,
       recurDow: gc.recurDow, recurTime: `${gc.recurTime}:00`,
-    });
+    }).returning({ id: games.id });
+    // History as played occurrences (skip = a week that was called off / had no game).
     const skip = new Set(gc.skip);
     const hist = [];
     for (let i = 0; i < 10; i++) {
       if (skip.has(i)) continue;
+      const kickoff = new Date(Date.now() - (i + 0.5) * WEEK);
       hist.push({
-        activityTypeId: activityId, areaId: a.id, placeText: gc.place,
-        scheduledStart: new Date(Date.now() - (i + 0.5) * WEEK),
-        status: "COMPLETED" as const, confirmedCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
-        color,
+        gameId: g.id, occurrenceDate: kickoff.toISOString().slice(0, 10), status: "played" as const,
+        kickoffAt: kickoff, pollOpensAt: kickoff, pollClosesAt: kickoff,
+        inCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
       });
     }
-    await db.insert(games).values(hist);
+    if (hist.length) await db.insert(gameOccurrences).values(hist);
 
     // Assign the first demo user in this city as captain.
     const [captain] = await db.select({ id: users.id }).from(users)
@@ -343,7 +344,7 @@ async function seedRosters(activityId: string) {
   const standing = await db
     .select({ id: games.id, lat: areas.centerLat, lng: areas.centerLng, city: areas.displayCity })
     .from(games).innerJoin(areas, eq(games.areaId, areas.id))
-    .where(and(eq(games.activityTypeId, activityId), eq(games.status, "STANDING")));
+    .where(and(eq(games.activityTypeId, activityId), eq(games.status, "active")));
 
   const interested = await db
     .select({ userId: interestSignals.userId, zip: users.zip,
@@ -416,7 +417,7 @@ async function seedRosters(activityId: string) {
   // history on a fresh seed (otherwise it stays empty until the tick freeze runs).
   const histNow = new Date();
   const standingRows = await db.select({ id: games.id, recurDow: games.recurDow, scheduledStart: games.scheduledStart })
-    .from(games).where(and(eq(games.isStanding, true), inArray(games.status, ["STAGED", "STANDING"])));
+    .from(games).where(and(eq(games.isStanding, true), eq(games.status, "active")));
   for (const g of standingRows) {
     const roster = (await db.select({ u: gameRoster.userId }).from(gameRoster).where(eq(gameRoster.gameId, g.id))).map((r) => r.u);
     if (!roster.length) continue;

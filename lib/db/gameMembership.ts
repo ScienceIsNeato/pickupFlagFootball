@@ -15,7 +15,7 @@ export async function activeGame(gameId: string): Promise<GameOccurrenceInputs |
   const rows = (await db.execute(sql`
     select id, is_standing as "isStanding", recur_dow as "recurDow",
            scheduled_start as "scheduledStart"
-    from games where id = ${gameId} and status in ('STAGED', 'STANDING') limit 1`)).rows as GameOccurrenceInputs[];
+    from games where id = ${gameId} and status = 'active' limit 1`)).rows as GameOccurrenceInputs[];
   return rows[0] ?? null;
 }
 
@@ -30,7 +30,7 @@ export async function reachableActiveGame(userId: string, gameId: string): Promi
     join areas a on a.id = g.area_id
     join users u on u.id = ${userId}
     where g.id = ${gameId}
-      and g.status in ('STAGED', 'STANDING')
+      and g.status = 'active'
       and u.home_lat is not null and u.home_lng is not null
       -- measure to the game's actual venue (how the map/API locate it), falling
       -- back to the area centroid only when no venue point is stored

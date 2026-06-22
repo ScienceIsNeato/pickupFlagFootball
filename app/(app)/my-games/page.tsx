@@ -58,7 +58,7 @@ export default async function UpcomingGamesPage() {
         recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-        .where(and(inArray(games.id, rosterIds), inArray(games.status, ["STAGED", "STANDING"])))
+        .where(and(inArray(games.id, rosterIds), eq(games.status, "active")))
     : [];
 
   // My RSVP overrides (covers upcoming + past), and per-occurrence "in" headcounts.

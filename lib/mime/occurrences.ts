@@ -38,7 +38,7 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
            extract(epoch from a.polling_start_offset) as offset_s,
            extract(epoch from a.polling_window_length) as window_s
     from games g join areas a on a.id = g.area_id
-    where g.is_standing = true and g.status in ('STAGED','STANDING')
+    where g.is_standing = true and g.status = 'active'
   `);
   const rows = (((res as { rows?: unknown[] }).rows ?? []) as Array<{
     game_id: string; recur_dow: number | null; recur_time: string | null;
