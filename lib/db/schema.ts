@@ -1,6 +1,6 @@
 import {
   pgTable, pgEnum, uuid, text, doublePrecision, bigint, jsonb, boolean,
-  timestamp, integer, time, date, primaryKey, index, uniqueIndex,
+  timestamp, integer, time, date, interval, primaryKey, index, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ── enums ──────────────────────────────────────────────────────────────────
@@ -13,6 +13,12 @@ export const attemptStatusEnum = pgEnum("attempt_status", [
 ]);
 export const gameStatusEnum = pgEnum("game_status", [
   "STAGED", "STANDING", "CANCELLED", "COMPLETED",
+]);
+// Per-week occurrence lifecycle (see docs/state-machines.md). "tallying" and
+// "notifying" are transient cron steps.
+export const occurrenceStatusEnum = pgEnum("occurrence_status", [
+  "pending", "polling", "tallying", "scheduled", "skipped",
+  "notifying", "awaiting_game", "played", "cancelled",
 ]);
 export const notificationKindEnum = pgEnum("notification_kind", [
   "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
@@ -101,6 +107,10 @@ export const areas = pgTable("areas", {
   nextTriggerInterest: integer("next_trigger_interest"),
   nSparkOverride:      integer("n_spark_override"),
   pMinOverride:        integer("p_min_override"),
+  // Per-site config for the weekly RSVP poll (drives the occurrence FSM).
+  minPlayersToSchedule: integer("min_players_to_schedule").notNull().default(6),
+  pollingWindowLength:  interval("polling_window_length").notNull().default("24 hours"),
+  pollingStartOffset:   interval("polling_start_offset").notNull().default("48 hours"),
   createdAt:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_areas_activity_cell").on(t.activityTypeId, t.h3Cell),
@@ -230,6 +240,29 @@ export const gameAttendance = pgTable("game_attendance", {
   createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.gameId, t.userId, t.occurrenceDate] }),
+]);
+
+// ── game_occurrences ───────────────────────────────────────────────────────
+// One row per weekly occurrence of a standing game. Carries the per-week
+// poll → play lifecycle (occurrence_status); individual RSVPs live in
+// game_attendance. See docs/state-machines.md.
+export const gameOccurrences = pgTable("game_occurrences", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  gameId:         uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  occurrenceDate: date("occurrence_date").notNull(),
+  status:         occurrenceStatusEnum("status").notNull().default("pending"),
+  kickoffAt:      timestamp("kickoff_at", { withTimezone: true }).notNull(),
+  pollOpensAt:    timestamp("poll_opens_at", { withTimezone: true }).notNull(),
+  pollClosesAt:   timestamp("poll_closes_at", { withTimezone: true }).notNull(),
+  inCount:        integer("in_count").notNull().default(0),
+  notifiedAt:     timestamp("notified_at", { withTimezone: true }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uq_occurrence_game_date").on(t.gameId, t.occurrenceDate),
+  index("idx_occurrences_poll_open").on(t.status, t.pollOpensAt),
+  index("idx_occurrences_poll_close").on(t.status, t.pollClosesAt),
+  index("idx_occurrences_kickoff").on(t.status, t.kickoffAt),
 ]);
 
 // ── notifications_sent ─────────────────────────────────────────────────────
