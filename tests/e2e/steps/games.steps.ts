@@ -70,5 +70,7 @@ Then("opening the game tells me it's outside my travel radius", async ({ page, w
 
 Then("trying to join tells me to confirm my email", async ({ page }) => {
   await page.getByRole("button", { name: "join weekly game" }).click();
-  await expect(page.locator(".game-err")).toContainText(/confirm your email/i);
+  const err = page.locator(".game-err");
+  await expect(err).toContainText(/confirm your email/i);
+  await err.scrollIntoViewIfNeeded(); // ensure the beat's screenshot shows the error
 });

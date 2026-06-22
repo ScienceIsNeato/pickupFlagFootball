@@ -38,7 +38,11 @@ Then("filling in the proposal tells me to confirm my email", async ({ page }) =>
   await selects.nth(1).selectOption({ index: 1 }); // time
   await selects.nth(2).selectOption({ index: 1 }); // date of first game
   await page.getByRole("button", { name: "propose it" }).click();
-  await expect(page.getByText(/confirm your email before proposing/i)).toBeVisible();
+  const err = page.getByText(/confirm your email before proposing/i);
+  await expect(err).toBeVisible();
+  // The error renders at the top of a scrollable modal; bring it into view so the
+  // beat's screenshot actually shows it.
+  await err.scrollIntoViewIfNeeded();
 });
 
 // ── session integrity (ghost) ───────────────────────────────────────────────
