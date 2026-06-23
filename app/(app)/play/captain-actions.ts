@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areaCaptains, gameOccurrences } from "@/lib/db/schema";
-import { nextOccurrenceYMD } from "@/lib/datetime";
+import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
 
@@ -77,8 +77,12 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   const g = c.game;
   if (g.recurDow == null || !g.recurTime) return { ok: false, error: "not a recurring game" };
   const now = new Date();
-  const date = nextOccurrenceYMD(
-    { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) }, now,
+  // Target the same week the popup/RSVP flows call "next game" — skipping weeks
+  // already off or kicked off — so "cancel this week" hits the game players are
+  // actually preparing for, not a settled date.
+  const date = await nextPlayableOccurrence(
+    { id: gameId, isStanding: true, recurDow: g.recurDow, recurTime: g.recurTime, scheduledStart: String(g.scheduledStart) },
+    now,
   );
   const kickoff = new Date(`${date}T${g.recurTime}`);
   // Only an upcoming game can be called off — never rewrite one that's kicked off.
