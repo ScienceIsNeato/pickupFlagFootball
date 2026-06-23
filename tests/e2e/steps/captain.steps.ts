@@ -13,12 +13,18 @@ Given(
     await markEmailVerified(email);
     // Captain rights are per-area; the popup reads area_captains live on open.
     await seedCaptain(world.game!.areaId!, email);
+    // Reload so the page re-renders as a confirmed user — drops the "email
+    // unconfirmed" banner from every captain beat (this test isn't about that).
+    await page.reload();
     await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   },
 );
 
 When("I pause the series", async ({ page }) => {
-  await page.getByRole("button", { name: "pause series" }).click();
+  await page.getByRole("button", { name: "pause series" }).click(); // opens the type-to-confirm dialog
+  const dlg = page.getByRole("alertdialog");
+  await dlg.getByLabel("type to confirm").fill("retire this game for now");
+  await dlg.getByRole("button", { name: "pause series" }).click();
 });
 
 Then("the game shows as paused", async ({ page }) => {
@@ -27,6 +33,7 @@ Then("the game shows as paused", async ({ page }) => {
 });
 
 When("I resume the series", async ({ page }) => {
+  page.once("dialog", (d) => d.accept()); // simple "resume this series?" confirm
   await page.getByRole("button", { name: "resume series" }).click();
 });
 
@@ -35,8 +42,10 @@ Then("the game is running again", async ({ page }) => {
 });
 
 When("I retire the series", async ({ page }) => {
-  page.once("dialog", (d) => d.accept()); // retire is behind a confirm()
-  await page.getByRole("button", { name: "retire series" }).first().click();
+  await page.getByRole("button", { name: "retire series" }).click(); // opens the type-to-confirm dialog
+  const dlg = page.getByRole("alertdialog");
+  await dlg.getByLabel("type to confirm").fill("retire this series for good");
+  await dlg.getByRole("button", { name: "retire series" }).click();
 });
 
 Then("the game is gone", async ({ page }) => {
@@ -51,6 +60,7 @@ When("I cancel this week", async ({ page, world }) => {
   await expect(cap).toContainText(/next game/i, { timeout: 10000 });
   world.nextGameCaption = ((await cap.textContent()) ?? "").trim();
   expect(world.nextGameCaption).not.toBe("");
+  page.once("dialog", (d) => d.accept()); // simple "call off this week's game?" confirm
   await page.getByRole("button", { name: "cancel this week" }).click();
 });
 

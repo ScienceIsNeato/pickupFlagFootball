@@ -54,6 +54,10 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
+  // Type-to-confirm gate for the destructive captain actions (pause / retire).
+  const [confirmReq, setConfirmReq] =
+    useState<null | { title: string; phrase: string; confirmLabel: string; onConfirm: () => void }>(null);
+  const [typed, setTyped] = useState("");
   const [pref, setPref] = useState<"regular" | "occasional">("regular");
   const [nextIn, setNextIn] = useState(true);
   // Portal the modal to document.body so it escapes .dash-map's stacking
@@ -105,6 +109,11 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     } finally {
       setBusy(false);
     }
+  }
+
+  function askConfirm(req: { title: string; phrase: string; confirmLabel: string; onConfirm: () => void }) {
+    setTyped("");
+    setConfirmReq(req);
   }
 
   if (!mounted) return null;
@@ -164,7 +173,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                   </div>
                   <button type="button" className="btn-green game-join" disabled={busy}
                     onClick={() => run(() => joinWeeklyGame(game.gameId, pref === "regular", nextIn))}>
-                    {busy ? "…" : game.onRoster ? "save changes" : "join weekly game"}
+                    {game.onRoster ? "save changes" : "join weekly game"}
                   </button>
                   {game.onRoster && (
                     <button type="button" className="game-leave" disabled={busy}
@@ -183,14 +192,14 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                 <p className="game-join-h">captain controls</p>
                 {game.status === "active" ? (
                   <div className="seg" role="group" aria-label="captain controls">
-                    <button type="button" disabled={busy} onClick={() => run(() => cancelWeek(game.gameId))}>cancel this week</button>
-                    <button type="button" disabled={busy} onClick={() => run(() => pauseSeries(game.gameId))}>pause series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
+                    <button type="button" disabled={busy} onClick={() => { if (window.confirm("call off this week's game?")) run(() => cancelWeek(game.gameId)); }}>cancel this week</button>
+                    <button type="button" disabled={busy} onClick={() => askConfirm({ title: "pause this series?", phrase: "retire this game for now", confirmLabel: "pause series", onConfirm: () => run(() => pauseSeries(game.gameId)) })}>pause series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 ) : (
                   <div className="seg" role="group" aria-label="captain controls">
-                    <button type="button" className="btn-green" disabled={busy} onClick={() => run(() => resumeSeries(game.gameId))}>resume series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
+                    <button type="button" className="btn-green" disabled={busy} onClick={() => { if (window.confirm("resume this series?")) run(() => resumeSeries(game.gameId)); }}>resume series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 )}
               </div>
@@ -216,6 +225,35 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
           </>
         )}
       </div>
+
+      {confirmReq && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmReq(null); }}
+          role="alertdialog" aria-modal="true" aria-label="confirm"
+          style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(6,10,8,.55)",
+            display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div className="game-confirm">
+            <p className="game-confirm-title">{confirmReq.title}</p>
+            <label className="game-muted" htmlFor="game-confirm-input">
+              type <strong>{confirmReq.phrase}</strong> to confirm
+            </label>
+            <input
+              id="game-confirm-input" className="game-confirm-input" autoFocus
+              value={typed} onChange={(e) => setTyped(e.target.value)}
+              placeholder={confirmReq.phrase} aria-label="type to confirm"
+            />
+            <div className="seg" role="group" aria-label="confirm actions">
+              <button type="button" onClick={() => setConfirmReq(null)}>cancel</button>
+              <button
+                type="button" className="btn-green game-confirm-go"
+                disabled={typed.trim() !== confirmReq.phrase}
+                onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(); }}
+              >{confirmReq.confirmLabel}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   ), document.body);
 }
