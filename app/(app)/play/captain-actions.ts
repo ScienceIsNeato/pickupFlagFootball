@@ -36,7 +36,11 @@ const ALLOWED: Record<SeriesStatus, SeriesStatus[]> = {
   retired: [],
 };
 
-async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<CaptainResult> {
+async function setSeriesStatus(
+  gameId: string, status: SeriesStatus,
+  // Pause carries an expected resume date + note; resume/retire clear them.
+  meta: { pausedUntil: string | null; pauseNote: string | null } = { pausedUntil: null, pauseNote: null },
+): Promise<CaptainResult> {
   const c = await asCaptain(gameId);
   if (!c.ok) return c;
   if (c.game.status === status) return { ok: true }; // idempotent no-op
@@ -47,7 +51,7 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
   // fails after the status commits, the idempotent no-op above would skip the retry
   // and leave occurrences orphaned. A transaction keeps them consistent.
   const raced = await db.transaction(async (tx) => {
-    const done = await tx.update(games).set({ status })
+    const done = await tx.update(games).set({ status, pausedUntil: meta.pausedUntil, pauseNote: meta.pauseNote })
       .where(and(eq(games.id, gameId), eq(games.status, c.game.status)))
       .returning({ id: games.id });
     // Lost a race (status changed between read and write) → roll back, report it.
@@ -71,9 +75,20 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
   return { ok: true };
 }
 
-/** Captain pauses the standing game (no occurrences will be polled while paused). */
-export async function pauseSeries(gameId: string) { return setSeriesStatus(gameId, "paused"); }
-/** Captain resumes a paused series. */
+/** Captain pauses the standing game for a season — requires an expected resume
+ *  date (so it's a pause, not a stop) and a note shown to players. If there's no
+ *  reasonable resume date, the captain should retire the series instead. */
+export async function pauseSeries(gameId: string, resumeDate: string, note: string): Promise<CaptainResult> {
+  const trimmed = (note ?? "").trim();
+  if (!trimmed) return { ok: false, error: "add a note so players know why the game's paused" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(resumeDate ?? "")) {
+    return { ok: false, error: "pick an expected resume date — or retire the series instead" };
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (new Date(`${resumeDate}T00:00:00`) <= today) return { ok: false, error: "the resume date must be in the future" };
+  return setSeriesStatus(gameId, "paused", { pausedUntil: resumeDate, pauseNote: trimmed });
+}
+/** Captain resumes a paused series (clears the pause note/date). */
 export async function resumeSeries(gameId: string) { return setSeriesStatus(gameId, "active"); }
 /** Captain ends the series for good. */
 export async function retireSeries(gameId: string) { return setSeriesStatus(gameId, "retired"); }

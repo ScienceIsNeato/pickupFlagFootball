@@ -14,6 +14,7 @@ type GameInfo = {
   scheduledStart: string;
   isStanding: boolean; recurDow: number | null; recurTime: string | null;
   confirmedCount: number; status: string;
+  pausedUntil: string | null; pauseNote: string | null;
   city: string | null; zip: string | null;
   captains: string[];
   viewerIsCaptain: boolean;
@@ -48,16 +49,22 @@ function fmtDate(ymd: string): string {
   });
 }
 
+type ConfirmReq =
+  | { kind: "phrase"; title: string; phrase: string; confirmLabel: string; onConfirm: () => void }
+  | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void };
+
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
-  // Type-to-confirm gate for the destructive captain actions (pause / retire).
-  const [confirmReq, setConfirmReq] =
-    useState<null | { title: string; phrase: string; confirmLabel: string; onConfirm: () => void }>(null);
+  // Confirm gate for destructive captain actions. "phrase" = type-to-confirm
+  // (retire); "pause" = collect an expected resume date + a required note.
+  const [confirmReq, setConfirmReq] = useState<ConfirmReq | null>(null);
   const [typed, setTyped] = useState("");
+  const [resumeDate, setResumeDate] = useState("");
+  const [pauseNote, setPauseNote] = useState("");
   const [pref, setPref] = useState<"regular" | "occasional">("regular");
   const [nextIn, setNextIn] = useState(true);
   // Portal the modal to document.body so it escapes .dash-map's stacking
@@ -115,8 +122,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     }
   }
 
-  function askConfirm(req: { title: string; phrase: string; confirmLabel: string; onConfirm: () => void }) {
-    setTyped("");
+  function askConfirm(req: ConfirmReq) {
+    setTyped(""); setResumeDate(""); setPauseNote("");
     setConfirmReq(req);
   }
 
@@ -153,16 +160,25 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               {game.captains.length > 0 && (
                 <>
                   <dt>captain{game.captains.length > 1 ? "s" : ""}</dt>
-                  <dd>{game.captains.join(", ")}</dd>
+                  <dd className="game-captain-dd">
+                    <span>{game.captains.join(", ")}</span>
+                    {game.viewerIsCaptain && <span className="game-you">(you)</span>}
+                  </dd>
                 </>
               )}
             </dl>
 
             <div className="game-join-box">
               {game.status === "paused" ? (
-                <p className="game-muted">this game is paused by the captain — no games are running right now.</p>
-              ) : game.eligible || game.onRoster ? (
+                <div className="game-paused">
+                  <p className="game-paused-h">
+                    paused by the captain{game.pausedUntil ? <> · back by <strong>{fmtDate(game.pausedUntil)}</strong></> : null}
+                  </p>
+                  {game.pauseNote && <p className="game-paused-note">“{game.pauseNote}”</p>}
+                </div>
+              ) : game.onRoster || (game.eligible && !game.viewerIsCaptain) ? (
                 <>
+                  {/* Players (and playing captains, who are on the roster) join / manage RSVP. */}
                   <p className="game-join-h">join weekly game</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
                     <button type="button" className={pref === "regular" ? "seg-on" : ""}
@@ -187,6 +203,12 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                   )}
                   <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
                 </>
+              ) : game.viewerIsCaptain ? (
+                // Captain who isn't a roster player: no "join" affordance, just the status.
+                <>
+                  <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
+                  <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
+                </>
               ) : (
                 <p className="game-muted">this game is outside your travel radius — widen it in your <a href="/account">account</a> to join.</p>
               )}
@@ -199,13 +221,13 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                 {game.status === "active" ? (
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" disabled={busy} onClick={() => { if (window.confirm("call off this week's game?")) run(() => cancelWeek(game.gameId)); }}>cancel this week</button>
-                    <button type="button" disabled={busy} onClick={() => askConfirm({ title: "pause this series?", phrase: "retire this game for now", confirmLabel: "pause series", onConfirm: () => run(() => pauseSeries(game.gameId)) })}>pause series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
+                    <button type="button" disabled={busy} onClick={() => askConfirm({ kind: "pause", title: "pause this series?", confirmLabel: "pause series", onConfirm: (d, n) => run(() => pauseSeries(game.gameId, d, n)) })}>pause series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 ) : (
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" className="btn-green" disabled={busy} onClick={() => { if (window.confirm("resume this series?")) run(() => resumeSeries(game.gameId)); }}>resume series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 )}
               </div>
@@ -241,22 +263,49 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
         >
           <div className="game-confirm">
             <p className="game-confirm-title">{confirmReq.title}</p>
-            <label className="game-muted" htmlFor="game-confirm-input">
-              type <strong>{confirmReq.phrase}</strong> to confirm
-            </label>
-            <input
-              id="game-confirm-input" className="game-confirm-input" autoFocus
-              value={typed} onChange={(e) => setTyped(e.target.value)}
-              placeholder={confirmReq.phrase} aria-label="type to confirm"
-            />
-            <div className="seg" role="group" aria-label="confirm actions">
-              <button type="button" onClick={() => setConfirmReq(null)}>cancel</button>
-              <button
-                type="button" className="btn-green game-confirm-go"
-                disabled={typed.trim() !== confirmReq.phrase}
-                onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(); }}
-              >{confirmReq.confirmLabel}</button>
-            </div>
+            {confirmReq.kind === "phrase" ? (
+              <>
+                <label className="game-muted" htmlFor="game-confirm-input">
+                  type <strong>{confirmReq.phrase}</strong> to confirm
+                </label>
+                <input
+                  id="game-confirm-input" className="game-confirm-input" autoFocus
+                  value={typed} onChange={(e) => setTyped(e.target.value)}
+                  placeholder={confirmReq.phrase} aria-label="type to confirm"
+                />
+                <div className="seg" role="group" aria-label="confirm actions">
+                  <button type="button" onClick={() => setConfirmReq(null)}>cancel</button>
+                  <button
+                    type="button" className="btn-green game-confirm-go"
+                    disabled={typed.trim() !== confirmReq.phrase}
+                    onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(); }}
+                  >{confirmReq.confirmLabel}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="game-muted" htmlFor="game-pause-date">back by</label>
+                <input
+                  id="game-pause-date" className="game-confirm-input" type="date" autoFocus
+                  value={resumeDate} onChange={(e) => setResumeDate(e.target.value)} aria-label="back by"
+                />
+                <label className="game-muted" htmlFor="game-pause-note">why (shown to players)</label>
+                <textarea
+                  id="game-pause-note" className="game-confirm-input game-pause-note" rows={2}
+                  value={pauseNote} onChange={(e) => setPauseNote(e.target.value)}
+                  placeholder="summer break — back in september" aria-label="why"
+                />
+                <p className="game-muted game-pause-hint">no resume date in mind? retire the series instead.</p>
+                <div className="seg" role="group" aria-label="confirm actions">
+                  <button type="button" onClick={() => setConfirmReq(null)}>cancel</button>
+                  <button
+                    type="button" className="btn-green game-confirm-go"
+                    disabled={!resumeDate || !pauseNote.trim()}
+                    onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(resumeDate, pauseNote.trim()); }}
+                  >{confirmReq.confirmLabel}</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

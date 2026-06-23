@@ -21,14 +21,16 @@ Given(
 );
 
 When("I pause the series", async ({ page }) => {
-  await page.getByRole("button", { name: "pause series" }).click(); // opens the type-to-confirm dialog
+  await page.getByRole("button", { name: "pause series" }).click(); // opens the pause dialog
   const dlg = page.getByRole("alertdialog");
-  await dlg.getByLabel("type to confirm").fill("retire this game for now");
+  await dlg.getByLabel("back by").fill("2099-09-01"); // a pause needs a future resume date
+  await dlg.getByLabel("why").fill("summer break — back in september");
   await dlg.getByRole("button", { name: "pause series" }).click();
 });
 
 Then("the game shows as paused", async ({ page }) => {
   await expect(page.locator(".game-join-box")).toContainText(/paused by the captain/i, { timeout: 10000 });
+  await expect(page.locator(".game-paused-note")).toContainText(/summer break/i); // the note shows prominently
   await expect(page.getByRole("button", { name: "resume series" })).toBeVisible();
 });
 
@@ -38,7 +40,9 @@ When("I resume the series", async ({ page }) => {
 });
 
 Then("the game is running again", async ({ page }) => {
-  await expect(page.locator(".game-join-box")).toContainText(/join weekly game/i, { timeout: 10000 });
+  // Paused notice is gone and the active captain controls (pause/cancel) are back.
+  await expect(page.locator(".game-paused")).toHaveCount(0, { timeout: 10000 });
+  await expect(page.getByRole("button", { name: "pause series" })).toBeVisible();
 });
 
 When("I retire the series", async ({ page }) => {

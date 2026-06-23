@@ -35,6 +35,7 @@ export async function GET(req: Request) {
     scheduledStart: games.scheduledStart, isStanding: games.isStanding,
     recurDow: games.recurDow, recurTime: games.recurTime,
     confirmedCount: games.confirmedCount, status: games.status,
+    pausedUntil: games.pausedUntil, pauseNote: games.pauseNote,
     city: areas.displayCity, zip: areas.displayZip,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
@@ -100,6 +101,7 @@ export async function GET(req: Request) {
       scheduledStart: best.scheduledStart, isStanding: best.isStanding,
       recurDow: best.recurDow, recurTime: best.recurTime,
       confirmedCount: best.confirmedCount, status: best.status,
+      pausedUntil: best.pausedUntil, pauseNote: best.pauseNote,
       city: best.city, zip: best.zip,
       captains,
       viewerIsCaptain: myCap.length > 0,
