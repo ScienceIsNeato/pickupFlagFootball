@@ -71,7 +71,7 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   const kickoff = new Date(`${date}T${g.recurTime}`);
   // Only an upcoming game can be called off — never rewrite one that's kicked off.
   if (kickoff <= now) return { ok: false, error: "this week's game has already started" };
-  await db.insert(gameOccurrences)
+  const done = await db.insert(gameOccurrences)
     .values({
       gameId, occurrenceDate: date, status: "cancelled",
       kickoffAt: kickoff, pollOpensAt: kickoff, pollClosesAt: kickoff,
@@ -81,7 +81,10 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
       set: { status: "cancelled" },
       // Never downgrade a finished occurrence (played/skipped) back to cancelled.
       setWhere: sql`${gameOccurrences.status} not in ('played', 'skipped', 'cancelled')`,
-    });
+    })
+    .returning({ id: gameOccurrences.id });
+  // Empty → the conflicting row was already settled (played/skipped/cancelled).
+  if (!done.length) return { ok: false, error: "this week is already settled" };
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };

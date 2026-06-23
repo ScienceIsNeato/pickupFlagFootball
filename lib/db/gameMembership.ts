@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "./index";
-import { nextOccurrenceYMD } from "@/lib/datetime";
+import { nextOccurrenceYMD, toYMD } from "@/lib/datetime";
 
 export type GameOccurrenceInputs = {
   id: string;
@@ -57,7 +57,21 @@ export type Membership = {
 export async function gameMembership(
   userId: string, game: GameOccurrenceInputs, now: Date,
 ): Promise<Membership> {
-  const occ = nextOccurrenceYMD(game, now);
+  // The "next game" skips weeks the captain called off / the poll skipped, so the
+  // popup never shows a cancelled date as the upcoming game.
+  const offRows = (await db.execute(sql`
+    select occurrence_date::text as d from game_occurrences
+    where game_id = ${game.id} and status in ('cancelled', 'skipped')
+      and occurrence_date >= ${toYMD(now)}::date`)).rows as Array<{ d: string }>;
+  const off = new Set(offRows.map((r) => r.d));
+  let occ = nextOccurrenceYMD(game, now);
+  for (let guard = 0; off.has(occ) && guard < 26; guard++) {
+    const after = new Date(`${occ}T12:00:00`);
+    after.setDate(after.getDate() + 1);
+    const nextOcc = nextOccurrenceYMD(game, after);
+    if (nextOcc === occ) break; // one-off game — no further recurrence
+    occ = nextOcc;
+  }
   const [m] = (await db.execute(sql`
     select
       (select default_status from game_roster r where r.game_id = ${game.id} and r.user_id = ${userId}) as my_default,

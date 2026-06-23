@@ -53,9 +53,11 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
     const kickoff = kickoffAt(date, g.recur_time);
     const pollOpens = new Date(kickoff.getTime() - Number(g.offset_s) * 1000);
     const pollCloses = new Date(pollOpens.getTime() + Number(g.window_s) * 1000);
-    // Only open while the poll window is actually open — never after it closed
-    // (else this same tick would create then immediately tally it).
-    if (now < pollOpens || now >= pollCloses) continue;
+    if (now < pollOpens || now >= kickoff) continue; // not time yet / already kicked off
+    // Still inside the window? If a tick was missed (cron outage) we still create
+    // the row so tally can decide it — but only email the RSVP request while the
+    // poll is genuinely open.
+    const pollOpen = now < pollCloses;
 
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -64,7 +66,7 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
         kickoffAt: kickoff, pollOpensAt: pollOpens, pollClosesAt: pollCloses,
       }).onConflictDoNothing().returning({ id: gameOccurrences.id });
       if (!inserted.length) return; // a prior tick already opened this poll
-      await enqueueOccurrence(tx, g.game_id, inserted[0].id, "POLL_ASK", now);
+      if (pollOpen) await enqueueOccurrence(tx, g.game_id, inserted[0].id, "POLL_ASK", now);
     });
   }
 }
