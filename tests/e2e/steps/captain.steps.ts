@@ -45,7 +45,12 @@ Then("the game is gone", async ({ page }) => {
 });
 
 When("I cancel this week", async ({ page, world }) => {
-  world.nextGameCaption = ((await page.locator(".game-seg-cap").textContent()) ?? "").trim();
+  // Make sure the caption is actually rendered before capturing it — otherwise an
+  // empty capture would make the "advanced" assertion below pass vacuously.
+  const cap = page.locator(".game-seg-cap");
+  await expect(cap).toContainText(/next game/i, { timeout: 10000 });
+  world.nextGameCaption = ((await cap.textContent()) ?? "").trim();
+  expect(world.nextGameCaption).not.toBe("");
   await page.getByRole("button", { name: "cancel this week" }).click();
 });
 

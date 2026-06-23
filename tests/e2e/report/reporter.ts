@@ -141,9 +141,11 @@ ${features}
   const dlg = document.getElementById('zoom'), zi = document.getElementById('zoomImg');
   document.querySelectorAll('.beat img').forEach(img => img.addEventListener('click', () => { zi.src = img.src; dlg.showModal(); }));
   dlg.addEventListener('click', () => dlg.close());
-  const all = (open) => document.querySelectorAll('details.scenario').forEach(d => { d.open = open; });
-  document.getElementById('exp').addEventListener('click', () => all(true));
-  document.getElementById('col').addEventListener('click', () => all(false));
+  document.getElementById('exp').addEventListener('click', () =>
+    document.querySelectorAll('details.scenario').forEach(d => { d.open = true; }));
+  // Collapse-all keeps failed scenarios open — they must never be hidden.
+  document.getElementById('col').addEventListener('click', () =>
+    document.querySelectorAll('details.scenario').forEach(d => { d.open = d.dataset.status !== 'passed'; }));
 </script>
 </body></html>`;
 }
@@ -160,7 +162,7 @@ function renderScenario(s: Scenario): string {
   const err = s.error ? `<div class="err">${esc(s.error)}</div>` : "";
   // Collapsed by default; auto-open failures so they're never hidden.
   const openAttr = s.status === "passed" ? "" : " open";
-  return `<details class="scenario"${openAttr}>
+  return `<details class="scenario" data-status="${esc(s.status)}"${openAttr}>
     <summary class="head"><span class="badge ${s.status}">${esc(s.status)}</span><span class="name">${esc(
       s.scenario,
     )}</span><span class="dur">${(s.durationMs / 1000).toFixed(1)}s</span><span class="caret" aria-hidden="true">▸</span></summary>
