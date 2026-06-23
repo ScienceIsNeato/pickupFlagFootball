@@ -1,9 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { games, gameOccurrences, gameAttendance } from "@/lib/db/schema";
+import { games, gameOccurrences, gameAttendance, gameRoster } from "@/lib/db/schema";
 import { verifyRsvpToken } from "@/lib/rsvpLink";
 
 /**
@@ -29,6 +29,12 @@ export async function applyRsvp(formData: FormData) {
       || occ.kickoffAt <= new Date()) {
     redirect("/rsvp?done=closed");
   }
+
+  // A token outlives roster membership — a member who left (setRosterMembership
+  // false) shouldn't be able to confirm an old email link and re-count as "in".
+  const [onRoster] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
+    .where(and(eq(gameRoster.gameId, occ.gameId), eq(gameRoster.userId, parsed.userId))).limit(1);
+  if (!onRoster) redirect("/rsvp?done=closed");
 
   await db.insert(gameAttendance)
     .values({ gameId: occ.gameId, userId: parsed.userId, occurrenceDate: occ.date, status: parsed.action })

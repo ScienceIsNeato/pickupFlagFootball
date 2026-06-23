@@ -43,20 +43,27 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
   if (!ALLOWED[c.game.status].includes(status)) {
     return { ok: false, error: `can't move a ${c.game.status} series to ${status}` };
   }
-  const done = await db.update(games).set({ status })
-    .where(and(eq(games.id, gameId), eq(games.status, c.game.status)))
-    .returning({ id: games.id });
-  // Lost a race (status changed between read and write) → report it, don't fake success.
-  if (!done.length) return { ok: false, error: "the series state just changed — try again" };
-  // Pausing/retiring calls off any in-flight week so the occurrence engine (which
-  // only advances active series) never leaves it stuck mid-cycle.
-  if (status === "paused" || status === "retired") {
-    await db.update(gameOccurrences).set({ status: "cancelled", updatedAt: new Date() })
-      .where(and(
-        eq(gameOccurrences.gameId, gameId),
-        inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "notifying", "awaiting_game"]),
-      ));
-  }
+  // Status flip + in-flight cancellation are one atomic unit: if the cancellation
+  // fails after the status commits, the idempotent no-op above would skip the retry
+  // and leave occurrences orphaned. A transaction keeps them consistent.
+  const raced = await db.transaction(async (tx) => {
+    const done = await tx.update(games).set({ status })
+      .where(and(eq(games.id, gameId), eq(games.status, c.game.status)))
+      .returning({ id: games.id });
+    // Lost a race (status changed between read and write) → roll back, report it.
+    if (!done.length) return true;
+    // Pausing/retiring calls off any in-flight week so the occurrence engine (which
+    // only advances active series) never leaves it stuck mid-cycle.
+    if (status === "paused" || status === "retired") {
+      await tx.update(gameOccurrences).set({ status: "cancelled", updatedAt: new Date() })
+        .where(and(
+          eq(gameOccurrences.gameId, gameId),
+          inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "notifying", "awaiting_game"]),
+        ));
+    }
+    return false;
+  });
+  if (raced) return { ok: false, error: "the series state just changed — try again" };
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };
