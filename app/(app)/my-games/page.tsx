@@ -96,7 +96,8 @@ export default async function UpcomingGamesPage() {
   // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
   const isOff = (g: { id: string }, date: string) => {
     const s = occByKey.get(`${g.id}|${date}`);
-    return s === "cancelled" || s === "skipped"; // captain called it off / poll skipped
+    // called off / poll skipped / already played → not an upcoming game
+    return s === "cancelled" || s === "skipped" || s === "played";
   };
   const upcoming = rosterGames
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))

@@ -58,7 +58,7 @@ export type Membership = {
 export async function nextPlayableOccurrence(game: GameOccurrenceInputs, now: Date): Promise<string> {
   const offRows = (await db.execute(sql`
     select occurrence_date::text as d from game_occurrences
-    where game_id = ${game.id} and status in ('cancelled', 'skipped')
+    where game_id = ${game.id} and status in ('cancelled', 'skipped', 'played')
       and occurrence_date >= ${toYMD(now)}::date`)).rows as Array<{ d: string }>;
   const off = new Set(offRows.map((r) => r.d));
   let occ = nextOccurrenceYMD(game, now);
