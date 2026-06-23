@@ -12,7 +12,6 @@ import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 export const metadata = { title: "Upcoming Games — MIME-FF" };
 
 const DAY = 86_400_000;
-const PLAYED_MIN = 4; // a recurring occurrence "took place" once this many were in
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 function fmtTime(t?: string | null): string {
@@ -203,10 +202,9 @@ export default async function UpcomingGamesPage() {
             {past.map(({ g, date }) => {
               const key = `${g.id}|${date}`;
               const head = headByKey.get(key) ?? 0;
-              // Occurrence status wins when present; fall back to the headcount
-              // heuristic only for weeks that predate the poll system.
-              const occStatus = occByKey.get(key);
-              const played = occStatus ? occStatus === "played" : head >= PLAYED_MIN;
+              // Occurrence status is the single source of truth for "played" — same
+              // as the map popup, so the two views never disagree.
+              const played = occByKey.get(key) === "played";
               // Past attendance is read from frozen rows only — never today's
               // default, which would rewrite history when a member changes their
               // pref. The tick freeze materializes a row for everyone who was in.
