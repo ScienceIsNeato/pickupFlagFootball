@@ -129,7 +129,9 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
         display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <div className="game-card">
+      {/* While a type-to-confirm dialog is open, the card is inert so Tab/clicks
+          can't reach the obscured controls behind it — focus stays in the dialog. */}
+      <div className="game-card" inert={confirmReq ? true : undefined}>
         <button type="button" className="game-close" onClick={onClose} aria-label="close">×</button>
         {state === "loading" && <p className="game-muted">loading…</p>}
         {state === "error" && <p className="game-muted">couldn&apos;t load this game.</p>}
