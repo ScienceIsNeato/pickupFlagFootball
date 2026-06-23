@@ -64,7 +64,11 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
   // context (z:0) and renders above the floating site header (z:30).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  useEscape(onClose);
+  // Escape closes the confirm dialog first (if open), else the whole modal.
+  useEscape(useCallback(() => {
+    if (confirmReq) setConfirmReq(null);
+    else onClose();
+  }, [confirmReq, onClose]));
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, mounted);
 
