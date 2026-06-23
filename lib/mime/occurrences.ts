@@ -11,6 +11,10 @@ type OccNotifKind = "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
  * claim-gated, so overlapping ticks can't double-act:
  *   open polls → tally closed polls → notify decided → mark played.
  */
+// Only advance occurrences whose series is still active — a paused/retired series
+// must not keep tallying, notifying, or completing weeks.
+const activeSeries = sql`exists (select 1 from games g where g.id = ${gameOccurrences.gameId} and g.status = 'active')`;
+
 export async function runOccurrences(db: EngineDb, now: Date): Promise<void> {
   let firstErr: unknown;
   const guard = async (fn: () => Promise<void>) => {
@@ -75,7 +79,7 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
 /** Poll window closed: count the "in" RSVPs and decide scheduled vs skipped. */
 async function tallyClosedPolls(db: EngineDb, now: Date): Promise<void> {
   const due = await db.select().from(gameOccurrences)
-    .where(and(eq(gameOccurrences.status, "polling"), lte(gameOccurrences.pollClosesAt, now)));
+    .where(and(eq(gameOccurrences.status, "polling"), lte(gameOccurrences.pollClosesAt, now), activeSeries));
   for (const occ of due) {
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -99,7 +103,7 @@ async function tallyClosedPolls(db: EngineDb, now: Date): Promise<void> {
  *  kickoff; skipped is done for the week (next week is a fresh occurrence). */
 async function notifyDecided(db: EngineDb, now: Date): Promise<void> {
   const due = await db.select().from(gameOccurrences)
-    .where(and(inArray(gameOccurrences.status, ["scheduled", "skipped"]), isNull(gameOccurrences.notifiedAt)));
+    .where(and(inArray(gameOccurrences.status, ["scheduled", "skipped"]), isNull(gameOccurrences.notifiedAt), activeSeries));
   for (const occ of due) {
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -124,7 +128,7 @@ async function notifyDecided(db: EngineDb, now: Date): Promise<void> {
 /** A scheduled occurrence becomes played once kickoff passes. */
 async function markPlayed(db: EngineDb, now: Date): Promise<void> {
   await db.update(gameOccurrences).set({ status: "played", updatedAt: now })
-    .where(and(eq(gameOccurrences.status, "awaiting_game"), lte(gameOccurrences.kickoffAt, now)));
+    .where(and(eq(gameOccurrences.status, "awaiting_game"), lte(gameOccurrences.kickoffAt, now), activeSeries));
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

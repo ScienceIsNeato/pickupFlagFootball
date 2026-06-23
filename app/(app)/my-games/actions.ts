@@ -75,10 +75,12 @@ export async function setOccurrenceRsvp(formData: FormData) {
   );
   if (!validDates.includes(date)) throw new Error("bad occurrence date");
 
-  // Can't RSVP to a week the captain called off.
+  // Can't RSVP to a week that's settled — called off, poll-skipped, or already played.
   const [occ] = await db.select({ status: gameOccurrences.status }).from(gameOccurrences)
     .where(and(eq(gameOccurrences.gameId, gameId), eq(gameOccurrences.occurrenceDate, date))).limit(1);
-  if (occ?.status === "cancelled") throw new Error("this week was called off");
+  if (occ && (occ.status === "cancelled" || occ.status === "skipped" || occ.status === "played")) {
+    throw new Error("this week is settled");
+  }
 
   await db.insert(gameAttendance)
     .values({ gameId, userId: me, occurrenceDate: date, status })
