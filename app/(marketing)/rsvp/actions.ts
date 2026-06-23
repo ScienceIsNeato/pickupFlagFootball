@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { gameOccurrences, gameAttendance } from "@/lib/db/schema";
+import { games, gameOccurrences, gameAttendance } from "@/lib/db/schema";
 import { verifyRsvpToken } from "@/lib/rsvpLink";
 
 /**
@@ -16,11 +16,18 @@ export async function applyRsvp(formData: FormData) {
   if (!parsed) redirect("/rsvp?done=invalid");
 
   const [occ] = await db.select({
-    gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate, status: gameOccurrences.status,
-  }).from(gameOccurrences).where(eq(gameOccurrences.id, parsed.occurrenceId)).limit(1);
+    gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate,
+    occStatus: gameOccurrences.status, seriesStatus: games.status,
+  }).from(gameOccurrences)
+    .innerJoin(games, eq(games.id, gameOccurrences.gameId))
+    .where(eq(gameOccurrences.id, parsed.occurrenceId)).limit(1);
   if (!occ) redirect("/rsvp?done=invalid");
-  // No RSVP to a week that's been called off.
-  if (occ.status === "cancelled") redirect("/rsvp?done=cancelled");
+  // No RSVP to a week that's been called off (cancelled), already settled
+  // (played/skipped), or whose series is paused/retired.
+  if (occ.occStatus === "cancelled") redirect("/rsvp?done=cancelled");
+  if (occ.occStatus === "played" || occ.occStatus === "skipped" || occ.seriesStatus !== "active") {
+    redirect("/rsvp?done=closed");
+  }
 
   await db.insert(gameAttendance)
     .values({ gameId: occ.gameId, userId: parsed.userId, occurrenceDate: occ.date, status: parsed.action })

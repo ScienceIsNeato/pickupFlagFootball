@@ -43,8 +43,11 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
   if (!ALLOWED[c.game.status].includes(status)) {
     return { ok: false, error: `can't move a ${c.game.status} series to ${status}` };
   }
-  await db.update(games).set({ status })
-    .where(and(eq(games.id, gameId), eq(games.status, c.game.status)));
+  const done = await db.update(games).set({ status })
+    .where(and(eq(games.id, gameId), eq(games.status, c.game.status)))
+    .returning({ id: games.id });
+  // Lost a race (status changed between read and write) → report it, don't fake success.
+  if (!done.length) return { ok: false, error: "the series state just changed — try again" };
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };

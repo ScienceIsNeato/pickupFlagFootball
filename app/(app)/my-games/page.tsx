@@ -58,7 +58,7 @@ export default async function UpcomingGamesPage() {
         recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-        .where(and(inArray(games.id, rosterIds), eq(games.status, "active")))
+        .where(and(inArray(games.id, rosterIds), inArray(games.status, ["active", "paused"])))
     : [];
 
   // My RSVP overrides (covers upcoming + past), and per-occurrence "in" headcounts.
@@ -94,8 +94,13 @@ export default async function UpcomingGamesPage() {
   const occByKey = new Map(occRows.map((o) => [`${o.gameId}|${o.date}`, o.status]));
 
   // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
+  const isOff = (g: { id: string }, date: string) => {
+    const s = occByKey.get(`${g.id}|${date}`);
+    return s === "cancelled" || s === "skipped"; // captain called it off / poll skipped
+  };
   const upcoming = rosterGames
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
+    .filter(({ g, date }) => !isOff(g, date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Past: last 8 weeks, most recent first.

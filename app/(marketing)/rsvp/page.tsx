@@ -28,6 +28,7 @@ export default async function RsvpPage({
       in: { title: "you're in", body: "great — we've marked you in for this week's game." },
       out: { title: "you're out", body: "thanks for letting us know — it helps the others plan." },
       cancelled: { title: "game called off", body: "this week's game was called off, so there's nothing to rsvp to." },
+      closed: { title: "rsvp closed", body: "this week is already settled (or the game is paused), so rsvp is closed." },
       invalid: { title: "this rsvp link didn't work", body: "it may have expired or been altered." },
     };
     const c = copy[done] ?? copy.invalid;

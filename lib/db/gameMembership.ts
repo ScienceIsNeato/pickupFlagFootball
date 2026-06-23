@@ -52,13 +52,10 @@ export type Membership = {
   inCount: number;               // RSVP'd "in" for the next occurrence
 };
 
-/** The current user's standing on a game + this-occurrence tallies, for the
- *  details popup and any RSVP UI. */
-export async function gameMembership(
-  userId: string, game: GameOccurrenceInputs, now: Date,
-): Promise<Membership> {
-  // The "next game" skips weeks the captain called off / the poll skipped, so the
-  // popup never shows a cancelled date as the upcoming game.
+/** The next recurrence date that's actually playable — skipping weeks the captain
+ *  called off or the poll skipped. Shared by the popup and the join/RSVP writes so
+ *  they never target an off week. */
+export async function nextPlayableOccurrence(game: GameOccurrenceInputs, now: Date): Promise<string> {
   const offRows = (await db.execute(sql`
     select occurrence_date::text as d from game_occurrences
     where game_id = ${game.id} and status in ('cancelled', 'skipped')
@@ -72,6 +69,15 @@ export async function gameMembership(
     if (nextOcc === occ) break; // one-off game — no further recurrence
     occ = nextOcc;
   }
+  return occ;
+}
+
+/** The current user's standing on a game + this-occurrence tallies, for the
+ *  details popup and any RSVP UI. */
+export async function gameMembership(
+  userId: string, game: GameOccurrenceInputs, now: Date,
+): Promise<Membership> {
+  const occ = await nextPlayableOccurrence(game, now);
   const [m] = (await db.execute(sql`
     select
       (select default_status from game_roster r where r.game_id = ${game.id} and r.user_id = ${userId}) as my_default,
