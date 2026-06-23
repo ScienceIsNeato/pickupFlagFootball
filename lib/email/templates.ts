@@ -28,7 +28,15 @@ function esc(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string }): string {
+type RsvpButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
+
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; rsvp?: RsvpButtons }): string {
+  const rsvpHtml = p.rsvp
+    ? `<div style="margin:16px 0 0;">
+      <a href="${esc(p.rsvp.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.rsvp.inLabel)}</a>
+      <a href="${esc(p.rsvp.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.rsvp.outLabel)}</a>
+    </div>`
+    : "";
   const footerHtml = p.footer
     ? `<p style="color:#9fb39a; font-size:13px; line-height:1.55; margin:22px 0 0;">${esc(p.footer.text)} <a href="${esc(p.base + p.footer.donateUrl)}" style="color:#f4c430; text-decoration:none;">chip in</a>.</p>`
     : "";
@@ -42,6 +50,7 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 8px;">${esc(p.greeting)}</p>
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 22px;">${esc(p.intro)}</p>
       <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
+      ${rsvpHtml}
       ${footerHtml}
     </td></tr>
     <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
@@ -70,19 +79,30 @@ export function buildVerificationEmail(
 /** Build subject + HTML + text for one notification email. */
 export function buildNotificationEmail(
   kind: NotifKind,
-  opts: { displayName: string | null; appBaseUrl: string; footer: DonationFooter | null },
+  opts: {
+    displayName: string | null; appBaseUrl: string; footer: DonationFooter | null;
+    // one-click RSVP links for the weekly poll emails (lib/rsvpLink.ts)
+    rsvp?: { inUrl: string; outUrl: string };
+  },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
   const base = opts.appBaseUrl.replace(/\/+$/, "");
   const ctaUrl = `${base}${c.path}`;
   const greeting = `hey ${opts.displayName ?? "there"},`;
 
+  // The RSVP request uses "in/out"; the status emails offer "play after all / bail".
+  const labels = kind === "POLL_ASK"
+    ? { inLabel: "i'm in", outLabel: "i'm out" }
+    : { inLabel: "play after all", outLabel: "bail" };
+  const rsvp = opts.rsvp ? { inUrl: opts.rsvp.inUrl, outUrl: opts.rsvp.outUrl, ...labels } : undefined;
+
   const footerLine = opts.footer ? `\n\n${opts.footer.text} ${base}${opts.footer.donateUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}\n\n${c.cta}: ${ctaUrl}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
+  const rsvpLine = rsvp ? `\n\n${rsvp.inLabel}: ${rsvp.inUrl}\n${rsvp.outLabel}: ${rsvp.outUrl}` : "";
+  const textContent = `${greeting}\n\n${c.intro}\n\n${c.cta}: ${ctaUrl}${rsvpLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, rsvp }),
     textContent,
   };
 }

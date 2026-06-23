@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areas, activityTypes, areaCaptains, users, gameOccurrences } from "@/lib/db/schema";
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     city: areas.displayCity, zip: areas.displayZip,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-    .where(and(eq(games.activityTypeId, act.id), eq(games.status, "active")));
+    .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["active", "paused"])));
 
   let best: (typeof active)[number] | null = null;
   let bestKm = 6;
@@ -82,9 +82,11 @@ export async function GET(req: Request) {
     id: best.id, isStanding: best.isStanding, recurDow: best.recurDow,
     scheduledStart: String(best.scheduledStart),
   };
-  const [eligible, membership] = await Promise.all([
+  const [eligible, membership, myCap] = await Promise.all([
     reachableActiveGame(session.user.id, best.id),
     gameMembership(session.user.id, occInputs, new Date()),
+    db.select({ u: areaCaptains.userId }).from(areaCaptains)
+      .where(and(eq(areaCaptains.areaId, best.areaId), eq(areaCaptains.userId, session.user.id))).limit(1),
   ]);
 
   return NextResponse.json({
@@ -96,6 +98,7 @@ export async function GET(req: Request) {
       confirmedCount: best.confirmedCount, status: best.status,
       city: best.city, zip: best.zip,
       captains,
+      viewerIsCaptain: myCap.length > 0,
       eligible: eligible != null,
       onRoster: membership.onRoster,
       myDefault: membership.myDefault,
