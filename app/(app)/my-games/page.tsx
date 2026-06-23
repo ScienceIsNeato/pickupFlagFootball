@@ -3,16 +3,15 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { users, areas, games, gameRoster, gameAttendance } from "@/lib/db/schema";
+import { users, areas, games, gameRoster, gameAttendance, gameOccurrences } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
-import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
+import { occurrenceDatesInRange, kickoffAtFor, toYMD } from "@/lib/datetime";
 import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
 export const metadata = { title: "Upcoming Games — MIME-FF" };
 
 const DAY = 86_400_000;
-const PLAYED_MIN = 4; // a recurring occurrence "took place" once this many were in
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 function fmtTime(t?: string | null): string {
@@ -58,7 +57,7 @@ export default async function UpcomingGamesPage() {
         recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
         city: areas.displayCity, zip: areas.displayZip,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-        .where(and(inArray(games.id, rosterIds), inArray(games.status, ["STAGED", "STANDING"])))
+        .where(and(inArray(games.id, rosterIds), inArray(games.status, ["active", "paused"])))
     : [];
 
   // My RSVP overrides (covers upcoming + past), and per-occurrence "in" headcounts.
@@ -82,9 +81,31 @@ export default async function UpcomingGamesPage() {
     : [];
   const headByKey = new Map(headRows.map((r) => [`${r.gameId}|${r.date}`, Number(r.c)]));
 
+  // Occurrence outcomes are the source of truth for "played" — a skipped/cancelled
+  // week isn't played even if leftover RSVPs would clear the headcount.
+  const occRows = rosterIds.length
+    ? await db.select({ gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate, status: gameOccurrences.status })
+        .from(gameOccurrences).where(and(
+          inArray(gameOccurrences.gameId, rosterIds),
+          gte(gameOccurrences.occurrenceDate, windowStart), lte(gameOccurrences.occurrenceDate, windowEnd),
+        ))
+    : [];
+  const occByKey = new Map(occRows.map((o) => [`${o.gameId}|${o.date}`, o.status]));
+
   // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
+  const isOff = (g: { id: string }, date: string) => {
+    const s = occByKey.get(`${g.id}|${date}`);
+    // called off / poll skipped / already played → not an upcoming game
+    return s === "cancelled" || s === "skipped" || s === "played";
+  };
+  // Once kickoff passes the week is no longer RSVP-able (setOccurrenceRsvp rejects
+  // it), so drop it from the list rather than show controls that fail.
+  const started = (g: { recurTime: string | null; scheduledStart: Date }, date: string) =>
+    kickoffAtFor(g, date) <= now;
   const upcoming = rosterGames
+    .filter((g) => g.status === "active") // paused series have no upcoming games to RSVP to
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
+    .filter(({ g, date }) => !isOff(g, date) && !started(g, date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Past: last 8 weeks, most recent first.
@@ -181,7 +202,9 @@ export default async function UpcomingGamesPage() {
             {past.map(({ g, date }) => {
               const key = `${g.id}|${date}`;
               const head = headByKey.get(key) ?? 0;
-              const played = head >= PLAYED_MIN;
+              // Occurrence status is the single source of truth for "played" — same
+              // as the map popup, so the two views never disagree.
+              const played = occByKey.get(key) === "played";
               // Past attendance is read from frozen rows only — never today's
               // default, which would rewrite history when a member changes their
               // pref. The tick freeze materializes a row for everyone who was in.

@@ -22,6 +22,10 @@ echo "▸ docker stack up (Postgres + Mailpit)"
 docker compose -f tests/e2e/docker-compose.yml up -d --wait
 
 echo "▸ schema (drizzle-kit push from lib/db/schema.ts)"
+# Rebuild from scratch so the schema always matches lib/db/schema.ts exactly —
+# incremental push can't migrate some changes (e.g. an enum type swap), which
+# would leave the DB drifted from the ORM.
+PGPASSWORD=mimeff psql "$DB_URL" -q -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 DATABASE_URL="$DB_URL" npx drizzle-kit push --config tests/e2e/drizzle.config.ts
 
 echo "▸ seed reference data"

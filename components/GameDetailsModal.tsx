@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
+import { pauseSeries, resumeSeries, retireSeries, cancelWeek } from "@/app/(app)/play/captain-actions";
 
 type GameInfo = {
   gameId: string;
@@ -15,6 +16,7 @@ type GameInfo = {
   confirmedCount: number; status: string;
   city: string | null; zip: string | null;
   captains: string[];
+  viewerIsCaptain: boolean;
   eligible: boolean; onRoster: boolean;
   myDefault: "in" | "out" | null;
   myRsvp: "in" | "out" | null;
@@ -142,7 +144,9 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
             </dl>
 
             <div className="game-join-box">
-              {game.eligible || game.onRoster ? (
+              {game.status === "paused" ? (
+                <p className="game-muted">this game is paused by the captain — no games are running right now.</p>
+              ) : game.eligible || game.onRoster ? (
                 <>
                   <p className="game-join-h">join weekly game</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
@@ -173,6 +177,24 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               )}
               {actionErr && <p className="game-err">{actionErr}</p>}
             </div>
+
+            {game.viewerIsCaptain && (
+              <div className="game-captain">
+                <p className="game-join-h">captain controls</p>
+                {game.status === "active" ? (
+                  <div className="seg" role="group" aria-label="captain controls">
+                    <button type="button" disabled={busy} onClick={() => run(() => cancelWeek(game.gameId))}>cancel this week</button>
+                    <button type="button" disabled={busy} onClick={() => run(() => pauseSeries(game.gameId))}>pause series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
+                  </div>
+                ) : (
+                  <div className="seg" role="group" aria-label="captain controls">
+                    <button type="button" className="btn-green" disabled={busy} onClick={() => run(() => resumeSeries(game.gameId))}>resume series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <span className="game-caret">{open ? "▾" : "▸"}</span>

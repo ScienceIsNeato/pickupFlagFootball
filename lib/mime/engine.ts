@@ -248,7 +248,7 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     originAttemptId: att.id, winningOptionId: winner.optionId,
     placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
     scheduledStart: winner.proposedStart,
-    status: "STAGED", confirmedCount: roster.length,
+    status: "active", confirmedCount: roster.length,
     // Color is keyed off the AREA, so this week's instance and every future
     // recurring instance of the same standing game share one color.
     color: gameColor(att.areaId),

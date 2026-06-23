@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
+import { gameRoster, gameAttendance, games, gameOccurrences } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
-import { occurrenceDatesInRange } from "@/lib/datetime";
+import { occurrenceDatesInRange, kickoffAtFor } from "@/lib/datetime";
 
 /**
  * Toggle whether I'm "in" for a game.
@@ -61,12 +61,12 @@ export async function setOccurrenceRsvp(formData: FormData) {
   // this game — otherwise a crafted POST could write arbitrary past/off-schedule
   // dates into the attendance/history record.
   const [game] = await db.select({
-    isStanding: games.isStanding, recurDow: games.recurDow,
+    isStanding: games.isStanding, recurDow: games.recurDow, recurTime: games.recurTime,
     scheduledStart: games.scheduledStart, status: games.status,
   }).from(games)
     .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
     .where(eq(games.id, gameId)).limit(1);
-  if (!game || (game.status !== "STAGED" && game.status !== "STANDING")) throw new Error("not on this roster");
+  if (!game || game.status !== "active") throw new Error("not on this roster");
 
   const now = new Date();
   const validDates = occurrenceDatesInRange(
@@ -74,6 +74,15 @@ export async function setOccurrenceRsvp(formData: FormData) {
     now, new Date(now.getTime() + 42 * 86_400_000),
   );
   if (!validDates.includes(date)) throw new Error("bad occurrence date");
+  // RSVP closes at kickoff (shared helper handles the recurTime/scheduledStart fallback).
+  if (kickoffAtFor(game, date) <= now) throw new Error("rsvp is closed for this week");
+
+  // Can't RSVP to a week that's settled — called off, poll-skipped, or already played.
+  const [occ] = await db.select({ status: gameOccurrences.status }).from(gameOccurrences)
+    .where(and(eq(gameOccurrences.gameId, gameId), eq(gameOccurrences.occurrenceDate, date))).limit(1);
+  if (occ && (occ.status === "cancelled" || occ.status === "skipped" || occ.status === "played")) {
+    throw new Error("this week is settled");
+  }
 
   await db.insert(gameAttendance)
     .values({ gameId, userId: me, occurrenceDate: date, status })

@@ -1,7 +1,8 @@
 import {
   pgTable, pgEnum, uuid, text, doublePrecision, bigint, jsonb, boolean,
-  timestamp, integer, time, date, primaryKey, index, uniqueIndex,
+  timestamp, integer, time, date, interval, primaryKey, index, uniqueIndex, check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ── enums ──────────────────────────────────────────────────────────────────
 export const areaStatusEnum = pgEnum("area_status", [
@@ -11,13 +12,20 @@ export const attemptStatusEnum = pgEnum("attempt_status", [
   "SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING",
   "CONFIRMED", "FAILED", "CANCELLED",
 ]);
-export const gameStatusEnum = pgEnum("game_status", [
-  "STAGED", "STANDING", "CANCELLED", "COMPLETED",
+// The standing game (series) lifecycle. The per-week lifecycle is occurrenceStatusEnum.
+export const seriesStatusEnum = pgEnum("series_status", ["active", "paused", "retired"]);
+// Per-week occurrence lifecycle (see docs/state-machines.md). "tallying" and
+// "notifying" are transient cron steps.
+export const occurrenceStatusEnum = pgEnum("occurrence_status", [
+  "pending", "polling", "tallying", "scheduled", "skipped",
+  "notifying", "awaiting_game", "played", "cancelled",
 ]);
 export const notificationKindEnum = pgEnum("notification_kind", [
   "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
   "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
   "GAME_ON", "STALLED_NOTICE",
+  // weekly occurrence poll
+  "POLL_ASK", "WEEK_ON", "WEEK_OFF",
 ]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
 // Self-declared donation preference. Drives the (Phase 6) email donation footer:
@@ -101,6 +109,10 @@ export const areas = pgTable("areas", {
   nextTriggerInterest: integer("next_trigger_interest"),
   nSparkOverride:      integer("n_spark_override"),
   pMinOverride:        integer("p_min_override"),
+  // Per-site config for the weekly RSVP poll (drives the occurrence FSM).
+  minPlayersToSchedule: integer("min_players_to_schedule").notNull().default(6),
+  pollingWindowLength:  interval("polling_window_length").notNull().default("24 hours"),
+  pollingStartOffset:   interval("polling_start_offset").notNull().default("48 hours"),
   createdAt:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_areas_activity_cell").on(t.activityTypeId, t.h3Cell),
@@ -195,7 +207,7 @@ export const games = pgTable("games", {
   placeLat:        doublePrecision("place_lat"),
   placeLng:        doublePrecision("place_lng"),
   scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
-  status:          gameStatusEnum("status").notNull().default("STAGED"),
+  status:          seriesStatusEnum("status").notNull().default("active"),
   confirmedCount:  integer("confirmed_count").notNull().default(0),
   color:           text("color"),  // assigned at insert time; consumers fall back to gameColor(id) for legacy rows
   isStanding:      boolean("is_standing").notNull().default(false),
@@ -232,11 +244,37 @@ export const gameAttendance = pgTable("game_attendance", {
   primaryKey({ columns: [t.gameId, t.userId, t.occurrenceDate] }),
 ]);
 
+// ── game_occurrences ───────────────────────────────────────────────────────
+// One row per weekly occurrence of a standing game. Carries the per-week
+// poll → play lifecycle (occurrence_status); individual RSVPs live in
+// game_attendance. See docs/state-machines.md.
+export const gameOccurrences = pgTable("game_occurrences", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  gameId:         uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  occurrenceDate: date("occurrence_date").notNull(),
+  status:         occurrenceStatusEnum("status").notNull().default("pending"),
+  kickoffAt:      timestamp("kickoff_at", { withTimezone: true }).notNull(),
+  pollOpensAt:    timestamp("poll_opens_at", { withTimezone: true }).notNull(),
+  pollClosesAt:   timestamp("poll_closes_at", { withTimezone: true }).notNull(),
+  inCount:        integer("in_count").notNull().default(0),
+  notifiedAt:     timestamp("notified_at", { withTimezone: true }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uq_occurrence_game_date").on(t.gameId, t.occurrenceDate),
+  index("idx_occurrences_poll_open").on(t.status, t.pollOpensAt),
+  index("idx_occurrences_poll_close").on(t.status, t.pollClosesAt),
+  index("idx_occurrences_kickoff").on(t.status, t.kickoffAt),
+]);
+
 // ── notifications_sent ─────────────────────────────────────────────────────
 export const notificationsSent = pgTable("notifications_sent", {
   id:        uuid("id").primaryKey().defaultRandom(),
   userId:    uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  attemptId: uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  // Exactly one parent: a formation attempt (formation emails) OR an occurrence
+  // (weekly poll emails). Enforced by the check below.
+  attemptId: uuid("attempt_id").references(() => formationAttempts.id, { onDelete: "cascade" }),
+  occurrenceId: uuid("occurrence_id").references(() => gameOccurrences.id, { onDelete: "cascade" }),
   gameId:    uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
   kind:      notificationKindEnum("kind").notNull(),
   channel:   notificationChannelEnum("channel").notNull(),
@@ -245,7 +283,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   // exactly-once) but not yet sent — the cron flush sends these and stamps it.
   emailedAt: timestamp("emailed_at", { withTimezone: true }),
 }, (t) => [
-  uniqueIndex("uq_notif_once").on(t.userId, t.attemptId, t.kind, t.channel),
+  check("notif_one_parent", sql`(${t.attemptId} is not null) <> (${t.occurrenceId} is not null)`),
+  uniqueIndex("uq_notif_attempt").on(t.userId, t.attemptId, t.kind, t.channel).where(sql`${t.attemptId} is not null`),
+  uniqueIndex("uq_notif_occurrence").on(t.userId, t.occurrenceId, t.kind, t.channel).where(sql`${t.occurrenceId} is not null`),
 ]);
 
 // ── area_captains ──────────────────────────────────────────────────────────

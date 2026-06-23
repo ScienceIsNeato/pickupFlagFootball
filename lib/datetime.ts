@@ -40,6 +40,19 @@ export function upcomingDatesForDow(dow: number, count: number, from: Date): str
  * if it's game day); otherwise the scheduled start's calendar date. Server-local
  * for now — refine with the user's timezone later.
  */
+/**
+ * The kickoff instant for a game's occurrence on a given YMD: recur_time when set,
+ * otherwise the time-of-day from scheduled_start. Single source for the kickoff
+ * cutoff shared by nextPlayableOccurrence, the my-games list, and setOccurrenceRsvp.
+ */
+export function kickoffAtFor(
+  game: { recurTime: string | null; scheduledStart: string | Date },
+  ymd: string,
+): Date {
+  const time = game.recurTime ?? new Date(game.scheduledStart).toTimeString().slice(0, 8);
+  return new Date(`${ymd}T${time}`);
+}
+
 export function nextOccurrenceYMD(
   game: { isStanding: boolean; recurDow: number | null; scheduledStart: string | Date },
   from: Date,

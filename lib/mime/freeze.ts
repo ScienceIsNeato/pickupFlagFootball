@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { games } from "@/lib/db/schema";
 import { occurrenceDatesInRange } from "@/lib/datetime";
 import type { EngineDb } from "./engine";
@@ -24,7 +24,7 @@ export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> 
     id: games.id, recurDow: games.recurDow, scheduledStart: games.scheduledStart,
   }).from(games).where(and(
     eq(games.isStanding, true),
-    inArray(games.status, ["STAGED", "STANDING"]),
+    eq(games.status, "active"),
   ));
 
   const yesterday = new Date(now.getTime() - DAY_MS);
@@ -49,6 +49,12 @@ export async function freezeOccurrences(db: EngineDb, now: Date): Promise<void> 
         where r.game_id = ${g.id}
           -- only weeks on/after the member joined — never backfill pre-join weeks
           and ${date}::date >= r.created_at::date
+          -- a week the captain called off / the poll skipped never ran, so no attendance
+          and not exists (
+            select 1 from game_occurrences o
+            where o.game_id = r.game_id and o.occurrence_date = ${date}::date
+              and o.status in ('cancelled', 'skipped')
+          )
           and not exists (
             select 1 from game_attendance a
             where a.game_id = r.game_id and a.user_id = r.user_id and a.occurrence_date = ${date}::date

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { games, areas, activityTypes, areaCaptains, users } from "@/lib/db/schema";
+import { games, areas, activityTypes, areaCaptains, users, gameOccurrences } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
 import { reachableActiveGame, gameMembership } from "@/lib/db/gameMembership";
 
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     city: areas.displayCity, zip: areas.displayZip,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-    .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["STAGED", "STANDING"])));
+    .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["active", "paused"])));
 
   let best: (typeof active)[number] | null = null;
   let bestKm = 6;
@@ -57,38 +57,40 @@ export async function GET(req: Request) {
   // rendering "null" in the popup. Mirrors the /api/proposed fix.
   const captains = captainRows.map((r) => r.name).filter((n): n is string => !!n);
 
-  // Past 10 weeks for this site: was a game played, and how many said they'd come.
+  // Past 10 weeks for this game: which occurrences were played, and the headcount.
   const WEEK = 7 * 86_400_000;
   const now = Date.now();
   const since = new Date(now - 10 * WEEK);
   const history = await db.select({
-    scheduledStart: games.scheduledStart, confirmedCount: games.confirmedCount, status: games.status,
-  }).from(games)
-    .where(and(eq(games.areaId, best.areaId), gte(games.scheduledStart, since)))
-    .orderBy(desc(games.scheduledStart));
+    date: gameOccurrences.occurrenceDate, inCount: gameOccurrences.inCount, status: gameOccurrences.status,
+  }).from(gameOccurrences)
+    .where(and(
+      eq(gameOccurrences.gameId, best.id),
+      gte(gameOccurrences.kickoffAt, since),
+      lte(gameOccurrences.kickoffAt, new Date(now)), // past only — exclude upcoming occurrences
+    ));
 
   const weeks = Array.from({ length: 10 }, (_, i) => {
     const end = now - i * WEEK, start = end - WEEK;
-    const g = history.find((h) => {
-      const t = new Date(h.scheduledStart).getTime();
+    const o = history.find((h) => {
+      const t = new Date(`${h.date}T00:00:00`).getTime();
       return t >= start && t < end;
     });
-    // Only COMPLETED games count as "played". STANDING/STAGED rows for the
-    // upcoming/current recurrence can land in this week's bucket and would
-    // otherwise be miscounted as having happened.
-    const played = !!g && g.status === "COMPLETED";
-    return { weekStart: new Date(start).toISOString(), played, count: played ? g!.confirmedCount : 0 };
+    const played = !!o && o.status === "played";
+    return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0 };
   });
 
   // The viewer's standing on this game: are they a regular, can they join (their
   // radius reaches it), and the next-occurrence RSVP tallies for the popup.
   const occInputs = {
     id: best.id, isStanding: best.isStanding, recurDow: best.recurDow,
-    scheduledStart: String(best.scheduledStart),
+    recurTime: best.recurTime, scheduledStart: String(best.scheduledStart),
   };
-  const [eligible, membership] = await Promise.all([
+  const [eligible, membership, myCap] = await Promise.all([
     reachableActiveGame(session.user.id, best.id),
     gameMembership(session.user.id, occInputs, new Date()),
+    db.select({ u: areaCaptains.userId }).from(areaCaptains)
+      .where(and(eq(areaCaptains.areaId, best.areaId), eq(areaCaptains.userId, session.user.id))).limit(1),
   ]);
 
   return NextResponse.json({
@@ -100,6 +102,7 @@ export async function GET(req: Request) {
       confirmedCount: best.confirmedCount, status: best.status,
       city: best.city, zip: best.zip,
       captains,
+      viewerIsCaptain: myCap.length > 0,
       eligible: eligible != null,
       onRoster: membership.onRoster,
       myDefault: membership.myDefault,

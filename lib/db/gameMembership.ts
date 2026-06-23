@@ -1,11 +1,12 @@
 import { sql } from "drizzle-orm";
 import { db } from "./index";
-import { nextOccurrenceYMD } from "@/lib/datetime";
+import { nextOccurrenceYMD, kickoffAtFor, toYMD } from "@/lib/datetime";
 
 export type GameOccurrenceInputs = {
   id: string;
   isStanding: boolean;
   recurDow: number | null;
+  recurTime: string | null;
   scheduledStart: string;
 };
 
@@ -14,8 +15,8 @@ export type GameOccurrenceInputs = {
 export async function activeGame(gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
     select id, is_standing as "isStanding", recur_dow as "recurDow",
-           scheduled_start as "scheduledStart"
-    from games where id = ${gameId} and status in ('STAGED', 'STANDING') limit 1`)).rows as GameOccurrenceInputs[];
+           recur_time as "recurTime", scheduled_start as "scheduledStart"
+    from games where id = ${gameId} and status = 'active' limit 1`)).rows as GameOccurrenceInputs[];
   return rows[0] ?? null;
 }
 
@@ -25,12 +26,12 @@ export async function activeGame(gameId: string): Promise<GameOccurrenceInputs |
 export async function reachableActiveGame(userId: string, gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
     select g.id, g.is_standing as "isStanding", g.recur_dow as "recurDow",
-           g.scheduled_start as "scheduledStart"
+           g.recur_time as "recurTime", g.scheduled_start as "scheduledStart"
     from games g
     join areas a on a.id = g.area_id
     join users u on u.id = ${userId}
     where g.id = ${gameId}
-      and g.status in ('STAGED', 'STANDING')
+      and g.status = 'active'
       and u.home_lat is not null and u.home_lng is not null
       -- measure to the game's actual venue (how the map/API locate it), falling
       -- back to the area centroid only when no venue point is stored
@@ -52,12 +53,35 @@ export type Membership = {
   inCount: number;               // RSVP'd "in" for the next occurrence
 };
 
+/** The next recurrence date that's actually playable — skipping weeks the captain
+ *  called off or the poll skipped. Shared by the popup and the join/RSVP writes so
+ *  they never target an off week. */
+export async function nextPlayableOccurrence(game: GameOccurrenceInputs, now: Date): Promise<string> {
+  const offRows = (await db.execute(sql`
+    select occurrence_date::text as d from game_occurrences
+    where game_id = ${game.id} and status in ('cancelled', 'skipped', 'played')
+      and occurrence_date >= ${toYMD(now)}::date`)).rows as Array<{ d: string }>;
+  const off = new Set(offRows.map((r) => r.d));
+  // A week is also "off" once its kickoff has passed — the next playable game is
+  // the following week, not a date that already started.
+  const started = (ymd: string) => kickoffAtFor(game, ymd) <= now;
+  let occ = nextOccurrenceYMD(game, now);
+  for (let guard = 0; (off.has(occ) || started(occ)) && guard < 26; guard++) {
+    const after = new Date(`${occ}T12:00:00`);
+    after.setDate(after.getDate() + 1);
+    const nextOcc = nextOccurrenceYMD(game, after);
+    if (nextOcc === occ) break; // one-off game — no further recurrence
+    occ = nextOcc;
+  }
+  return occ;
+}
+
 /** The current user's standing on a game + this-occurrence tallies, for the
  *  details popup and any RSVP UI. */
 export async function gameMembership(
   userId: string, game: GameOccurrenceInputs, now: Date,
 ): Promise<Membership> {
-  const occ = nextOccurrenceYMD(game, now);
+  const occ = await nextPlayableOccurrence(game, now);
   const [m] = (await db.execute(sql`
     select
       (select default_status from game_roster r where r.game_id = ${game.id} and r.user_id = ${userId}) as my_default,

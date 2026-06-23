@@ -5,9 +5,8 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
-import { activeGame, reachableActiveGame } from "@/lib/db/gameMembership";
+import { activeGame, reachableActiveGame, nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
-import { nextOccurrenceYMD } from "@/lib/datetime";
 
 export type JoinResult = { ok: true } | { ok: false; error: string };
 
@@ -51,7 +50,7 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   await db.insert(gameRoster).values({ gameId, userId: me, defaultStatus: def })
     .onConflictDoUpdate({ target: [gameRoster.gameId, gameRoster.userId], set: { defaultStatus: def } });
 
-  await upsertAttendance(gameId, me, nextOccurrenceYMD(g, new Date()), nextIn ? "in" : "out");
+  await upsertAttendance(gameId, me, await nextPlayableOccurrence(g, new Date()), nextIn ? "in" : "out");
   await syncRosterCount(gameId);
   revalidatePath("/my-games");
   return { ok: true };
@@ -92,7 +91,7 @@ export async function setNextGameRsvp(gameId: string, on: boolean): Promise<Join
 
   const g = on ? await reachableActiveGame(me, gameId) : await activeGame(gameId);
   if (!g) return { ok: false, error: on ? "this game is outside your travel area" : "game unavailable" };
-  await upsertAttendance(gameId, me, nextOccurrenceYMD(g, new Date()), on ? "in" : "out");
+  await upsertAttendance(gameId, me, await nextPlayableOccurrence(g, new Date()), on ? "in" : "out");
   revalidatePath("/my-games");
   return { ok: true };
 }
