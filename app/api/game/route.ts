@@ -84,7 +84,7 @@ export async function GET(req: Request) {
   // radius reaches it), and the next-occurrence RSVP tallies for the popup.
   const occInputs = {
     id: best.id, isStanding: best.isStanding, recurDow: best.recurDow,
-    scheduledStart: String(best.scheduledStart),
+    recurTime: best.recurTime, scheduledStart: String(best.scheduledStart),
   };
   const [eligible, membership, myCap] = await Promise.all([
     reachableActiveGame(session.user.id, best.id),

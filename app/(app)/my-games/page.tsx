@@ -99,10 +99,14 @@ export default async function UpcomingGamesPage() {
     // called off / poll skipped / already played → not an upcoming game
     return s === "cancelled" || s === "skipped" || s === "played";
   };
+  // Once kickoff passes the week is no longer RSVP-able (setOccurrenceRsvp rejects
+  // it), so drop it from the list rather than show controls that fail.
+  const started = (g: { recurTime: string | null; scheduledStart: Date }, date: string) =>
+    new Date(`${date}T${g.recurTime ?? new Date(g.scheduledStart).toTimeString().slice(0, 8)}`) <= now;
   const upcoming = rosterGames
     .filter((g) => g.status === "active") // paused series have no upcoming games to RSVP to
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
-    .filter(({ g, date }) => !isOff(g, date))
+    .filter(({ g, date }) => !isOff(g, date) && !started(g, date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Past: last 8 weeks, most recent first.

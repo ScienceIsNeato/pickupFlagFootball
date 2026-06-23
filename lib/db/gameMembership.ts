@@ -6,6 +6,7 @@ export type GameOccurrenceInputs = {
   id: string;
   isStanding: boolean;
   recurDow: number | null;
+  recurTime: string | null;
   scheduledStart: string;
 };
 
@@ -14,7 +15,7 @@ export type GameOccurrenceInputs = {
 export async function activeGame(gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
     select id, is_standing as "isStanding", recur_dow as "recurDow",
-           scheduled_start as "scheduledStart"
+           recur_time as "recurTime", scheduled_start as "scheduledStart"
     from games where id = ${gameId} and status = 'active' limit 1`)).rows as GameOccurrenceInputs[];
   return rows[0] ?? null;
 }
@@ -25,7 +26,7 @@ export async function activeGame(gameId: string): Promise<GameOccurrenceInputs |
 export async function reachableActiveGame(userId: string, gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
     select g.id, g.is_standing as "isStanding", g.recur_dow as "recurDow",
-           g.scheduled_start as "scheduledStart"
+           g.recur_time as "recurTime", g.scheduled_start as "scheduledStart"
     from games g
     join areas a on a.id = g.area_id
     join users u on u.id = ${userId}
@@ -61,8 +62,12 @@ export async function nextPlayableOccurrence(game: GameOccurrenceInputs, now: Da
     where game_id = ${game.id} and status in ('cancelled', 'skipped', 'played')
       and occurrence_date >= ${toYMD(now)}::date`)).rows as Array<{ d: string }>;
   const off = new Set(offRows.map((r) => r.d));
+  // A week is also "off" once its kickoff has passed — the next playable game is
+  // the following week, not a date that already started.
+  const time = game.recurTime ?? new Date(game.scheduledStart).toTimeString().slice(0, 8);
+  const started = (ymd: string) => new Date(`${ymd}T${time}`) <= now;
   let occ = nextOccurrenceYMD(game, now);
-  for (let guard = 0; off.has(occ) && guard < 26; guard++) {
+  for (let guard = 0; (off.has(occ) || started(occ)) && guard < 26; guard++) {
     const after = new Date(`${occ}T12:00:00`);
     after.setDate(after.getDate() + 1);
     const nextOcc = nextOccurrenceYMD(game, after);
