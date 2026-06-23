@@ -4,7 +4,10 @@ import { test as base, createBdd } from "playwright-bdd";
 export type World = {
   email?: string;
   confirmLink?: string;
-  game?: { lat: number; lng: number; placeText: string };
+  game?: { lat: number; lng: number; placeText: string; gameId?: string; areaId?: string };
+  // captured to assert a captain action changed the popup (e.g. cancel advances "next game")
+  nextGameCaption?: string;
+  rsvpToken?: string; // signed one-click RSVP-link token for the email-link flow
 };
 
 export const test = base.extend<{ world: World }>({

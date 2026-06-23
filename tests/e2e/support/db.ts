@@ -49,7 +49,7 @@ export async function seedStandingGame(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
   regulars?: number;    // background players on the roster → "claimed (in a game)"
   interested?: number;  // background players with interest nearby → "interested player"
-}): Promise<{ lat: number; lng: number; placeText: string }> {
+}): Promise<{ lat: number; lng: number; placeText: string; gameId: string; areaId: string }> {
   const regulars = o.regulars ?? 15;
   const interested = o.interested ?? 6;
   const DAY = 86_400_000;
@@ -139,5 +139,47 @@ export async function seedStandingGame(o: {
       [act.id, u.id, fArea.id, fCell],
     );
   }
-  return { lat: o.lat, lng: o.lng, placeText: o.placeText };
+  return { lat: o.lat, lng: o.lng, placeText: o.placeText, gameId: String(game.id), areaId: String(area.id) };
+}
+
+/** The id of a registered user, by email — to wire up roster/captain/RSVP rows. */
+export async function getUserId(email: string): Promise<string> {
+  const { rows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);
+  if (!rows[0]) throw new Error(`no user with email ${email}`);
+  return String(rows[0].id);
+}
+
+/** Make a user a captain of an area (gates the captain controls in the popup). */
+export async function seedCaptain(areaId: string, email: string): Promise<void> {
+  const userId = await getUserId(email);
+  await pool.query(
+    "INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [areaId, userId],
+  );
+}
+
+/** Put a user on a game's roster (needed before they can RSVP). */
+export async function seedRosterMember(gameId: string, email: string, defaultStatus: "in" | "out" = "in"): Promise<void> {
+  const userId = await getUserId(email);
+  await pool.query(
+    `INSERT INTO game_roster (game_id, user_id, default_status) VALUES ($1, $2, $3)
+     ON CONFLICT (game_id, user_id) DO UPDATE SET default_status = EXCLUDED.default_status`,
+    [gameId, userId, defaultStatus],
+  );
+}
+
+/** A scheduled (decided-on) upcoming occurrence with a future kickoff, so the
+ *  one-click RSVP link is live. Returns the occurrence id for the signed token. */
+export async function seedScheduledOccurrence(gameId: string): Promise<string> {
+  const DAY = 86_400_000;
+  const kickoff = new Date(Date.now() + 2 * DAY); // safely in the future
+  const pollOpens = new Date(Date.now() - 1 * DAY);
+  const { rows } = await pool.query(
+    `INSERT INTO game_occurrences
+       (game_id, occurrence_date, status, kickoff_at, poll_opens_at, poll_closes_at, in_count)
+     VALUES ($1, $2::date, 'scheduled', $3, $4, $3, 8)
+     RETURNING id`,
+    [gameId, kickoff.toISOString(), kickoff.toISOString(), pollOpens.toISOString()],
+  );
+  return String(rows[0].id);
 }

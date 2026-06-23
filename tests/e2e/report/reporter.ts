@@ -103,8 +103,17 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
   .wrap { max-width:1100px; margin:0 auto; padding:24px 28px 60px; }
   .feature > h2 { font-size:17px; margin:30px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--green); }
   .scenario { background:#fff; border:1px solid var(--line); border-radius:10px; margin:0 0 18px; overflow:hidden; }
-  .scenario > .head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
-  .scenario > .head .name { font-weight:600; }
+  /* Scenarios are collapsible (native <details>); collapsed by default, failures auto-open. */
+  summary.head { display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; list-style:none; user-select:none; }
+  summary.head::-webkit-details-marker { display:none; }
+  summary.head:hover { background:#fafcfa; }
+  .scenario[open] > summary.head { border-bottom:1px solid var(--line); }
+  .scenario > summary.head .name { font-weight:600; }
+  .caret { color:var(--muted); font-size:12px; transition:transform .15s ease; }
+  .scenario[open] .caret { transform:rotate(90deg); }
+  .controls { margin-top:8px; }
+  .controls button { font:12px inherit; color:#fff; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35); border-radius:6px; padding:3px 10px; cursor:pointer; }
+  .controls button:hover { background:rgba(255,255,255,.28); }
   .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px; color:#fff; }
   .badge.passed { background:var(--pass); } .badge.failed,.badge.timedOut { background:var(--fail); }
   .dur { color:var(--muted); font-size:12px; margin-left:auto; }
@@ -122,6 +131,7 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
 <header class="top">
   <h1>pickup flag football — story report</h1>
   <div class="sum">${scenarios.length} scenario(s) · <b>${passed} passed</b>${failed ? ` · <b>${failed} failed</b>` : ""} · overall: ${esc(result.status)}</div>
+  <div class="controls"><button id="exp" type="button">expand all</button> <button id="col" type="button">collapse all</button></div>
 </header>
 <div class="wrap">
 ${features}
@@ -131,6 +141,9 @@ ${features}
   const dlg = document.getElementById('zoom'), zi = document.getElementById('zoomImg');
   document.querySelectorAll('.beat img').forEach(img => img.addEventListener('click', () => { zi.src = img.src; dlg.showModal(); }));
   dlg.addEventListener('click', () => dlg.close());
+  const all = (open) => document.querySelectorAll('details.scenario').forEach(d => { d.open = open; });
+  document.getElementById('exp').addEventListener('click', () => all(true));
+  document.getElementById('col').addEventListener('click', () => all(false));
 </script>
 </body></html>`;
 }
@@ -145,11 +158,13 @@ function renderScenario(s: Scenario): string {
     )
     .join("\n");
   const err = s.error ? `<div class="err">${esc(s.error)}</div>` : "";
-  return `<div class="scenario">
-    <div class="head"><span class="badge ${s.status}">${esc(s.status)}</span><span class="name">${esc(
+  // Collapsed by default; auto-open failures so they're never hidden.
+  const openAttr = s.status === "passed" ? "" : " open";
+  return `<details class="scenario"${openAttr}>
+    <summary class="head"><span class="badge ${s.status}">${esc(s.status)}</span><span class="name">${esc(
       s.scenario,
-    )}</span><span class="dur">${(s.durationMs / 1000).toFixed(1)}s</span></div>
+    )}</span><span class="dur">${(s.durationMs / 1000).toFixed(1)}s</span><span class="caret" aria-hidden="true">▸</span></summary>
     ${err}
     <div class="beats">${beats}</div>
-  </div>`;
+  </details>`;
 }

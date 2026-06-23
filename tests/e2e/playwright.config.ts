@@ -42,10 +42,10 @@ export default defineConfig({
       EMAIL_TRANSPORT: "smtp",
       SMTP_URL: E2E.smtpUrl,
       APP_BASE_URL: E2E.appBaseUrl,
-      AUTH_SECRET: "e2e-test-secret-not-for-prod",
+      AUTH_SECRET: E2E.authSecret,
       AUTH_URL: E2E.appBaseUrl,
       AUTH_TRUST_HOST: "true",
-      NEXTAUTH_SECRET: "e2e-test-secret-not-for-prod",
+      NEXTAUTH_SECRET: E2E.authSecret,
       NEXTAUTH_URL: E2E.appBaseUrl,
       // dummy Google creds so the auth provider config doesn't choke at boot
       GOOGLE_CLIENT_ID: "e2e-google-id",
