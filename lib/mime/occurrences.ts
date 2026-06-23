@@ -53,7 +53,9 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
     const kickoff = kickoffAt(date, g.recur_time);
     const pollOpens = new Date(kickoff.getTime() - Number(g.offset_s) * 1000);
     const pollCloses = new Date(pollOpens.getTime() + Number(g.window_s) * 1000);
-    if (now < pollOpens || now >= kickoff) continue; // poll not open yet / already kicked off
+    // Only open while the poll window is actually open — never after it closed
+    // (else this same tick would create then immediately tally it).
+    if (now < pollOpens || now >= pollCloses) continue;
 
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -100,10 +102,15 @@ async function notifyDecided(db: EngineDb, now: Date): Promise<void> {
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
       const next = occ.status === "scheduled" ? "awaiting_game" : "skipped";
-      // Claim on notified_at so the email is enqueued exactly once.
+      // Claim on (status, notified_at) so a concurrent captain cancel (which flips
+      // status) isn't clobbered, and the email is enqueued exactly once.
       const claimed = await tx.update(gameOccurrences)
         .set({ status: next, notifiedAt: now, updatedAt: now })
-        .where(and(eq(gameOccurrences.id, occ.id), isNull(gameOccurrences.notifiedAt)))
+        .where(and(
+          eq(gameOccurrences.id, occ.id),
+          eq(gameOccurrences.status, occ.status),
+          isNull(gameOccurrences.notifiedAt),
+        ))
         .returning({ id: gameOccurrences.id });
       if (!claimed.length) return;
       await enqueueOccurrence(tx, occ.gameId, occ.id, occ.status === "scheduled" ? "WEEK_ON" : "WEEK_OFF", now);

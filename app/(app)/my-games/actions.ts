@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
+import { gameRoster, gameAttendance, games, gameOccurrences } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 import { occurrenceDatesInRange } from "@/lib/datetime";
@@ -74,6 +74,11 @@ export async function setOccurrenceRsvp(formData: FormData) {
     now, new Date(now.getTime() + 42 * 86_400_000),
   );
   if (!validDates.includes(date)) throw new Error("bad occurrence date");
+
+  // Can't RSVP to a week the captain called off.
+  const [occ] = await db.select({ status: gameOccurrences.status }).from(gameOccurrences)
+    .where(and(eq(gameOccurrences.gameId, gameId), eq(gameOccurrences.occurrenceDate, date))).limit(1);
+  if (occ?.status === "cancelled") throw new Error("this week was called off");
 
   await db.insert(gameAttendance)
     .values({ gameId, userId: me, occurrenceDate: date, status })

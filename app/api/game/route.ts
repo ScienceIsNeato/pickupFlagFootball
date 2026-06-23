@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areas, activityTypes, areaCaptains, users, gameOccurrences } from "@/lib/db/schema";
@@ -64,7 +64,11 @@ export async function GET(req: Request) {
   const history = await db.select({
     date: gameOccurrences.occurrenceDate, inCount: gameOccurrences.inCount, status: gameOccurrences.status,
   }).from(gameOccurrences)
-    .where(and(eq(gameOccurrences.gameId, best.id), gte(gameOccurrences.kickoffAt, since)));
+    .where(and(
+      eq(gameOccurrences.gameId, best.id),
+      gte(gameOccurrences.kickoffAt, since),
+      lte(gameOccurrences.kickoffAt, new Date(now)), // past only — exclude upcoming occurrences
+    ));
 
   const weeks = Array.from({ length: 10 }, (_, i) => {
     const end = now - i * WEEK, start = end - WEEK;

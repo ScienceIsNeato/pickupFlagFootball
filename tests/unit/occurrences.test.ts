@@ -43,9 +43,10 @@ async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number
 
 const occ = (db: EngineDb, gameId: string) =>
   db.select().from(gameOccurrences).where(eq(gameOccurrences.gameId, gameId));
-const notifs = (db: EngineDb, gameId: string, kind: string) =>
+type OccKind = "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
+const notifs = (db: EngineDb, gameId: string, kind: OccKind) =>
   db.select().from(notificationsSent)
-    .where(and(eq(notificationsSent.gameId, gameId), eq(notificationsSent.kind, kind as "POLL_ASK")));
+    .where(and(eq(notificationsSent.gameId, gameId), eq(notificationsSent.kind, kind)));
 
 test("occurrence cycle: enough RSVPs → scheduled → played", async () => {
   const world = await World.create();

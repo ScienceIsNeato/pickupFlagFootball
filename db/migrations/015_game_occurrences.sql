@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS game_occurrences (
   notified_at     timestamptz,                     -- when the status email went out
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (game_id, occurrence_date)
+  CONSTRAINT uq_occurrence_game_date UNIQUE (game_id, occurrence_date)
 );
 
 -- The cron finds work by (status, time): poll-opens due, poll-closes due.

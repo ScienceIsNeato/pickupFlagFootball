@@ -19,9 +19,14 @@ function secret(): string {
 const sign = (payload: string) =>
   createHmac("sha256", secret()).update(payload).digest("base64url");
 
-/** Build the signed token for /rsvp?t=… */
-export function signRsvpToken(userId: string, occurrenceId: string, action: RsvpAction): string {
-  const payload = `${userId}.${occurrenceId}.${action}`;
+// Links live in inboxes forever, so they expire — a week's RSVP is only relevant
+// for a couple of weeks around it.
+const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Build the signed token for /rsvp?t=… (expires after ttlMs). */
+export function signRsvpToken(userId: string, occurrenceId: string, action: RsvpAction, ttlMs = DEFAULT_TTL_MS): string {
+  const exp = Date.now() + ttlMs;
+  const payload = `${userId}.${occurrenceId}.${action}.${exp}`;
   return `${Buffer.from(payload).toString("base64url")}.${sign(payload)}`;
 }
 
@@ -41,7 +46,9 @@ export function verifyRsvpToken(token: string): { userId: string; occurrenceId: 
   const expected = sign(payload);
   const a = Buffer.from(sig), b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  const [userId, occurrenceId, action] = payload.split(".");
+  const [userId, occurrenceId, action, expStr] = payload.split(".");
   if (!userId || !occurrenceId || (action !== "in" && action !== "out")) return null;
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || Date.now() > exp) return null; // expired or missing
   return { userId, occurrenceId, action };
 }

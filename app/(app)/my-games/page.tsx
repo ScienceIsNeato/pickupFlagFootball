@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { users, areas, games, gameRoster, gameAttendance } from "@/lib/db/schema";
+import { users, areas, games, gameRoster, gameAttendance, gameOccurrences } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
 import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
@@ -81,6 +81,17 @@ export default async function UpcomingGamesPage() {
         .groupBy(gameAttendance.gameId, gameAttendance.occurrenceDate)
     : [];
   const headByKey = new Map(headRows.map((r) => [`${r.gameId}|${r.date}`, Number(r.c)]));
+
+  // Occurrence outcomes are the source of truth for "played" — a skipped/cancelled
+  // week isn't played even if leftover RSVPs would clear the headcount.
+  const occRows = rosterIds.length
+    ? await db.select({ gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate, status: gameOccurrences.status })
+        .from(gameOccurrences).where(and(
+          inArray(gameOccurrences.gameId, rosterIds),
+          gte(gameOccurrences.occurrenceDate, windowStart), lte(gameOccurrences.occurrenceDate, windowEnd),
+        ))
+    : [];
+  const occByKey = new Map(occRows.map((o) => [`${o.gameId}|${o.date}`, o.status]));
 
   // Upcoming: next 6 weeks of occurrences across joined sites, chronological.
   const upcoming = rosterGames
@@ -181,7 +192,10 @@ export default async function UpcomingGamesPage() {
             {past.map(({ g, date }) => {
               const key = `${g.id}|${date}`;
               const head = headByKey.get(key) ?? 0;
-              const played = head >= PLAYED_MIN;
+              // Occurrence status wins when present; fall back to the headcount
+              // heuristic only for weeks that predate the poll system.
+              const occStatus = occByKey.get(key);
+              const played = occStatus ? occStatus === "played" : head >= PLAYED_MIN;
               // Past attendance is read from frozen rows only — never today's
               // default, which would rewrite history when a member changes their
               // pref. The tick freeze materializes a row for everyone who was in.

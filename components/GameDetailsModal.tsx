@@ -185,12 +185,12 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" disabled={busy} onClick={() => run(() => cancelWeek(game.gameId))}>cancel this week</button>
                     <button type="button" disabled={busy} onClick={() => run(() => pauseSeries(game.gameId))}>pause series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => run(() => retireSeries(game.gameId))}>retire series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
                   </div>
                 ) : (
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" className="btn-green" disabled={busy} onClick={() => run(() => resumeSeries(game.gameId))}>resume series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => run(() => retireSeries(game.gameId))}>retire series</button>
+                    <button type="button" className="game-leave" disabled={busy} onClick={() => { if (confirm("retire this series for good? this can't be undone.")) run(() => retireSeries(game.gameId)); }}>retire series</button>
                   </div>
                 )}
               </div>

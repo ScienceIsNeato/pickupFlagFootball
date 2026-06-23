@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -11,14 +11,15 @@ export type CaptainResult = { ok: true } | { ok: false; error: string };
 
 /** A user may run captain controls on a game only if they're a captain of its
  *  area. Returns the game's recur info (for cancel-week) or an error. */
-type Game = { areaId: string; recurDow: number | null; recurTime: string | null; scheduledStart: Date };
+type SeriesStatus = "active" | "paused" | "retired";
+type Game = { areaId: string; status: SeriesStatus; recurDow: number | null; recurTime: string | null; scheduledStart: Date };
 
 async function asCaptain(gameId: string): Promise<{ ok: false; error: string } | { ok: true; game: Game }> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const uid = session.user.id;
   const [g] = await db.select({
-    areaId: games.areaId, recurDow: games.recurDow, recurTime: games.recurTime,
+    areaId: games.areaId, status: games.status, recurDow: games.recurDow, recurTime: games.recurTime,
     scheduledStart: games.scheduledStart,
   }).from(games).where(eq(games.id, gameId)).limit(1);
   if (!g) return { ok: false, error: "game not found" };
@@ -28,10 +29,22 @@ async function asCaptain(gameId: string): Promise<{ ok: false; error: string } |
   return { ok: true, game: g };
 }
 
-async function setSeriesStatus(gameId: string, status: "active" | "paused" | "retired"): Promise<CaptainResult> {
+// Valid series transitions (retired is terminal).
+const ALLOWED: Record<SeriesStatus, SeriesStatus[]> = {
+  active: ["paused", "retired"],
+  paused: ["active", "retired"],
+  retired: [],
+};
+
+async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<CaptainResult> {
   const c = await asCaptain(gameId);
   if (!c.ok) return c;
-  await db.update(games).set({ status }).where(eq(games.id, gameId));
+  if (c.game.status === status) return { ok: true }; // idempotent no-op
+  if (!ALLOWED[c.game.status].includes(status)) {
+    return { ok: false, error: `can't move a ${c.game.status} series to ${status}` };
+  }
+  await db.update(games).set({ status })
+    .where(and(eq(games.id, gameId), eq(games.status, c.game.status)));
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };
@@ -51,10 +64,13 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   if (!c.ok) return c;
   const g = c.game;
   if (g.recurDow == null || !g.recurTime) return { ok: false, error: "not a recurring game" };
+  const now = new Date();
   const date = nextOccurrenceYMD(
-    { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) }, new Date(),
+    { isStanding: true, recurDow: g.recurDow, scheduledStart: String(g.scheduledStart) }, now,
   );
   const kickoff = new Date(`${date}T${g.recurTime}`);
+  // Only an upcoming game can be called off — never rewrite one that's kicked off.
+  if (kickoff <= now) return { ok: false, error: "this week's game has already started" };
   await db.insert(gameOccurrences)
     .values({
       gameId, occurrenceDate: date, status: "cancelled",
@@ -63,6 +79,8 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
     .onConflictDoUpdate({
       target: [gameOccurrences.gameId, gameOccurrences.occurrenceDate],
       set: { status: "cancelled" },
+      // Never downgrade a finished occurrence (played/skipped) back to cancelled.
+      setWhere: sql`${gameOccurrences.status} not in ('played', 'skipped', 'cancelled')`,
     });
   revalidatePath("/play");
   revalidatePath("/my-games");

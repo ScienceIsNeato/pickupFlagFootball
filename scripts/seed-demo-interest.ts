@@ -167,18 +167,23 @@ async function seedGamesAndSites(activityId: string) {
       color,
       recurDow: gc.recurDow, recurTime: `${gc.recurTime}:00`,
     }).returning({ id: games.id });
-    // History as played occurrences (skip = a week that was called off / had no game).
+    // History as played occurrences on the real recurrence day (skip indices =
+    // weeks that were called off), so it matches the attendance backfill.
     const skip = new Set(gc.skip);
-    const hist = [];
-    for (let i = 0; i < 10; i++) {
-      if (skip.has(i)) continue;
-      const kickoff = new Date(Date.now() - (i + 0.5) * WEEK);
-      hist.push({
-        gameId: g.id, occurrenceDate: kickoff.toISOString().slice(0, 10), status: "played" as const,
-        kickoffAt: kickoff, pollOpensAt: kickoff, pollClosesAt: kickoff,
-        inCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
+    const pastDates = occurrenceDatesInRange(
+      { isStanding: true, recurDow: gc.recurDow, scheduledStart: nextStart },
+      new Date(Date.now() - 10 * WEEK), new Date(Date.now() - WEEK / 7),
+    );
+    const hist = pastDates
+      .filter((_, i) => !skip.has(i))
+      .map((date) => {
+        const kickoff = new Date(`${date}T${gc.recurTime}:00`);
+        return {
+          gameId: g.id, occurrenceDate: date, status: "played" as const,
+          kickoffAt: kickoff, pollOpensAt: kickoff, pollClosesAt: kickoff,
+          inCount: Math.max(2, gc.base - 4 + ((Math.random() * 8) | 0)),
+        };
       });
-    }
     if (hist.length) await db.insert(gameOccurrences).values(hist);
 
     // Assign the first demo user in this city as captain.

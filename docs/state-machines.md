@@ -10,7 +10,13 @@ Each transition below is tagged:
 - **to-build** — part of the target model, not implemented yet
 
 Source of truth for the engine transitions: `lib/mime/engine.ts`, `lib/mime/fsm.ts`,
-`lib/db/freeze.ts`; auth/gating in `lib/auth*`, `lib/auth/verified.ts`.
+`lib/mime/occurrences.ts`, `lib/mime/freeze.ts`; auth/gating in `lib/auth*`,
+`lib/auth/verified.ts`.
+
+> Status note: the series and occurrence machines below are now **implemented**
+> (migrations 015–017, the occurrence engine, captain controls, and the
+> POLL_ASK / WEEK_ON / WEEK_OFF emails). The "to-build" tags in the tables are
+> historical — kept to show what each phase added.
 
 ---
 
