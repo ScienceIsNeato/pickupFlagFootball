@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -48,6 +48,15 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
     .returning({ id: games.id });
   // Lost a race (status changed between read and write) → report it, don't fake success.
   if (!done.length) return { ok: false, error: "the series state just changed — try again" };
+  // Pausing/retiring calls off any in-flight week so the occurrence engine (which
+  // only advances active series) never leaves it stuck mid-cycle.
+  if (status === "paused" || status === "retired") {
+    await db.update(gameOccurrences).set({ status: "cancelled", updatedAt: new Date() })
+      .where(and(
+        eq(gameOccurrences.gameId, gameId),
+        inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "notifying", "awaiting_game"]),
+      ));
+  }
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };

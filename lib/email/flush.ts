@@ -6,7 +6,9 @@ import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
 import { rsvpLink } from "@/lib/rsvpLink";
 
-const OCC_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON", "WEEK_OFF"]);
+// Only emails whose occurrence is still RSVP-able get the one-click links.
+// WEEK_OFF is a skipped week (settled) — its links would be dead, so it gets none.
+const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
@@ -54,7 +56,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     try {
       const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       // Weekly poll emails carry one-click RSVP links (signed, no login).
-      const rsvp = OCC_KINDS.has(r.kind as NotifKind) && r.occurrenceId
+      const rsvp = RSVP_LINK_KINDS.has(r.kind as NotifKind) && r.occurrenceId
         ? {
             inUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "in"),
             outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out"),
