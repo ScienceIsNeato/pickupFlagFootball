@@ -61,7 +61,7 @@ export async function setOccurrenceRsvp(formData: FormData) {
   // this game — otherwise a crafted POST could write arbitrary past/off-schedule
   // dates into the attendance/history record.
   const [game] = await db.select({
-    isStanding: games.isStanding, recurDow: games.recurDow,
+    isStanding: games.isStanding, recurDow: games.recurDow, recurTime: games.recurTime,
     scheduledStart: games.scheduledStart, status: games.status,
   }).from(games)
     .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
@@ -74,6 +74,8 @@ export async function setOccurrenceRsvp(formData: FormData) {
     now, new Date(now.getTime() + 42 * 86_400_000),
   );
   if (!validDates.includes(date)) throw new Error("bad occurrence date");
+  // RSVP closes at kickoff.
+  if (game.recurTime && new Date(`${date}T${game.recurTime}`) <= now) throw new Error("rsvp is closed for this week");
 
   // Can't RSVP to a week that's settled — called off, poll-skipped, or already played.
   const [occ] = await db.select({ status: gameOccurrences.status }).from(gameOccurrences)

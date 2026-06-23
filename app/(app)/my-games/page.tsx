@@ -100,6 +100,7 @@ export default async function UpcomingGamesPage() {
     return s === "cancelled" || s === "skipped" || s === "played";
   };
   const upcoming = rosterGames
+    .filter((g) => g.status === "active") // paused series have no upcoming games to RSVP to
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
     .filter(({ g, date }) => !isOff(g, date))
     .sort((a, b) => a.date.localeCompare(b.date));

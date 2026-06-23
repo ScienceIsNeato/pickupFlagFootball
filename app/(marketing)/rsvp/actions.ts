@@ -16,16 +16,17 @@ export async function applyRsvp(formData: FormData) {
   if (!parsed) redirect("/rsvp?done=invalid");
 
   const [occ] = await db.select({
-    gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate,
+    gameId: gameOccurrences.gameId, date: gameOccurrences.occurrenceDate, kickoffAt: gameOccurrences.kickoffAt,
     occStatus: gameOccurrences.status, seriesStatus: games.status,
   }).from(gameOccurrences)
     .innerJoin(games, eq(games.id, gameOccurrences.gameId))
     .where(eq(gameOccurrences.id, parsed.occurrenceId)).limit(1);
   if (!occ) redirect("/rsvp?done=invalid");
   // No RSVP to a week that's been called off (cancelled), already settled
-  // (played/skipped), or whose series is paused/retired.
+  // (played/skipped), whose series is paused/retired, or once kickoff has passed.
   if (occ.occStatus === "cancelled") redirect("/rsvp?done=cancelled");
-  if (occ.occStatus === "played" || occ.occStatus === "skipped" || occ.seriesStatus !== "active") {
+  if (occ.occStatus === "played" || occ.occStatus === "skipped" || occ.seriesStatus !== "active"
+      || occ.kickoffAt <= new Date()) {
     redirect("/rsvp?done=closed");
   }
 
