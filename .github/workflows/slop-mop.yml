@@ -1,0 +1,30 @@
+name: Slop-Mop
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Required for SARIF upload to GitHub Code Scanning (so `sm buff` has a scan to read).
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: slop-mop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  slop-mop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ScienceIsNeato/slop-mop-action@v2
+        with:
+          command: scour
+          # Gate tools install from the committed .slopmop/required-deps.json
+          # manifest (regenerate with `sm doctor --required-deps` after any
+          # gate-config change). verify-manifest defaults true, so CI fails if it
+          # drifts. SARIF uploads to Code Scanning by default.

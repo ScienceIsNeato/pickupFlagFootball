@@ -1,0 +1,60 @@
+{
+  "requirements": [
+    {
+      "alternatives": [],
+      "import_name": "",
+      "install_hint": "pipx install slopmop[security]",
+      "kind": "python",
+      "name": "bandit",
+      "optional": true,
+      "probe": "",
+      "reason": "static security analysis of Python code",
+      "version": null
+    },
+    {
+      "alternatives": [],
+      "import_name": "detect_secrets",
+      "install_hint": "pipx install slopmop[security]",
+      "kind": "python",
+      "name": "detect-secrets",
+      "optional": true,
+      "probe": "",
+      "reason": "scans for secrets committed to the repo",
+      "version": null
+    },
+    {
+      "alternatives": [],
+      "import_name": "pip_audit",
+      "install_hint": "pipx install slopmop[security]",
+      "kind": "python",
+      "name": "pip-audit",
+      "optional": true,
+      "probe": "import",
+      "reason": "audits installed dependencies for known CVEs (OSV database)",
+      "version": null
+    },
+    {
+      "alternatives": [],
+      "import_name": "",
+      "install_hint": "pipx install slopmop[security]",
+      "kind": "python",
+      "name": "semgrep",
+      "optional": true,
+      "probe": "binary",
+      "reason": "pattern-based security scanning (pip-installed, run as a binary)",
+      "version": null
+    },
+    {
+      "alternatives": [],
+      "import_name": "",
+      "install_hint": "",
+      "kind": "system",
+      "name": "actionlint",
+      "optional": true,
+      "probe": "",
+      "reason": "lints GitHub Actions workflow syntax beyond slop-mop's native checks",
+      "version": null
+    }
+  ],
+  "schema_version": 1
+}
