@@ -58,7 +58,9 @@ async function setSeriesStatus(gameId: string, status: SeriesStatus): Promise<Ca
       await tx.update(gameOccurrences).set({ status: "cancelled", updatedAt: new Date() })
         .where(and(
           eq(gameOccurrences.gameId, gameId),
-          inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "notifying", "awaiting_game"]),
+          // includes 'skipped' — a decided-but-unnotified skip would otherwise be
+          // stranded once the active-series guard blocks notifyDecided.
+          inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "skipped", "notifying", "awaiting_game"]),
         ));
     }
     return false;

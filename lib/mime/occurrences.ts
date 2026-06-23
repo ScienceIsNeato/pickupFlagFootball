@@ -32,6 +32,30 @@ function kickoffAt(date: string, recurTime: string): Date {
   return new Date(`${date}T${recurTime}`);
 }
 
+/** The next recurrence the poll opener should target: skip weeks already settled
+ *  off (cancelled/skipped/played) or kicked off, so a called-off imminent week
+ *  doesn't block opening the poll for the next playable one. Uses the engine db
+ *  (not gameMembership's module db) so it works against the test world too. */
+async function nextOpenableDate(
+  db: EngineDb, game: { game_id: string; recur_dow: number; recur_time: string; scheduled_start: string }, now: Date,
+): Promise<string | null> {
+  const occ = { isStanding: true, recurDow: game.recur_dow, scheduledStart: game.scheduled_start };
+  let date = nextOccurrenceYMD(occ, now);
+  for (let guard = 0; guard < 26; guard++) {
+    const settledOff = (await db.select({ s: gameOccurrences.status }).from(gameOccurrences)
+      .where(and(eq(gameOccurrences.gameId, game.game_id), eq(gameOccurrences.occurrenceDate, date)))
+      .limit(1))[0];
+    const off = settledOff && ["cancelled", "skipped", "played"].includes(settledOff.s);
+    if (!off && now < kickoffAt(date, game.recur_time)) return date; // playable + not started
+    const after = new Date(`${date}T12:00:00`);
+    after.setDate(after.getDate() + 1);
+    const nextDate = nextOccurrenceYMD(occ, after);
+    if (nextDate === date) return null; // one-off / no further recurrence
+    date = nextDate;
+  }
+  return null;
+}
+
 // ── 1. open polls ────────────────────────────────────────────────────────────
 /** For each active standing game whose next occurrence's poll window has opened,
  *  lazily create the occurrence row (status=polling) and email the roster the
@@ -51,9 +75,13 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
 
   for (const g of rows) {
     if (g.recur_dow == null || !g.recur_time) continue;
-    const date = nextOccurrenceYMD(
-      { isStanding: true, recurDow: g.recur_dow, scheduledStart: g.scheduled_start }, now,
+    // Target the next week that's actually openable — past any called-off /
+    // skipped / already-started weeks — so a cancelled imminent week doesn't pin
+    // the opener to a dead date and starve a later week whose window is due.
+    const date = await nextOpenableDate(
+      db, { game_id: g.game_id, recur_dow: g.recur_dow, recur_time: g.recur_time, scheduled_start: g.scheduled_start }, now,
     );
+    if (!date) continue;
     const kickoff = kickoffAt(date, g.recur_time);
     const pollOpens = new Date(kickoff.getTime() - Number(g.offset_s) * 1000);
     const pollCloses = new Date(pollOpens.getTime() + Number(g.window_s) * 1000);
