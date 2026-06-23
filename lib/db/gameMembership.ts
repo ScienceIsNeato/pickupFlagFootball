@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "./index";
-import { nextOccurrenceYMD, toYMD } from "@/lib/datetime";
+import { nextOccurrenceYMD, kickoffAtFor, toYMD } from "@/lib/datetime";
 
 export type GameOccurrenceInputs = {
   id: string;
@@ -64,8 +64,7 @@ export async function nextPlayableOccurrence(game: GameOccurrenceInputs, now: Da
   const off = new Set(offRows.map((r) => r.d));
   // A week is also "off" once its kickoff has passed — the next playable game is
   // the following week, not a date that already started.
-  const time = game.recurTime ?? new Date(game.scheduledStart).toTimeString().slice(0, 8);
-  const started = (ymd: string) => new Date(`${ymd}T${time}`) <= now;
+  const started = (ymd: string) => kickoffAtFor(game, ymd) <= now;
   let occ = nextOccurrenceYMD(game, now);
   for (let guard = 0; (off.has(occ) || started(occ)) && guard < 26; guard++) {
     const after = new Date(`${occ}T12:00:00`);

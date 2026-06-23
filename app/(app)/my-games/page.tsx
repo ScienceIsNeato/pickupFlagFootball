@@ -6,7 +6,7 @@ import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { users, areas, games, gameRoster, gameAttendance, gameOccurrences } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { gameColor } from "@/lib/brand";
-import { occurrenceDatesInRange, toYMD } from "@/lib/datetime";
+import { occurrenceDatesInRange, kickoffAtFor, toYMD } from "@/lib/datetime";
 import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
 export const metadata = { title: "Upcoming Games — MIME-FF" };
@@ -101,7 +101,7 @@ export default async function UpcomingGamesPage() {
   // Once kickoff passes the week is no longer RSVP-able (setOccurrenceRsvp rejects
   // it), so drop it from the list rather than show controls that fail.
   const started = (g: { recurTime: string | null; scheduledStart: Date }, date: string) =>
-    new Date(`${date}T${g.recurTime ?? new Date(g.scheduledStart).toTimeString().slice(0, 8)}`) <= now;
+    kickoffAtFor(g, date) <= now;
   const upcoming = rosterGames
     .filter((g) => g.status === "active") // paused series have no upcoming games to RSVP to
     .flatMap((g) => occurrenceDatesInRange(g, now, new Date(now.getTime() + 42 * DAY)).map((date) => ({ g, date })))
