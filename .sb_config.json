@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "slopmop_version": "2.5.0",
+  "slopmop_version": "2.11.0",
   "swabbing_timeout": 20,
   "exclude_paths": [],
   "overconfidence": {

@@ -3,7 +3,9 @@ cursor-rules/
 AGENTS.md
 .windsurfrules
 .agent/
-.github/
+# ignore local agent-ops scaffolding under .github/, but track CI workflows
+.github/*
+!.github/workflows/
 .cursor
 .envrc
 
@@ -15,8 +17,10 @@ AGENTS.md
 site/dist/
 node_modules/
 
-# slop-mop working directory (machine-local state)
-.slopmop/
+# slop-mop working directory (machine-local state), except the committed
+# dependency manifest the CI action installs gate tools from
+.slopmop/*
+!.slopmop/required-deps.json
 
 # next.js app
 /.next/

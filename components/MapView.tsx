@@ -408,35 +408,15 @@ export function MapView({
     // While the map is panning/zooming, flags lock to their projected position
     // (see the frame loop) instead of easing — so they stay bolted to the basemap.
     let mapMoving = false;
-    function frame() {
-     try {
-      const W = container.clientWidth, H = container.clientHeight;
-      ctx.clearRect(0, 0, W, H);
-      const morph = morphStart ? Math.min(1, (performance.now() - morphStart) / MORPH_MS) : 0;
-      mapEl.style.opacity = easeOut(morph).toFixed(3);
-      const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
 
-      // The cursor is a candidate game spot. Interested people within their play
-      // radius of it "would play here" — their flags wave + point at the cursor,
-      // and we tally them for the jersey number above it.
-      const catchKm = homeRef.current?.maxTravelKm ?? CATCH_KM_DEFAULT;
-      let mGeo: maplibregl.LngLat | null = null;
-      let catchCount = 0;
-      if (on) {
-        mGeo = map.unproject([mx, my]);
-        for (const cl of clustersRef.current) {
-          if (!cl.hasGame && !cl.forming && haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm) {
-            catchCount += cl.count;
-          }
-        }
-      }
-
-      // Live counts within the current viewport (for the legend) + badge hover.
-      const bounds = map.getBounds();
+    // PASS 1 — flags, drawn under the badges (drawn first so game/proposed badges
+    // sit on top). Returns the in-viewport tallies for the legend. Split out of
+    // frame() to keep the per-frame loop readable.
+    function drawFlagsPass(
+      morph: number, on: boolean, mGeo: maplibregl.LngLat | null,
+      catchKm: number, bounds: maplibregl.LngLatBounds,
+    ) {
       let nInterested = 0, nGames = 0, nProposed = 0, nClaimed = 0;
-      let overBadge: "game" | "forming" | null = null;
-
-      // PASS 1 — flags. Drawn first so game/proposed badges sit on top of them.
       for (const cl of clustersRef.current) {
         const home = map.project(cl.ll);
         if (bounds.contains(cl.ll)) {
@@ -481,6 +461,38 @@ export function MapView({
           drawFlag(f);
         }
       }
+      return { nInterested, nGames, nProposed, nClaimed };
+    }
+
+    function frame() {
+     try {
+      const W = container.clientWidth, H = container.clientHeight;
+      ctx.clearRect(0, 0, W, H);
+      const morph = morphStart ? Math.min(1, (performance.now() - morphStart) / MORPH_MS) : 0;
+      mapEl.style.opacity = easeOut(morph).toFixed(3);
+      const on = mx > CURSOR_ON_THRESHOLD && !mapMoving;
+
+      // The cursor is a candidate game spot. Interested people within their play
+      // radius of it "would play here" — their flags wave + point at the cursor,
+      // and we tally them for the jersey number above it.
+      const catchKm = homeRef.current?.maxTravelKm ?? CATCH_KM_DEFAULT;
+      let mGeo: maplibregl.LngLat | null = null;
+      let catchCount = 0;
+      if (on) {
+        mGeo = map.unproject([mx, my]);
+        for (const cl of clustersRef.current) {
+          if (!cl.hasGame && !cl.forming && haversineKm(mGeo.lat, mGeo.lng, cl.ll[1], cl.ll[0]) <= catchKm) {
+            catchCount += cl.count;
+          }
+        }
+      }
+
+      // Live counts within the current viewport (for the legend) + badge hover.
+      const bounds = map.getBounds();
+      let overBadge: "game" | "forming" | null = null;
+
+      // PASS 1 — flags (under the badges); returns the in-viewport tallies.
+      const { nInterested, nGames, nProposed, nClaimed } = drawFlagsPass(morph, on, mGeo, catchKm, bounds);
 
       // PASS 2 — game + proposed badges, on top of all flags. Returns the badge
       // category under the cursor (for the tooltip + cursor style above).
