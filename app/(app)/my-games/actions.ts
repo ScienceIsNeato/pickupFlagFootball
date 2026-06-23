@@ -74,8 +74,10 @@ export async function setOccurrenceRsvp(formData: FormData) {
     now, new Date(now.getTime() + 42 * 86_400_000),
   );
   if (!validDates.includes(date)) throw new Error("bad occurrence date");
-  // RSVP closes at kickoff.
-  if (game.recurTime && new Date(`${date}T${game.recurTime}`) <= now) throw new Error("rsvp is closed for this week");
+  // RSVP closes at kickoff — fall back to scheduledStart's time when no recurTime,
+  // matching nextPlayableOccurrence and the my-games list.
+  const time = game.recurTime ?? new Date(game.scheduledStart).toTimeString().slice(0, 8);
+  if (new Date(`${date}T${time}`) <= now) throw new Error("rsvp is closed for this week");
 
   // Can't RSVP to a week that's settled — called off, poll-skipped, or already played.
   const [occ] = await db.select({ status: gameOccurrences.status }).from(gameOccurrences)
