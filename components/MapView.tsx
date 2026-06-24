@@ -14,7 +14,7 @@ import { ProposedDetailsModal } from "./ProposedDetailsModal";
 type Claim = { lat: number; lng: number; color: string; count: number };
 type Cell = {
   h3: string; lat: number; lng: number; count: number; hasGame: boolean; forming: boolean;
-  gameColor?: string; gameMembers?: number; claims: Claim[];
+  retired?: boolean; gameColor?: string; gameMembers?: number; claims: Claim[];
 };
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
@@ -128,7 +128,7 @@ type Flag = {
 };
 type Cluster = {
   ll: [number, number]; count: number; hasGame: boolean; forming: boolean; h3: string; flags: Flag[];
-  gameColor?: string; gameMembers?: number; claimedCount: number;
+  retired?: boolean; gameColor?: string; gameMembers?: number; claimedCount: number;
 };
 
 type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
@@ -314,7 +314,7 @@ export function MapView({
         }
         return {
           ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame,
-          forming: c.forming, h3: c.h3, flags, gameColor: c.gameColor, gameMembers: c.gameMembers,
+          forming: c.forming, retired: c.retired, h3: c.h3, flags, gameColor: c.gameColor, gameMembers: c.gameMembers,
           claimedCount,
         };
       });
@@ -388,11 +388,18 @@ export function MapView({
           ctx.arc(home.x, home.y - sz / 2, sz * 0.42, 0, Math.PI * 2);
           ctx.lineWidth = 5; ctx.strokeStyle = cl.gameColor; ctx.stroke();
         }
-        if (img.complete && img.naturalWidth) ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+        // Retired games read as inactive: desaturated + dimmed (no ring above,
+        // no "N in" count below).
+        const dim = cl.hasGame && !!cl.retired;
+        if (img.complete && img.naturalWidth) {
+          if (dim) { ctx.save(); ctx.filter = "grayscale(1)"; ctx.globalAlpha = 0.5; }
+          ctx.drawImage(img, home.x - sz / 2, home.y - sz, sz, sz);
+          if (dim) ctx.restore();
+        }
         if (on && mx >= home.x - sz / 2 && mx <= home.x + sz / 2 && my >= home.y - sz && my <= home.y) {
           over = cl.hasGame ? "game" : "forming";
         }
-        if (morph > 0.6) {
+        if (morph > 0.6 && !dim) {
           ctx.globalAlpha = (morph - 0.6) / 0.4;
           ctx.font = "700 13px system-ui, -apple-system, sans-serif";
           ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -630,7 +637,8 @@ export function MapView({
           home={home} onClose={() => setPropose(null)} onProposed={handleProposed} />
       )}
       {gameDetails && (
-        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)} />
+        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)}
+          onChanged={() => refreshRef.current?.()} />
       )}
       {proposedDetails && (
         <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng}

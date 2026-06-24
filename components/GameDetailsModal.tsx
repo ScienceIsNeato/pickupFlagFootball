@@ -25,6 +25,7 @@ type GameInfo = {
   nextOccurrence: string;
 };
 type Week = { weekStart: string; played: boolean; count: number };
+type PlayedGame = { date: string; inCount: number };
 
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -54,8 +55,8 @@ type ConfirmReq =
   | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void };
 
 /** Details for an existing game, opened by clicking its flags on the map. */
-export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
-  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[] } | "loading" | "error">("loading");
+export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number; lng: number; onClose: () => void; onChanged?: () => void }) {
+  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
@@ -83,8 +84,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
     try {
       const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
       if (!r.ok) throw new Error();
-      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[] };
-      setState({ game: d.game, weeks: d.weeks ?? [] });
+      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[] };
+      setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [] });
     } catch {
       setState("error");
     }
@@ -94,7 +95,9 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
 
   const game = state !== "loading" && state !== "error" ? state.game : null;
   const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
+  const playedHistory = state !== "loading" && state !== "error" ? state.playedHistory : [];
   const playedCount = weeks.filter((w) => w.played).length;
+  const retired = game?.status === "retired";
   const maps = game?.placeLat != null && game?.placeLng != null
     ? `https://www.google.com/maps/search/?api=1&query=${game.placeLat},${game.placeLng}`
     : null;
@@ -115,6 +118,10 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
       const res = await action();
       if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
       await load();
+      // A captain action (retire/pause/…) or join/leave changes the map too —
+      // refresh clusters so the badge (retired greying, ring, tallies) doesn't
+      // lag the modal until the next pan/zoom.
+      onChanged?.();
     } catch {
       setActionErr("something went wrong");
     } finally {
@@ -146,6 +153,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
         {game && (
           <>
             <h2 id="game-details-title" className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>
+            {retired && <div className="game-retired" role="status">retired</div>}
             <dl className="game-dl">
               <dt>where</dt>
               <dd>
@@ -168,6 +176,7 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               )}
             </dl>
 
+            {!retired && (
             <div className="game-join-box">
               {game.status === "paused" ? (
                 <div className="game-paused">
@@ -214,8 +223,9 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               )}
               {actionErr && <p className="game-err">{actionErr}</p>}
             </div>
+            )}
 
-            {game.viewerIsCaptain && (
+            {!retired && game.viewerIsCaptain && (
               <div className="game-captain">
                 <p className="game-join-h">captain controls</p>
                 {game.status === "active" ? (
@@ -239,8 +249,8 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
             )}
 
             {/* Anyone (confirmed, not already a captain) can volunteer — emphasized
-                when the game has no captain at all. */}
-            {!game.viewerIsCaptain && (
+                when the game has no captain at all. Not for retired series. */}
+            {!retired && !game.viewerIsCaptain && (
               <div className="game-captain">
                 {game.captains.length === 0 ? (
                   <>
@@ -259,22 +269,44 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
               </div>
             )}
 
-            <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-              <span className="game-caret">{open ? "▾" : "▸"}</span>
-              recent games
-              <span className="game-muted"> · played {playedCount} of last {weeks.length} weeks</span>
-            </button>
-            {open && (
-              <ul className="game-recent">
-                {weeks.map((w, i) => (
-                  <li key={i}>
-                    <span>{new Date(w.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-                    {w.played
-                      ? <span className="game-played">✓ played · {w.count} in</span>
-                      : <span className="game-muted">— no game</span>}
-                  </li>
-                ))}
-              </ul>
+            {retired ? (
+              // Retired: history is the whole point of the view — show it expanded,
+              // the last games actually played at this site with their dates.
+              <div className="game-history">
+                <p className="game-join-h">games played here</p>
+                {playedHistory.length === 0 ? (
+                  <p className="game-muted">no games on record.</p>
+                ) : (
+                  <ul className="game-recent">
+                    {playedHistory.map((h, i) => (
+                      <li key={i}>
+                        <span>{new Date(`${h.date}T00:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                        <span className="game-played">✓ {h.inCount} in</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <>
+                <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+                  <span className="game-caret">{open ? "▾" : "▸"}</span>
+                  recent games
+                  <span className="game-muted"> · played {playedCount} of last {weeks.length} weeks</span>
+                </button>
+                {open && (
+                  <ul className="game-recent">
+                    {weeks.map((w, i) => (
+                      <li key={i}>
+                        <span>{new Date(w.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                        {w.played
+                          ? <span className="game-played">✓ played · {w.count} in</span>
+                          : <span className="game-muted">— no game</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </>
         )}

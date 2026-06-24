@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, gte, lte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, lte, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areas, activityTypes, areaCaptains, users, gameOccurrences } from "@/lib/db/schema";
@@ -39,16 +39,22 @@ export async function GET(req: Request) {
     city: areas.displayCity, zip: areas.displayZip,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
-    .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["active", "paused"])));
+    // Retired series still resolve here so a click on their (greyed) map badge
+    // opens the RETIRED view + history instead of "no game here".
+    .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["active", "paused", "retired"])));
 
-  let best: (typeof active)[number] | null = null;
-  let bestKm = 6;
-  for (const g of active) {
-    const glat = g.placeLat ?? g.centerLat;
-    const glng = g.placeLng ?? g.centerLng;
-    const d = haversineKm(lat, lng, glat, glng);
-    if (d < bestKm) { bestKm = d; best = g; }
-  }
+  // Nearest game within 6 km. At (near-)identical coords (~<20 m — colocated
+  // series at one venue) prefer a live series over a retired one, so a click
+  // resolves to the same game the map shows live (the map badge lets an active
+  // series win a shared cell). Beyond that, pure distance.
+  const best = active
+    .map((g) => ({ g, d: haversineKm(lat, lng, g.placeLat ?? g.centerLat, g.placeLng ?? g.centerLng) }))
+    .filter((x) => x.d < 6)
+    .sort((a, b) =>
+      Math.abs(a.d - b.d) > 0.02
+        ? a.d - b.d
+        : (a.g.status === "retired" ? 1 : 0) - (b.g.status === "retired" ? 1 : 0) || a.d - b.d,
+    )[0]?.g ?? null;
   if (!best) return NextResponse.json({ game: null });
 
   const captainRows = await db.select({ name: users.displayName })
@@ -80,6 +86,16 @@ export async function GET(req: Request) {
     const played = !!o && o.status === "played";
     return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0 };
   });
+
+  // Retired games show a full history (the 10-week grid above can't reach a
+  // long-retired series) — the last games actually played, most recent first.
+  const playedHistory = best.status === "retired"
+    ? await db.select({ date: gameOccurrences.occurrenceDate, inCount: gameOccurrences.inCount })
+        .from(gameOccurrences)
+        .where(and(eq(gameOccurrences.gameId, best.id), eq(gameOccurrences.status, "played")))
+        .orderBy(desc(gameOccurrences.occurrenceDate))
+        .limit(10)
+    : [];
 
   // The viewer's standing on this game: are they a regular, can they join (their
   // radius reaches it), and the next-occurrence RSVP tallies for the popup.
@@ -114,5 +130,6 @@ export async function GET(req: Request) {
       nextOccurrence: membership.occurrence,
     },
     weeks,
+    playedHistory,
   });
 }

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Squashing bugs found while testing the live site — captains couldn't pause a game, and Google sign-in had a couple of dead ends. Fixes going out one at a time.",
-    "direction": "Keep clearing the live-testing snags so signup, sign-in, and the captain tools just work.",
-    "last_update": "2026-06-24T00:00:00Z"
+    "status": "Games can now be retired — when a captain shuts one down it stays on the map greyed out with a RETIRED tag and a history of past games, instead of vanishing. Also cleared a batch of sign-in and styling rough edges from live testing.",
+    "direction": "Keep polishing the captain tools and game-site views as more live testing turns up snags.",
+    "last_update": "2026-06-24T01:00:00Z"
   }
 }
