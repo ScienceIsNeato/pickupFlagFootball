@@ -72,7 +72,10 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
 
         <p className="auth-switch">
           new here?{" "}
-          <Link className="auth-link" href={`/show-interest?next=${encodeURIComponent(dest)}`}>create an account</Link>
+          {/* Close the modal as we go — otherwise it stays mounted on top of the
+              /show-interest registration form (esp. when already on that page) and
+              looks like nothing happened. */}
+          <Link className="auth-link" onClick={onClose} href={`/show-interest?next=${encodeURIComponent(dest)}`}>create an account</Link>
         </p>
       </div>
     </div>
