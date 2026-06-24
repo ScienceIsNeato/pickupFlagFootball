@@ -59,6 +59,8 @@ Then("the game shows as retired", async ({ page }) => {
   await expect(page.locator(".game-join-box")).toHaveCount(0); // no join/RSVP on a dead series
   await expect(page.locator(".game-captain")).toHaveCount(0);
   await expect(page.getByText(/games played here/i)).toBeVisible();
+  // Roster released to the pool: the seeded 15 regulars drop to 0 (3rd dl row).
+  await expect(page.locator(".game-dl dd").nth(2)).toHaveText("0");
 });
 
 When("I cancel this week", async ({ page, world }) => {

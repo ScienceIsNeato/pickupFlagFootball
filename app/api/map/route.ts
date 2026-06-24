@@ -100,8 +100,9 @@ export async function GET(req: Request) {
       .select({ gameId: gameRoster.gameId, userId: gameRoster.userId })
       .from(gameRoster).where(inArray(gameRoster.gameId, [...gameInfo.keys()]));
     for (const r of roster) {
-      // Retired games keep their roster row but don't claim flags — a dead game
-      // shouldn't pull interest; those members fall back to the free pool.
+      // A dead game shouldn't pull interest. Retire releases the roster (see
+      // captain-actions), so there's normally nothing retired to skip here — the
+      // guard also covers any game retired before that change, whose rows linger.
       if (!gameInfo.has(r.gameId) || retiredIds.has(r.gameId)) continue;
       const list = claimsByUser.get(r.userId) ?? claimsByUser.set(r.userId, []).get(r.userId)!;
       if (!list.includes(r.gameId)) {

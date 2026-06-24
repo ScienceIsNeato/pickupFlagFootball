@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Games can now be retired — when a captain shuts one down it stays on the map greyed out with a RETIRED tag and a history of past games, instead of vanishing. Also cleared a batch of sign-in and styling rough edges from live testing.",
+    "status": "Retiring a game is now permanent and final — it stays on the map greyed out with a RETIRED tag and a history of past games, and its players are released back into the general pool so they can join or start something new.",
     "direction": "Keep polishing the captain tools and game-site views as more live testing turns up snags.",
-    "last_update": "2026-06-24T01:00:00Z"
+    "last_update": "2026-06-24T02:00:00Z"
   }
 }
