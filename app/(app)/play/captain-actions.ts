@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import { games, areaCaptains, gameOccurrences } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
@@ -50,8 +51,10 @@ async function setSeriesStatus(
   }
   // Status flip + in-flight cancellation are one atomic unit: if the cancellation
   // fails after the status commits, the idempotent no-op above would skip the retry
-  // and leave occurrences orphaned. A transaction keeps them consistent.
-  const raced = await db.transaction(async (tx) => {
+  // and leave occurrences orphaned. A transaction keeps them consistent. Use the
+  // pooled WebSocket client — the default neon-http `db` is one-shot and throws on
+  // an interactive transaction (works in e2e's pg driver, fails against Neon).
+  const raced = await txnDb.transaction(async (tx) => {
     const done = await tx.update(games).set({ status, pausedUntil: meta.pausedUntil, pauseNote: meta.pauseNote })
       .where(and(eq(games.id, gameId), eq(games.status, c.game.status)))
       .returning({ id: games.id });
