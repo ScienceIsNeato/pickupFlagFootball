@@ -32,6 +32,9 @@ export type CreateMemberResult = { ok: true; userId: string } | { ok: false; err
 export async function createMember(input: CreateMemberInput): Promise<CreateMemberResult> {
   const email = input.email.toLowerCase().trim();
   const displayName = input.displayName.trim() || email.split("@")[0];
+  // This is the single users-insert boundary, so enforce the email invariant here
+  // rather than trusting every caller.
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "enter a valid email" };
   if (!/^\d{5}$/.test(input.zip)) return { ok: false, error: "Enter a valid 5-digit ZIP code." };
 
   const home = await resolveHome({

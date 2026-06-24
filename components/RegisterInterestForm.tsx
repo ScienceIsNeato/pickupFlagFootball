@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
@@ -16,9 +16,17 @@ export function RegisterInterestForm() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
+  // → "create an account" → here). Only same-origin relative paths.
+  const [dest, setDest] = useState("/play");
+  useEffect(() => {
+    const n = new URLSearchParams(window.location.search).get("next");
+    if (n && /^\/(?![/\\])/.test(n)) setDest(n);
+  }, []);
 
-  /** Read + validate the location fields for either signup path. null ⇒ no valid ZIP. */
-  function readLocation(): { zip: string; line1: string; line2: string; city: string; state: string } | null {
+  /** Read + validate the location fields for either signup path. null ⇒ no valid ZIP.
+   *  Stable identity so GoogleButton's GIS init effect doesn't re-run on each render. */
+  const readLocation = useCallback((): { zip: string; line1: string; line2: string; city: string; state: string } | null => {
     const form = formRef.current;
     if (!form) return null;
     const fd = new FormData(form);
@@ -28,7 +36,7 @@ export function RegisterInterestForm() {
       zip, line1: str(fd.get("address_line1")), line2: str(fd.get("address_line2")),
       city: str(fd.get("city")), state: str(fd.get("state")),
     };
-  }
+  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,7 +53,7 @@ export function RegisterInterestForm() {
       if (!reg.ok) { setError(reg.error); setBusy(false); return; }
       const res = await signIn("password", { email, password, redirect: false });
       if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
-      window.location.href = "/play";
+      window.location.href = dest;
     } catch { setError("something went wrong — please try again"); setBusy(false); }
   }
 
@@ -53,7 +61,7 @@ export function RegisterInterestForm() {
     <form ref={formRef} className="reg-form" onSubmit={submit}>
       <div className="auth-google">
         {/* Signup mode: requires a ZIP before completing Google, then createMember. */}
-        <GoogleButton dest="/play" mode="signup" getLocation={readLocation} onError={setError} />
+        <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
       </div>
       <div className="auth-or"><span>or</span></div>
 

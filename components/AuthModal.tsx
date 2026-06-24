@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { GoogleButton } from "./GoogleButton";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /** Sign-IN only. Account creation lives at /show-interest (the one place that
  *  collects a location, so every account has an interest signal). This modal
@@ -13,6 +14,8 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(cardRef); // aria-modal alone doesn't trap Tab into the page behind
 
   // only same-origin relative paths — never an absolute/protocol-relative URL
   const safe = callbackUrl && /^\/(?![/\\])/.test(callbackUrl) ? callbackUrl : null;
@@ -36,7 +39,7 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
 
   return (
     <div className="auth-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="auth-card" role="dialog" aria-modal="true" aria-label="sign in">
+      <div ref={cardRef} className="auth-card" role="dialog" aria-modal="true" aria-label="sign in">
         <button className="auth-close" onClick={onClose} aria-label="close">×</button>
         <h2 className="auth-title">welcome back</h2>
         <p className="auth-sub">sign in to see who&apos;s nearby.</p>

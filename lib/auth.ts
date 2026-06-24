@@ -37,12 +37,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       authorize: async (c) => {
         const v = await verifyGoogleIdToken(String(c?.credential ?? ""));
         if (!v) return null;
-        const [u] = await db.select({ id: users.id, email: users.email, displayName: users.displayName, passwordHash: users.passwordHash })
-          .from(users).where(eq(users.email, v.email)).limit(1);
+        const [u] = await db.select({
+          id: users.id, email: users.email, displayName: users.displayName,
+          passwordHash: users.passwordHash, emailVerified: users.emailVerified,
+        }).from(users).where(eq(users.email, v.email)).limit(1);
         if (!u) return null; // no account yet → not a login
-        // Google proves ownership: neutralize any (possibly attacker-set,
-        // unverified) password on this now-Google-verified account.
-        if (u.passwordHash) {
+        // Only neutralize a password on an UNVERIFIED account — there it could have
+        // been set by an attacker who pre-registered the email. A verified user's
+        // password is their own; leave it so they don't lose password login.
+        if (u.passwordHash && !u.emailVerified) {
           await db.update(users).set({ emailVerified: new Date(), passwordHash: null, updatedAt: new Date() })
             .where(eq(users.id, u.id));
         }

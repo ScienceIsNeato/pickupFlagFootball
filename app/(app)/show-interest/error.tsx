@@ -2,24 +2,19 @@
 
 import Link from "next/link";
 
-/** Error boundary for /show-interest. The page throws CORRUPTED_ACCOUNT when a
- *  logged-in (registered) user somehow has no interest — an invariant violation
- *  that should be impossible. Surface it plainly for manual resolution instead
- *  of silently re-onboarding. */
-export default function ShowInterestError({ error }: { error: Error & { digest?: string } }) {
-  const corrupted = error.message?.includes("CORRUPTED_ACCOUNT");
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+
+/** Generic error boundary for /show-interest. The corrupted-account case is
+ *  rendered directly by the page (Next redacts server-thrown messages in prod,
+ *  so a boundary can't reliably distinguish them); this catches unexpected
+ *  render errors and points users at support. */
+export default function ShowInterestError() {
   return (
     <main className="reg">
-      <h1 className="reg-h">{corrupted ? "corrupted account" : "something went wrong"}</h1>
+      <h1 className="reg-h">something went wrong</h1>
       <p className="reg-blurb">
-        {corrupted ? (
-          <>
-            your account is registered but has no interest on file — a state that shouldn&apos;t be
-            possible. this needs manual resolution; please reach out so we can fix it.
-          </>
-        ) : (
-          <>please try again in a moment.</>
-        )}
+        please try again in a moment. if it keeps happening, email{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
       </p>
       <Link href="/" className="btn-green-link">back home</Link>
     </main>

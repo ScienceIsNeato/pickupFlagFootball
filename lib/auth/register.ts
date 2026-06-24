@@ -44,7 +44,9 @@ export async function registerWithPassword(
     const mail = buildVerificationEmail(name, process.env.APP_BASE_URL ?? "https://pickupflagfootball.com", rawToken);
     await sendEmail({ to: email, toName: name, ...mail });
   } catch (e) {
-    console.error("[email] verification send failed", e); // no recipient in logs
+    // Log only the error class — the provider's error payload can echo the
+    // recipient address/name, which must not land in logs.
+    console.error("[email] verification send failed:", e instanceof Error ? e.name : "unknown error");
   }
   return { ok: true };
 }

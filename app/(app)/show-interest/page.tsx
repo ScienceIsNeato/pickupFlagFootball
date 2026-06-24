@@ -4,6 +4,8 @@ import { skin } from "@/lib/skin";
 import { RegisterInterestForm } from "@/components/RegisterInterestForm";
 import { hasActiveInterest } from "@/lib/db/interest";
 
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+
 export const metadata = {
   title: skin.register.seoTitle,
   description: skin.register.seoDescription,
@@ -44,8 +46,20 @@ export default async function ShowInterestPage() {
     );
   }
 
-  // A registered user with NO interest is supposed to be impossible. If we reach
-  // here, the account is corrupted — fail loud (→ error.tsx) for manual
-  // resolution rather than silently re-onboarding them.
-  throw new Error("CORRUPTED_ACCOUNT: registered user has no active interest");
+  // A registered user with NO interest is supposed to be impossible (createMember
+  // writes both atomically; no path mints a bare account). If we reach here the
+  // account is corrupted — surface it plainly for manual resolution rather than
+  // silently re-onboarding. Rendered directly (not thrown): Next redacts
+  // server-thrown error messages in prod, so an error boundary couldn't show this.
+  return (
+    <main className="reg">
+      <h1 className="reg-h">corrupted account</h1>
+      <p className="reg-blurb">
+        your account is registered but has no interest on file — a state that shouldn&apos;t be
+        possible. it needs manual resolution: email{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&apos;ll sort it out.
+      </p>
+      <Link href="/" className="btn-green-link">back home</Link>
+    </main>
+  );
 }
