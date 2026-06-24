@@ -34,16 +34,23 @@ const mode = process.argv[2] ?? "apply";
 
 const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
-  console.log("[migrate] no DATABASE_URL — skipping (nothing to migrate)");
-  process.exit(0);
+  // Fail loud: a silent success here would let the deploy report "migrated" with
+  // no DB, recreating the drift gap this exists to close. The deploy script
+  // decides whether to even call us (it skips explicitly when no DB is set).
+  console.error("[migrate] no DATABASE_URL / DATABASE_URL_UNPOOLED set");
+  process.exit(1);
 }
 
 const isLocal = /(?:localhost|127\.0\.0\.1)/.test(url);
+// Advisory-lock key so concurrent deploys/builds serialize (any stable int).
+const LOCK_KEY = 4242424242;
 const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
 
 const client = new pg.Client({
   connectionString: url,
-  ssl: isLocal ? false : { rejectUnauthorized: false },
+  // Verify the server cert off the system CA bundle (Neon uses a public CA).
+  // Local Docker Postgres has no TLS.
+  ssl: isLocal ? false : { rejectUnauthorized: true },
 });
 await client.connect();
 try {
@@ -53,6 +60,11 @@ try {
        applied_at timestamptz NOT NULL DEFAULT now()
      )`,
   );
+  // Serialize apply runs: a second concurrent deploy blocks here, then sees the
+  // first deploy's recorded migrations and applies nothing. (Released on
+  // disconnect in the finally.) status/baseline don't mutate, so they skip it.
+  if (mode === "apply") await client.query("SELECT pg_advisory_lock($1)", [LOCK_KEY]);
+
   const { rows } = await client.query("SELECT filename FROM schema_migrations");
   const applied = new Set(rows.map((r) => r.filename));
   const pending = files.filter((f) => !applied.has(f));

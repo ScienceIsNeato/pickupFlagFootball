@@ -69,6 +69,13 @@ local_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev
 run_migrations() {
   local script="$ROOT/scripts/migrate.mjs"
   [[ -f "$script" ]] || { echo "  (no migrate script — skipping)"; return 0; }
+  # Explicit local skip: no DB configured → don't migrate (and don't let the
+  # runner's fail-loud-on-no-URL abort a local serve). With a DB, a failure here
+  # aborts the deploy (set -e) before anything is torn down.
+  if [[ -z "${DATABASE_URL:-}" && ! -f "$ROOT/.env.local" ]]; then
+    echo "No DATABASE_URL / .env.local — skipping migrations."
+    return 0
+  fi
   echo "Applying database migrations..."
   if [[ -f "$ROOT/.env.local" ]]; then
     node --env-file="$ROOT/.env.local" "$script" apply
@@ -196,11 +203,13 @@ echo "Dir:    $ROOT"
 echo "Branch: $BRANCH"
 echo ""
 
+# Migrate BEFORE tearing down the running release — if a migration fails, the
+# old (healthy) process keeps serving instead of going down with it.
+run_migrations
+
 echo "Cleaning stale deployments..."
 cleanup_stale
 stop_deployment "$ROOT"
-
-run_migrations
 
 echo "Building..."
 npm run build
