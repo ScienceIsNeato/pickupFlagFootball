@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { games, areaCaptains, gameOccurrences } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
+import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
 
@@ -125,6 +126,35 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
     .returning({ id: gameOccurrences.id });
   // Empty → the conflicting row was already settled (played/skipped/cancelled).
   if (!done.length) return { ok: false, error: "this week is already settled" };
+  revalidatePath("/play");
+  revalidatePath("/my-games");
+  return { ok: true };
+}
+
+/** A captain relinquishes the role (moving away, too much, …). Allowed even if
+ *  they're the last captain — the site then shows the "volunteer" prompt to all. */
+export async function stepDownAsCaptain(gameId: string): Promise<CaptainResult> {
+  const c = await asCaptain(gameId);
+  if (!c.ok) return c;
+  const session = await auth();
+  const uid = session!.user!.id!;
+  await db.delete(areaCaptains)
+    .where(and(eq(areaCaptains.areaId, c.game.areaId), eq(areaCaptains.userId, uid)));
+  revalidatePath("/play");
+  revalidatePath("/my-games");
+  return { ok: true };
+}
+
+/** Any confirmed user can volunteer to captain a game's area — whether or not it
+ *  already has captains. Idempotent (already a captain → no-op). */
+export async function volunteerAsCaptain(gameId: string): Promise<CaptainResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "sign in first" };
+  const uid = session.user.id;
+  if (!(await isEmailVerified(uid))) return { ok: false, error: UNVERIFIED_MSG };
+  const [g] = await db.select({ areaId: games.areaId }).from(games).where(eq(games.id, gameId)).limit(1);
+  if (!g) return { ok: false, error: "game not found" };
+  await db.insert(areaCaptains).values({ areaId: g.areaId, userId: uid }).onConflictDoNothing();
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };

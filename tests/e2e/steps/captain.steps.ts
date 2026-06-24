@@ -72,3 +72,26 @@ Then("next week becomes the next game", async ({ page, world }) => {
   // The "next game · <date>" caption advances past the called-off week.
   await expect(page.locator(".game-seg-cap")).not.toHaveText(world.nextGameCaption ?? "", { timeout: 10000 });
 });
+
+When("I step down as captain", async ({ page }) => {
+  page.once("dialog", (d) => d.accept()); // simple "step down as captain?" confirm
+  await page.getByRole("button", { name: "step down as captain" }).click();
+});
+
+Then("I can volunteer as captain", async ({ page }) => {
+  // No longer a captain → the volunteer button is offered, controls are gone.
+  await expect(page.getByRole("button", { name: "volunteer as captain" })).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".game-captain")).not.toContainText(/captain controls/i);
+});
+
+Then("the game shows it has no captain", async ({ page }) => {
+  await expect(page.locator(".game-captain")).toContainText(/this game has no captain/i, { timeout: 10000 });
+});
+
+When("I volunteer as captain", async ({ page }) => {
+  await page.getByRole("button", { name: "volunteer as captain" }).click();
+});
+
+Then("I have captain controls", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "pause series" })).toBeVisible({ timeout: 10000 });
+});
