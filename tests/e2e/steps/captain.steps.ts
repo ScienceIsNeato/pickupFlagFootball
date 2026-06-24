@@ -56,6 +56,7 @@ Then("the game shows as retired", async ({ page }) => {
   // Retired series stay on the map; the modal shows the RETIRED badge, drops the
   // captain controls + volunteer block, and becomes a games-played history.
   await expect(page.locator(".game-retired")).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".game-join-box")).toHaveCount(0); // no join/RSVP on a dead series
   await expect(page.locator(".game-captain")).toHaveCount(0);
   await expect(page.getByText(/games played here/i)).toBeVisible();
 });

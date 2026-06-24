@@ -70,17 +70,24 @@ export async function GET(req: Request) {
   const gameCellColor = new Map<string, string>();   // display cell → game color (the ring)
   const gameAtCell = new Map<string, string>();       // display cell → gameId (for the member badge)
   const retiredIds = new Set<string>();               // games the engine no longer runs
-  const retiredCell = new Map<string, boolean>();      // display cell → retired (greyed) badge
   for (const g of gameRows) {
     if (mineGameIds && !mineGameIds.has(g.id)) continue;
     // Prefer the stored color; fall back to the deterministic hash for any
     // legacy row inserted before the color column was added.
     const color = g.color ?? gameColor(g.id);
     gameInfo.set(g.id, { lat: g.placeLat ?? g.centerLat, lng: g.placeLng ?? g.centerLng, color });
+    if (g.status === "retired") retiredIds.add(g.id);
     const parent = cellToParent(bigIntToH3(g.h3Cell), res);
-    gameCellColor.set(parent, color);
-    gameAtCell.set(parent, g.id);
-    if (g.status === "retired") { retiredIds.add(g.id); retiredCell.set(parent, true); }
+    const prev = gameAtCell.get(parent);
+    // One badge per display cell. First placed wins, EXCEPT a live game displaces
+    // a retired one — so when areas collapse to a single cell at low zoom an
+    // active game is never hidden or greyed behind a retired neighbor. The cell's
+    // `retired` flag (below) is read off whichever game wins here, so the badge
+    // style, click target, and member tally always describe the same game.
+    if (prev === undefined || (retiredIds.has(prev) && g.status !== "retired")) {
+      gameCellColor.set(parent, color);
+      gameAtCell.set(parent, g.id);
+    }
   }
 
   // Roster → which game(s) claim each user, and each game's member tally.
@@ -180,7 +187,9 @@ export async function GET(req: Request) {
           return { lat: g.lat, lng: g.lng, color: g.color, count: users.size };
         })
       : [];
-    const retired = hasGame ? retiredCell.get(h3) ?? false : false;
+    // Read retired off the game that actually won this cell — so the greyed
+    // badge, click target, ring, and tally never describe different games.
+    const retired = hasGame ? retiredIds.has(gameAtCell.get(h3)!) : false;
     return {
       h3, lat, lng,
       count: free.get(h3)?.size ?? 0,           // FREE interest only
