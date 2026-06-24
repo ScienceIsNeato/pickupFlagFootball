@@ -38,37 +38,47 @@ export function AccountMenu() {
     }
   }, []);
 
-  if (status === "loading") return <div className="acct" style={{ width: 64 }} aria-hidden />;
-
-  if (!session?.user) {
-    return (
-      <div className="acct">
-        <button className="acct-cta" onClick={() => { setCallbackUrl(undefined); setAuthOpen(true); }}>sign in</button>
-        {authOpen && <AuthModal callbackUrl={callbackUrl} onClose={() => setAuthOpen(false)} />}
-      </div>
-    );
-  }
-
-  const name = session.user.name || session.user.email?.split("@")[0] || "you";
+  const name = session?.user
+    ? (session.user.name || session.user.email?.split("@")[0] || "you")
+    : "";
   const initials = name.trim().slice(0, 2).toUpperCase();
 
+  // One stable tree across all states. The modal renders at a fixed position and
+  // is gated only on authOpen + signed-out — NOT on `status`. signIn() makes
+  // useSession flip to "loading" briefly; gating the modal on status (the old
+  // early-returns) unmounted it mid-submit, wiping its error and flashing a fresh
+  // modal. Keeping it mounted lets the "wrong email or password" error survive.
   return (
     <div className="acct" ref={ref} style={{ position: "relative" }}>
-      <button className="acct-avatar" onClick={() => setOpen((o) => !o)} aria-label="account menu">
-        {initials}
-      </button>
-      {open && (
-        <div className="acct-menu" role="menu">
-          <div className="acct-id">
-            <div className="acct-name">{name}</div>
-            <div className="acct-email">{session.user.email}</div>
-          </div>
-          <Link href="/play" onClick={() => setOpen(false)}>find a game</Link>
-          <Link href="/account" onClick={() => setOpen(false)}>account</Link>
-          <button className="acct-signout" onClick={() => signOut({ callbackUrl: "/" })}>
-            sign out
+      {status === "loading" ? (
+        <div style={{ width: 64 }} aria-hidden />
+      ) : session?.user ? (
+        <>
+          <button className="acct-avatar" onClick={() => setOpen((o) => !o)} aria-label="account menu">
+            {initials}
           </button>
-        </div>
+          {open && (
+            <div className="acct-menu" role="menu">
+              <div className="acct-id">
+                <div className="acct-name">{name}</div>
+                <div className="acct-email">{session.user.email}</div>
+              </div>
+              <Link href="/play" onClick={() => setOpen(false)}>find a game</Link>
+              <Link href="/account" onClick={() => setOpen(false)}>account</Link>
+              <button className="acct-signout" onClick={() => signOut({ callbackUrl: "/" })}>
+                sign out
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <button className="acct-cta" onClick={() => { setCallbackUrl(undefined); setAuthOpen(true); }}>sign in</button>
+      )}
+
+      {/* Mounted whenever the modal is open and we're not signed in — independent
+          of the transient "loading" status, so it isn't remounted mid-login. */}
+      {authOpen && !session?.user && (
+        <AuthModal callbackUrl={callbackUrl} onClose={() => setAuthOpen(false)} />
       )}
     </div>
   );
