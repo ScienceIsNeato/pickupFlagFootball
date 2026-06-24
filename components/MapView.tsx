@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
+import { badgeHitDistance } from "@/lib/map/hit";
 import { TEAM_YELLOW } from "@/lib/brand";
 import { ProposeModal } from "./ProposeModal";
 import { GameDetailsModal } from "./GameDetailsModal";
@@ -536,16 +537,16 @@ export function MapView({
     map.on("moveend", () => { mapMoving = false; });
     map.on("moveend", debouncedRefresh);
     const nearestCluster = (px: number, py: number): Cluster | null => {
-      // Per-cluster hit radius. The cluster's projected point is the BADGE BASE,
-      // but the badge image extends UP from there by GAME_BADGE / PROPOSED_BADGE
-      // px — so a 60px radius would miss clicks on the top of a game badge. The
-      // small +8 buffer covers the corners (the badge is a square, not a disc).
+      // Hit-test the actual drawn badge rectangle (anchored at the base, extending
+      // up), not a fat disc around the base — otherwise a click on a tall game
+      // badge can land closer to a neighboring marker's base and pick the wrong
+      // one. badgeHitDistance matches drawBadgesPass's drawImage geometry exactly.
       let best: Cluster | null = null, bestD = Infinity;
       for (const cl of clustersRef.current) {
         const p = map.project(cl.ll);
-        const d = Math.hypot(p.x - px, p.y - py);
-        const limit = cl.hasGame ? GAME_BADGE + 8 : cl.forming ? PROPOSED_BADGE + 8 : 60;
-        if (d < limit && d < bestD) { bestD = d; best = cl; }
+        const size = cl.hasGame ? GAME_BADGE : cl.forming ? PROPOSED_BADGE : null;
+        const d = badgeHitDistance({ x: p.x, y: p.y }, { x: px, y: py }, size);
+        if (d != null && d < bestD) { bestD = d; best = cl; }
       }
       return best;
     };
