@@ -67,12 +67,15 @@ export const users = pgTable("users", {
   addressLine2:     text("address_line2"),
   city:             text("city"),
   state:            text("state"),
-  zip:              text("zip"),
+  // Required: a registered user always has a home (zip + geocoded point), and that
+  // home is their interest signal. Account creation goes through createMember(),
+  // which sets these atomically with the interest row.
+  zip:              text("zip").notNull(),
   // home point — the geocoded address when given, else that ZIP's centroid.
   // Server-only: the map never exposes it, it only emits H3-cell centroids.
   // Used to measure distance to games.
-  homeLat:          doublePrecision("home_lat"),
-  homeLng:          doublePrecision("home_lng"),
+  homeLat:          doublePrecision("home_lat").notNull(),
+  homeLng:          doublePrecision("home_lng").notNull(),
   // how far the user will travel for a game (km). Gates the map's cursor pull.
   maxTravelKm:      doublePrecision("max_travel_km").notNull().default(24.14), // ~15 mi
   h3R5:             bigint("h3_r5", { mode: "bigint" }),

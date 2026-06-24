@@ -34,7 +34,7 @@ async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number
   }).returning({ id: games.id });
   for (let i = 0; i < rosterIn; i++) {
     const [u] = await db.insert(users)
-      .values({ email: `r${i}-${lat}-${lng}@x.com`, displayName: `R${i}` })
+      .values({ email: `r${i}-${lat}-${lng}@x.com`, displayName: `R${i}`, zip: "52241", homeLat: lat, homeLng: lng })
       .returning({ id: users.id });
     await db.insert(gameRoster).values({ gameId: game.id, userId: u.id, defaultStatus: "in" });
   }

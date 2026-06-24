@@ -99,9 +99,9 @@ export async function seedStandingGame(o: {
     const jLat = o.lat + ((i % 3) - 1) * 0.004;
     const jLng = o.lng + ((i % 5) - 2) * 0.004;
     const { rows: [u] } = await pool.query(
-      `INSERT INTO users (email, display_name, home_lat, home_lng, email_verified)
-       VALUES ($1, $2, $3, $4, now()) RETURNING id`,
-      [`seed-${tag}-r${i}@example.com`, `Regular ${i + 1}`, jLat, jLng],
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
+      [`seed-${tag}-r${i}@example.com`, `Regular ${i + 1}`, jLat, jLng, o.zip],
     );
     await pool.query(
       `INSERT INTO interest_signals (activity_type_id, user_id, area_id, h3_base, active)
@@ -129,9 +129,9 @@ export async function seedStandingGame(o: {
       [act.id, fCell, o.city, o.zip, fLat, fLng],
     );
     const { rows: [u] } = await pool.query(
-      `INSERT INTO users (email, display_name, home_lat, home_lng, email_verified)
-       VALUES ($1, $2, $3, $4, now()) RETURNING id`,
-      [`seed-${tag}-i${i}@example.com`, `Local ${i + 1}`, fLat, fLng],
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
+      [`seed-${tag}-i${i}@example.com`, `Local ${i + 1}`, fLat, fLng, o.zip],
     );
     await pool.query(
       `INSERT INTO interest_signals (activity_type_id, user_id, area_id, h3_base, active)
