@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Full set of user-story flows now runs end to end through a real browser — signup, email confirm, resending, the can't-play-until-confirmed cases, joining a game on the map, out-of-range, and the deleted-account case. All nine pass, each with a screenshot-by-screenshot report.",
-    "direction": "Next: get this whole testing layer reviewed and merged to a clean main.",
-    "last_update": "2026-06-21T09:30:00Z"
+    "status": "Squashing bugs found while testing the live site — captains couldn't pause a game, and Google sign-in had a couple of dead ends. Fixes going out one at a time.",
+    "direction": "Keep clearing the live-testing snags so signup, sign-in, and the captain tools just work.",
+    "last_update": "2026-06-24T00:00:00Z"
   }
 }
