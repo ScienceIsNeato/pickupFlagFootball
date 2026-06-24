@@ -14,7 +14,7 @@ Feature: Captain controls
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
     When I open the game on the map
     And I retire the series
-    Then the game is gone
+    Then the game shows as retired
 
   Scenario: a captain calls off this week
     Given an established weekly game near me

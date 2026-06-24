@@ -41,12 +41,14 @@ export async function GET(req: Request) {
   // (denormalised here) areaId so we can decide "is this one of mine?".
   const gameRows = await db
     .select({
-      id: games.id, areaId: games.areaId, color: games.color,
+      id: games.id, areaId: games.areaId, color: games.color, status: games.status,
       placeLat: games.placeLat, placeLng: games.placeLng,
       h3Cell: areas.h3Cell, centerLat: areas.centerLat, centerLng: areas.centerLng,
     })
     .from(games).innerJoin(areas, eq(games.areaId, areas.id))
-    .where(inArray(games.status, ["active", "paused"]));
+    // Retired series stay on the map (greyed badge → RETIRED view + history); the
+    // engine ignores them and (below) they don't claim interest flags.
+    .where(inArray(games.status, ["active", "paused", "retired"]));
 
   // "mine" mode: a game is mine if I'm on its roster OR I have active interest in
   // its area. Filter the cluster feed down to those games' badges + their claims;
@@ -67,6 +69,8 @@ export async function GET(req: Request) {
   const gameInfo = new Map<string, { lat: number; lng: number; color: string }>();
   const gameCellColor = new Map<string, string>();   // display cell → game color (the ring)
   const gameAtCell = new Map<string, string>();       // display cell → gameId (for the member badge)
+  const retiredIds = new Set<string>();               // games the engine no longer runs
+  const retiredCell = new Map<string, boolean>();      // display cell → retired (greyed) badge
   for (const g of gameRows) {
     if (mineGameIds && !mineGameIds.has(g.id)) continue;
     // Prefer the stored color; fall back to the deterministic hash for any
@@ -76,6 +80,7 @@ export async function GET(req: Request) {
     const parent = cellToParent(bigIntToH3(g.h3Cell), res);
     gameCellColor.set(parent, color);
     gameAtCell.set(parent, g.id);
+    if (g.status === "retired") { retiredIds.add(g.id); retiredCell.set(parent, true); }
   }
 
   // Roster → which game(s) claim each user, and each game's member tally.
@@ -88,7 +93,9 @@ export async function GET(req: Request) {
       .select({ gameId: gameRoster.gameId, userId: gameRoster.userId })
       .from(gameRoster).where(inArray(gameRoster.gameId, [...gameInfo.keys()]));
     for (const r of roster) {
-      if (!gameInfo.has(r.gameId)) continue;
+      // Retired games keep their roster row but don't claim flags — a dead game
+      // shouldn't pull interest; those members fall back to the free pool.
+      if (!gameInfo.has(r.gameId) || retiredIds.has(r.gameId)) continue;
       const list = claimsByUser.get(r.userId) ?? claimsByUser.set(r.userId, []).get(r.userId)!;
       if (!list.includes(r.gameId)) {
         list.push(r.gameId);
@@ -173,13 +180,16 @@ export async function GET(req: Request) {
           return { lat: g.lat, lng: g.lng, color: g.color, count: users.size };
         })
       : [];
+    const retired = hasGame ? retiredCell.get(h3) ?? false : false;
     return {
       h3, lat, lng,
       count: free.get(h3)?.size ?? 0,           // FREE interest only
       hasGame,
       forming,
-      gameColor: hasGame ? gameCellColor.get(h3) : undefined,
-      gameMembers: hasGame ? memberCount.get(gameAtCell.get(h3)!) ?? 0 : undefined,
+      retired,
+      // Retired badges render greyed with no ring/count — drop the color + tally.
+      gameColor: hasGame && !retired ? gameCellColor.get(h3) : undefined,
+      gameMembers: hasGame && !retired ? memberCount.get(gameAtCell.get(h3)!) ?? 0 : undefined,
       claims: claimsOut,
     };
   });
