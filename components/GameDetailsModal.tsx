@@ -55,7 +55,7 @@ type ConfirmReq =
   | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void };
 
 /** Details for an existing game, opened by clicking its flags on the map. */
-export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: () => void }) {
+export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number; lng: number; onClose: () => void; onChanged?: () => void }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -118,6 +118,10 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
       const res = await action();
       if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
       await load();
+      // A captain action (retire/pause/…) or join/leave changes the map too —
+      // refresh clusters so the badge (retired greying, ring, tallies) doesn't
+      // lag the modal until the next pan/zoom.
+      onChanged?.();
     } catch {
       setActionErr("something went wrong");
     } finally {

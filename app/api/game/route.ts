@@ -43,14 +43,18 @@ export async function GET(req: Request) {
     // opens the RETIRED view + history instead of "no game here".
     .where(and(eq(games.activityTypeId, act.id), inArray(games.status, ["active", "paused", "retired"])));
 
-  let best: (typeof active)[number] | null = null;
-  let bestKm = 6;
-  for (const g of active) {
-    const glat = g.placeLat ?? g.centerLat;
-    const glng = g.placeLng ?? g.centerLng;
-    const d = haversineKm(lat, lng, glat, glng);
-    if (d < bestKm) { bestKm = d; best = g; }
-  }
+  // Nearest game within 6 km. At (near-)identical coords (~<20 m — colocated
+  // series at one venue) prefer a live series over a retired one, so a click
+  // resolves to the same game the map shows live (the map badge lets an active
+  // series win a shared cell). Beyond that, pure distance.
+  const best = active
+    .map((g) => ({ g, d: haversineKm(lat, lng, g.placeLat ?? g.centerLat, g.placeLng ?? g.centerLng) }))
+    .filter((x) => x.d < 6)
+    .sort((a, b) =>
+      Math.abs(a.d - b.d) > 0.02
+        ? a.d - b.d
+        : (a.g.status === "retired" ? 1 : 0) - (b.g.status === "retired" ? 1 : 0) || a.d - b.d,
+    )[0]?.g ?? null;
   if (!best) return NextResponse.json({ game: null });
 
   const captainRows = await db.select({ name: users.displayName })

@@ -637,7 +637,8 @@ export function MapView({
           home={home} onClose={() => setPropose(null)} onProposed={handleProposed} />
       )}
       {gameDetails && (
-        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)} />
+        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)}
+          onChanged={() => refreshRef.current?.()} />
       )}
       {proposedDetails && (
         <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng}
