@@ -254,15 +254,20 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 /* Type-to-confirm dialog for destructive captain actions (pause / retire). */
 .game-confirm {
-  width: min(360px, 90vw); background: var(--card, #fff); border: 1px solid var(--border);
+  /* Match the dark .game-card surface — the old var(--card, #fff) fell back to
+     white (no --card defined), so the light --ink/--muted text was unreadable. */
+  width: min(360px, 90vw); background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 18px 18px 14px; box-shadow: 0 12px 40px rgba(6, 10, 8, 0.35);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: var(--ink);
 }
 .game-confirm-title { margin: 0 0 12px; font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink); }
-.game-confirm label { display: block; font-size: 13px; margin-bottom: 6px; }
+.game-confirm label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
 .game-confirm-input {
   width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 12px;
   font: inherit; font-size: 14px; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--ink); background: var(--bg);
 }
+.game-confirm-input:focus { outline: none; border-color: var(--green); }
 .game-confirm .seg { margin-bottom: 0; }
 .game-confirm-go:disabled { opacity: 0.5; cursor: default; }
 .game-pause-note { resize: vertical; min-height: 46px; font-family: inherit; }
