@@ -1,23 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
-import { saveLocationAndInterest } from "@/app/(app)/show-interest/actions";
 import { GoogleButton } from "./GoogleButton";
 import { str } from "@/lib/forms";
 
-/** The registration window: an anonymous visitor creates an account (email +
- *  username + password, or Google) AND records their location/interest in one
- *  step. Google is a one-tap alternative — it lands the user back here logged
- *  in, where the location-only form takes over. */
+/** The registration window — the ONLY place an account is created. An anonymous
+ *  visitor provides identity (email + username + password, or Google) AND a
+ *  location in one step; the server creates the account, area, and interest
+ *  signal atomically (createMember). A location is mandatory: it *is* the
+ *  interest signal, so there's no such thing as a registered user without one. */
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  // Once the account is created + signed in, a retry (e.g. a bad ZIP) must skip
-  // registration — else registerWithPassword rejects the now-existing email.
-  const [accountReady, setAccountReady] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
+  // → "create an account" → here). Only same-origin relative paths.
+  const [dest, setDest] = useState("/play");
+  useEffect(() => {
+    const n = new URLSearchParams(window.location.search).get("next");
+    if (n && /^\/(?![/\\])/.test(n)) setDest(n);
+  }, []);
+
+  /** Read + validate the location fields for either signup path. null ⇒ no valid ZIP.
+   *  Stable identity so GoogleButton's GIS init effect doesn't re-run on each render. */
+  const readLocation = useCallback((): { zip: string; line1: string; line2: string; city: string; state: string } | null => {
+    const form = formRef.current;
+    if (!form) return null;
+    const fd = new FormData(form);
+    const zip = str(fd.get("zip"));
+    if (!/^\d{5}$/.test(zip)) return null;
+    return {
+      zip, line1: str(fd.get("address_line1")), line2: str(fd.get("address_line2")),
+      city: str(fd.get("city")), state: str(fd.get("state")),
+    };
+  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,31 +45,23 @@ export function RegisterInterestForm() {
     const email = str(fd.get("email"));
     const username = str(fd.get("username"));
     const password = str(fd.get("password"));
-    // Only the location fields go to the location action — never forward the
-    // password through that unrelated server-action path.
-    const locationFd = new FormData();
-    for (const key of ["zip", "address_line1", "address_line2", "city", "state"] as const) {
-      const value = fd.get(key);
-      if (value !== null) locationFd.set(key, value);
-    }
+    const loc = readLocation();
+    if (!loc) { setError("enter a valid 5-digit ZIP code"); setBusy(false); return; }
     try {
-      if (!accountReady) {
-        const reg = await registerWithPassword({ email, password, name: username });
-        if (!reg.ok) { setError(reg.error); setBusy(false); return; }
-        const res = await signIn("password", { email, password, redirect: false });
-        if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
-        setAccountReady(true);
-      }
-      const loc = await saveLocationAndInterest(locationFd);
-      if (!loc.ok) { setError(loc.error); setBusy(false); return; }
-      window.location.href = "/play";
+      // Account + location + interest created atomically server-side.
+      const reg = await registerWithPassword({ email, password, name: username, ...loc });
+      if (!reg.ok) { setError(reg.error); setBusy(false); return; }
+      const res = await signIn("password", { email, password, redirect: false });
+      if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
+      window.location.href = dest;
     } catch { setError("something went wrong — please try again"); setBusy(false); }
   }
 
   return (
-    <form className="reg-form" onSubmit={submit}>
+    <form ref={formRef} className="reg-form" onSubmit={submit}>
       <div className="auth-google">
-        <GoogleButton dest="/show-interest" onError={setError} />
+        {/* Signup mode: requires a ZIP before completing Google, then createMember. */}
+        <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
       </div>
       <div className="auth-or"><span>or</span></div>
 
@@ -58,16 +69,16 @@ export function RegisterInterestForm() {
 
       <label>
         email
-        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" required={!accountReady} />
+        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" required />
       </label>
       <label>
         username
-        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" required={!accountReady} />
+        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" required />
       </label>
       <label>
         password
         <input type="password" name="password" placeholder="at least 8 characters"
-          autoComplete="new-password" minLength={8} required={!accountReady} />
+          autoComplete="new-password" minLength={8} required />
       </label>
 
       <p className="reg-section">where you play</p>

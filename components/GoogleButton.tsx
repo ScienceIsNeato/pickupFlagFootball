@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
+import { registerWithGoogle } from "@/lib/auth/register";
 
 type GsiButtonConfig = { theme?: string; size?: string; width?: number; text?: string; shape?: string };
 type Gsi = {
@@ -26,13 +27,30 @@ function loadGsi(): Promise<void> {
   return gsiPromise;
 }
 
-/** Google Identity Services "continue with Google" button. On success it signs
- *  in via the google-onetap provider and navigates to `dest`. Renders a small
- *  note instead when Google isn't configured. Shared by the auth modal and the
- *  registration form so the GSI wiring lives in one place. */
-export function GoogleButton({ dest, onError }: { dest: string; onError?: (msg: string) => void }) {
+type GoogleLocation = { zip: string; line1: string; line2: string; city: string; state: string };
+
+/** Google Identity Services "continue with Google" button. Two modes:
+ *  - "login" (default): sign in an existing account; an unknown email fails (the
+ *    Google provider is login-only) and we tell them to sign up.
+ *  - "signup": require a location (getLocation), create the account+interest via
+ *    registerWithGoogle, then sign in. This is the only Google account-creation
+ *    path, and it can't run without a ZIP.
+ *  On success it navigates to `dest`. Renders a note when Google isn't configured. */
+export function GoogleButton({
+  dest, mode = "login", getLocation, onError,
+}: {
+  dest: string;
+  mode?: "login" | "signup";
+  getLocation?: () => GoogleLocation | null;
+  onError?: (msg: string) => void;
+}) {
   const [off, setOff] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest props in a ref so the GIS callback reads current values
+  // without re-initializing the widget when a prop (e.g. dest from ?next=, set
+  // post-mount) changes — re-init would duplicate the button / stale the callback.
+  const latest = useRef({ dest, mode, getLocation, onError });
+  latest.current = { dest, mode, getLocation, onError };
 
   useEffect(() => {
     let cancelled = false;
@@ -47,22 +65,34 @@ export function GoogleButton({ dest, onError }: { dest: string; onError?: (msg: 
           callback: async (resp) => {
             // This runs after init, so a rejection here escapes the outer catch —
             // handle it locally or the user gets no feedback.
+            const { dest, mode, getLocation, onError } = latest.current;
             try {
+              if (mode === "signup") {
+                const loc = getLocation?.() ?? null;
+                if (!loc) { onError?.("enter your zip code first, then continue with google"); return; }
+                const reg = await registerWithGoogle({ credential: resp.credential, ...loc });
+                if (!reg.ok) { onError?.(reg.error); return; }
+              }
               const res = await signIn("google-onetap", { credential: resp.credential, redirect: false });
               if (res?.ok) { window.location.href = dest; return; }
-              onError?.("google sign-in failed");
+              onError?.(mode === "signup"
+                ? "account created, but sign-in failed — try logging in"
+                : "no account for that google address — sign up first");
             } catch {
               onError?.("google sign-in failed — please try again");
             }
           },
         });
         window.google.accounts.id.renderButton(ref.current, {
-          theme: "filled_black", size: "large", width: 300, text: "continue_with", shape: "pill",
+          theme: "filled_black", size: "large", width: 300,
+          text: latest.current.mode === "signup" ? "signup_with" : "continue_with", shape: "pill",
         });
       } catch { setOff(true); }
     })();
     return () => { cancelled = true; };
-  }, [dest]);
+    // Initialize GIS exactly once; dynamic props are read from `latest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (off) return <p className="auth-note">google sign-in isn&apos;t configured yet — use email below.</p>;
   return <div ref={ref} />;

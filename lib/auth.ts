@@ -1,11 +1,11 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { OAuth2Client } from "google-auth-library";
 import { eq } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { db } from "./db";
 import { users } from "./db/schema";
+import { verifyGoogleIdToken } from "./auth/google";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -26,44 +26,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     // ── Google Identity Services (popup → ID token, verified here) ────────────
+    // LOGIN ONLY: this never creates an account (that would mint a homeless user
+    // with no interest). New users sign up via /show-interest, which collects a
+    // location and calls createMember(). A Google sign-in for an unknown email
+    // returns null, and the UI routes them to register.
     Credentials({
       id: "google-onetap",
       name: "Google",
       credentials: { credential: {} },
       authorize: async (c) => {
-        const idToken = String(c?.credential ?? "");
-        const clientId = process.env.AUTH_GOOGLE_ID;
-        if (!idToken || !clientId) return null;
-        let p;
-        try {
-          // a malformed/expired token is an auth failure, not a 500
-          const ticket = await new OAuth2Client(clientId)
-            .verifyIdToken({ idToken, audience: clientId });
-          p = ticket.getPayload();
-        } catch {
-          return null;
+        const v = await verifyGoogleIdToken(String(c?.credential ?? ""));
+        if (!v) return null;
+        const [u] = await db.select({
+          id: users.id, email: users.email, displayName: users.displayName,
+          passwordHash: users.passwordHash, emailVerified: users.emailVerified,
+        }).from(users).where(eq(users.email, v.email)).limit(1);
+        if (!u) return null; // no account yet → not a login
+        // Only neutralize a password on an UNVERIFIED account — there it could have
+        // been set by an attacker who pre-registered the email. A verified user's
+        // password is their own; leave it so they don't lose password login.
+        if (u.passwordHash && !u.emailVerified) {
+          await db.update(users).set({ emailVerified: new Date(), passwordHash: null, updatedAt: new Date() })
+            .where(eq(users.id, u.id));
         }
-        // require a Google-verified email so we don't link by an unverified
-        // address that collides with an existing account
-        if (!p?.email || p.email_verified !== true) return null;
-        const email = p.email.toLowerCase().trim(); // match password-reg normalization
-        const [u] = await db
-          .insert(users)
-          .values({
-            email,
-            displayName: p.name ?? email.split("@")[0],
-            emailVerified: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: users.email,
-            // Google proves ownership of this address. Any pre-existing password
-            // is unverified (no verification flow yet) and could have been set by
-            // an attacker who pre-registered the email — clear it so it can't be
-            // used to log into this now-Google-owned account.
-            set: { emailVerified: new Date(), passwordHash: null, updatedAt: new Date() },
-          })
-          .returning();
-        return { id: u.id, email: u.email, name: u.displayName, image: p.picture };
+        return { id: u.id, email: u.email, name: u.displayName, image: v.picture };
       },
     }),
   ],
