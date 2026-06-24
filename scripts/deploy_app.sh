@@ -66,14 +66,22 @@ local_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev
 # the deployed code (the gap that once left prod stuck at a pre-015 schema). The
 # runner is tracked + idempotent, so this is a fast no-op when up to date. Reads
 # .env.local locally; in CI/Vercel it uses the ambient DATABASE_URL.
+# True if a database URL is actually available — from the environment, or defined
+# inside .env.local (not merely that the file exists; an auth-only .env.local may
+# have no DB).
+has_db_url() {
+  [[ -n "${DATABASE_URL:-}" || -n "${DATABASE_URL_UNPOOLED:-}" ]] && return 0
+  [[ -f "$ROOT/.env.local" ]] && grep -qE '^(DATABASE_URL|DATABASE_URL_UNPOOLED)=' "$ROOT/.env.local"
+}
+
 run_migrations() {
   local script="$ROOT/scripts/migrate.mjs"
   [[ -f "$script" ]] || { echo "  (no migrate script — skipping)"; return 0; }
   # Explicit local skip: no DB configured → don't migrate (and don't let the
   # runner's fail-loud-on-no-URL abort a local serve). With a DB, a failure here
   # aborts the deploy (set -e) before anything is torn down.
-  if [[ -z "${DATABASE_URL:-}" && ! -f "$ROOT/.env.local" ]]; then
-    echo "No DATABASE_URL / .env.local — skipping migrations."
+  if ! has_db_url; then
+    echo "No database URL configured — skipping migrations."
     return 0
   fi
   echo "Applying database migrations..."
