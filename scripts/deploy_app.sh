@@ -62,6 +62,36 @@ ensure_prerequisites() {
 
 local_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true; }
 
+# Apply any pending DB migrations before serving — keeps the database in sync with
+# the deployed code (the gap that once left prod stuck at a pre-015 schema). The
+# runner is tracked + idempotent, so this is a fast no-op when up to date. Reads
+# .env.local locally; in CI/Vercel it uses the ambient DATABASE_URL.
+# True if a database URL is actually available — from the environment, or defined
+# inside .env.local (not merely that the file exists; an auth-only .env.local may
+# have no DB).
+has_db_url() {
+  [[ -n "${DATABASE_URL:-}" || -n "${DATABASE_URL_UNPOOLED:-}" ]] && return 0
+  [[ -f "$ROOT/.env.local" ]] && grep -qE '^(DATABASE_URL|DATABASE_URL_UNPOOLED)=' "$ROOT/.env.local"
+}
+
+run_migrations() {
+  local script="$ROOT/scripts/migrate.mjs"
+  [[ -f "$script" ]] || { echo "  (no migrate script — skipping)"; return 0; }
+  # Explicit local skip: no DB configured → don't migrate (and don't let the
+  # runner's fail-loud-on-no-URL abort a local serve). With a DB, a failure here
+  # aborts the deploy (set -e) before anything is torn down.
+  if ! has_db_url; then
+    echo "No database URL configured — skipping migrations."
+    return 0
+  fi
+  echo "Applying database migrations..."
+  if [[ -f "$ROOT/.env.local" ]]; then
+    node --env-file="$ROOT/.env.local" "$script" apply
+  else
+    node "$script" apply
+  fi
+}
+
 cleanup_stale() {
   local now; now=$(date +%s)
   for lockfile in "$DEPLOY_DIR"/*.json; do
@@ -160,8 +190,13 @@ case "$ACTION" in
     NEXT_BIN="$ROOT/node_modules/.bin/next"
     [[ -x "$NEXT_BIN" ]] || die "next is not installed. Run npm install first."
     if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      # Migrate only when we're (re)building — SKIP_BUILD serves the existing
+      # bundle as-is, so don't move the schema out from under stale code.
+      run_migrations
       echo "Building (set SKIP_BUILD=1 to skip)..."
       npm run build
+    else
+      echo "SKIP_BUILD=1 — serving the existing bundle; skipping migrations."
     fi
     SERVE_PORT="${PORT:-3000}"
     echo "Serving MIME-FF in the foreground on 0.0.0.0:$SERVE_PORT"
@@ -179,6 +214,10 @@ echo "=== MIME-FF deploy ==="
 echo "Dir:    $ROOT"
 echo "Branch: $BRANCH"
 echo ""
+
+# Migrate BEFORE tearing down the running release — if a migration fails, the
+# old (healthy) process keeps serving instead of going down with it.
+run_migrations
 
 echo "Cleaning stale deployments..."
 cleanup_stale
