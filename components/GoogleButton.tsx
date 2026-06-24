@@ -74,10 +74,18 @@ export function GoogleButton({
                 if (!reg.ok) { onError?.(reg.error); return; }
               }
               const res = await signIn("google-onetap", { credential: resp.credential, redirect: false });
+              // next-auth v5 returns ok:true (HTTP 200) even when auth failed — the
+              // real signal is `error`. Navigating on `ok` alone sent a failed
+              // Google login to dest → middleware → /?signin=1 (re-presenting the
+              // login modal with no explanation). Gate on `error` first.
+              if (res?.error) {
+                onError?.(mode === "signup"
+                  ? "account created, but sign-in failed — try logging in"
+                  : "no account for that google address yet — use “create an account” below");
+                return;
+              }
               if (res?.ok) { window.location.href = dest; return; }
-              onError?.(mode === "signup"
-                ? "account created, but sign-in failed — try logging in"
-                : "no account for that google address — sign up first");
+              onError?.("google sign-in failed — please try again");
             } catch {
               onError?.("google sign-in failed — please try again");
             }
