@@ -252,6 +252,28 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-leave:disabled { opacity: 0.6; cursor: default; }
 .game-in-count { margin: 8px 0 0; font-size: 13px; }
 .game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
+/* Type-to-confirm dialog for destructive captain actions (pause / retire). */
+.game-confirm {
+  width: min(360px, 90vw); background: var(--card, #fff); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 18px 14px; box-shadow: 0 12px 40px rgba(6, 10, 8, 0.35);
+}
+.game-confirm-title { margin: 0 0 12px; font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink); }
+.game-confirm label { display: block; font-size: 13px; margin-bottom: 6px; }
+.game-confirm-input {
+  width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 12px;
+  font: inherit; font-size: 14px; border: 1px solid var(--border); border-radius: 8px;
+}
+.game-confirm .seg { margin-bottom: 0; }
+.game-confirm-go:disabled { opacity: 0.5; cursor: default; }
+.game-pause-note { resize: vertical; min-height: 46px; font-family: inherit; }
+.game-pause-hint { margin: -4px 0 12px; font-size: 12px; }
+/* Captain row: names left, "(you)" pushed to the far right. */
+.game-captain-dd { display: flex; justify-content: space-between; gap: 8px; }
+.game-you { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+/* Paused-series notice: note + expected return, shown prominently in details. */
+.game-paused { padding: 2px 0; }
+.game-paused-h { margin: 0 0 6px; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--ink); }
+.game-paused-note { margin: 0; font-size: 14px; color: var(--muted); font-style: italic; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
 .app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 

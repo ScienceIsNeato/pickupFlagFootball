@@ -216,6 +216,9 @@ export const games = pgTable("games", {
   isStanding:      boolean("is_standing").notNull().default(false),
   recurDow:        integer("recur_dow"),
   recurTime:       time("recur_time"),
+  // Seasonal-pause metadata — both set when status='paused', cleared otherwise.
+  pausedUntil:     date("paused_until"),
+  pauseNote:       text("pause_note"),
   createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

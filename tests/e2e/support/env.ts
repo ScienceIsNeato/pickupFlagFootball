@@ -6,4 +6,7 @@ export const E2E = {
   dbUrl: process.env.E2E_DB_URL ?? "postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test",
   smtpUrl: "smtp://127.0.0.1:11025",
   mailpitApi: "http://127.0.0.1:18025",
+  // The app process runs with this secret (see playwright.config.ts webServer.env).
+  // Tests reuse it to mint valid RSVP-link tokens the app will verify.
+  authSecret: "e2e-test-secret-not-for-prod",
 };
