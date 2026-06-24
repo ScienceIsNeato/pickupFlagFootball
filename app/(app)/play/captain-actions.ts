@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
-import { games, areaCaptains, gameOccurrences } from "@/lib/db/schema";
+import { games, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 
@@ -70,6 +70,13 @@ async function setSeriesStatus(
           // stranded once the active-series guard blocks notifyDecided.
           inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "skipped", "notifying", "awaiting_game"]),
         ));
+    }
+    // Retiring is permanent — release the roster back to the free-interest pool.
+    // Members keep their interest signals (so they still court games near home);
+    // they're just no longer claimed by this dead game. (Pause keeps the roster so
+    // resume restores the same members.)
+    if (status === "retired") {
+      await tx.delete(gameRoster).where(eq(gameRoster.gameId, gameId));
     }
     return false;
   });
