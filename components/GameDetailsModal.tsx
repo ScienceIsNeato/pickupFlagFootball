@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
-import { pauseSeries, resumeSeries, retireSeries, cancelWeek } from "@/app/(app)/play/captain-actions";
+import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain } from "@/app/(app)/play/captain-actions";
 
 type GameInfo = {
   gameId: string;
@@ -230,6 +230,32 @@ export function GameDetailsModal({ lat, lng, onClose }: { lat: number; lng: numb
                     <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 )}
+                {/* Relinquish the role (distinct from retiring the whole series). */}
+                <button type="button" className="game-leave" disabled={busy}
+                  onClick={() => { if (window.confirm("step down as captain of this game?")) run(() => stepDownAsCaptain(game.gameId)); }}>
+                  step down as captain
+                </button>
+              </div>
+            )}
+
+            {/* Anyone (confirmed, not already a captain) can volunteer — emphasized
+                when the game has no captain at all. */}
+            {!game.viewerIsCaptain && (
+              <div className="game-captain">
+                {game.captains.length === 0 ? (
+                  <>
+                    <p className="game-join-h">this game has no captain</p>
+                    <p className="game-muted game-volunteer-note">
+                      a captain runs the weekly poll and keeps the game going. want to take it on?
+                    </p>
+                  </>
+                ) : (
+                  <p className="game-join-h">help run this game</p>
+                )}
+                <button type="button" className="btn-green game-volunteer" disabled={busy}
+                  onClick={() => run(() => volunteerAsCaptain(game.gameId))}>
+                  volunteer as captain
+                </button>
               </div>
             )}
 

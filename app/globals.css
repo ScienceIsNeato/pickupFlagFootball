@@ -274,6 +274,9 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-paused { padding: 2px 0; }
 .game-paused-h { margin: 0 0 6px; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--ink); }
 .game-paused-note { margin: 0; font-size: 14px; color: var(--muted); font-style: italic; }
+/* Volunteer-as-captain prompt (shown to non-captains; emphasized when captainless). */
+.game-volunteer-note { margin: 0 0 10px; font-size: 13px; }
+.game-volunteer { width: 100%; height: 44px; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
 .app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 
