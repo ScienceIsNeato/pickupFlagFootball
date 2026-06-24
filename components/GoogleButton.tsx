@@ -46,6 +46,11 @@ export function GoogleButton({
 }) {
   const [off, setOff] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest props in a ref so the GIS callback reads current values
+  // without re-initializing the widget when a prop (e.g. dest from ?next=, set
+  // post-mount) changes — re-init would duplicate the button / stale the callback.
+  const latest = useRef({ dest, mode, getLocation, onError });
+  latest.current = { dest, mode, getLocation, onError };
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +65,7 @@ export function GoogleButton({
           callback: async (resp) => {
             // This runs after init, so a rejection here escapes the outer catch —
             // handle it locally or the user gets no feedback.
+            const { dest, mode, getLocation, onError } = latest.current;
             try {
               if (mode === "signup") {
                 const loc = getLocation?.() ?? null;
@@ -79,12 +85,14 @@ export function GoogleButton({
         });
         window.google.accounts.id.renderButton(ref.current, {
           theme: "filled_black", size: "large", width: 300,
-          text: mode === "signup" ? "signup_with" : "continue_with", shape: "pill",
+          text: latest.current.mode === "signup" ? "signup_with" : "continue_with", shape: "pill",
         });
       } catch { setOff(true); }
     })();
     return () => { cancelled = true; };
-  }, [dest, mode, getLocation]);
+    // Initialize GIS exactly once; dynamic props are read from `latest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (off) return <p className="auth-note">google sign-in isn&apos;t configured yet — use email below.</p>;
   return <div ref={ref} />;
