@@ -189,10 +189,14 @@ case "$ACTION" in
     cd "$ROOT"
     NEXT_BIN="$ROOT/node_modules/.bin/next"
     [[ -x "$NEXT_BIN" ]] || die "next is not installed. Run npm install first."
-    run_migrations
     if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      # Migrate only when we're (re)building — SKIP_BUILD serves the existing
+      # bundle as-is, so don't move the schema out from under stale code.
+      run_migrations
       echo "Building (set SKIP_BUILD=1 to skip)..."
       npm run build
+    else
+      echo "SKIP_BUILD=1 — serving the existing bundle; skipping migrations."
     fi
     SERVE_PORT="${PORT:-3000}"
     echo "Serving MIME-FF in the foreground on 0.0.0.0:$SERVE_PORT"
