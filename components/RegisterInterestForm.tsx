@@ -52,7 +52,8 @@ export function RegisterInterestForm() {
       const reg = await registerWithPassword({ email, password, name: username, ...loc });
       if (!reg.ok) { setError(reg.error); setBusy(false); return; }
       const res = await signIn("password", { email, password, redirect: false });
-      if (!res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
+      // `ok` is HTTP success, not auth success — check `error` too (see AuthModal).
+      if (res?.error || !res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
       window.location.href = dest;
     } catch { setError("something went wrong — please try again"); setBusy(false); }
   }

@@ -32,8 +32,13 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
     setBusy(true); setError("");
     try {
       const res = await signIn("password", { email, password, redirect: false });
-      if (res?.ok) window.location.href = dest;
-      else { setError("wrong email or password"); setBusy(false); }
+      // next-auth v5: `ok` is HTTP success (the callback returns 200 even on a
+      // bad password), so a truthy `ok` does NOT mean auth succeeded — `error`
+      // is the real signal. Navigating on `ok` alone bounced wrong logins to
+      // /play → middleware → /?signin=1 (a flash with no error shown).
+      if (res?.error) { setError("wrong email or password"); setBusy(false); return; }
+      if (res?.ok) { window.location.href = dest; return; }
+      setError("something went wrong"); setBusy(false);
     } catch { setError("something went wrong"); setBusy(false); }
   }
 
