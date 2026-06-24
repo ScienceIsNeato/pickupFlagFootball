@@ -62,6 +62,21 @@ ensure_prerequisites() {
 
 local_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true; }
 
+# Apply any pending DB migrations before serving — keeps the database in sync with
+# the deployed code (the gap that once left prod stuck at a pre-015 schema). The
+# runner is tracked + idempotent, so this is a fast no-op when up to date. Reads
+# .env.local locally; in CI/Vercel it uses the ambient DATABASE_URL.
+run_migrations() {
+  local script="$ROOT/scripts/migrate.mjs"
+  [[ -f "$script" ]] || { echo "  (no migrate script — skipping)"; return 0; }
+  echo "Applying database migrations..."
+  if [[ -f "$ROOT/.env.local" ]]; then
+    node --env-file="$ROOT/.env.local" "$script" apply
+  else
+    node "$script" apply
+  fi
+}
+
 cleanup_stale() {
   local now; now=$(date +%s)
   for lockfile in "$DEPLOY_DIR"/*.json; do
@@ -159,6 +174,7 @@ case "$ACTION" in
     cd "$ROOT"
     NEXT_BIN="$ROOT/node_modules/.bin/next"
     [[ -x "$NEXT_BIN" ]] || die "next is not installed. Run npm install first."
+    run_migrations
     if [[ "${SKIP_BUILD:-}" != "1" ]]; then
       echo "Building (set SKIP_BUILD=1 to skip)..."
       npm run build
@@ -183,6 +199,8 @@ echo ""
 echo "Cleaning stale deployments..."
 cleanup_stale
 stop_deployment "$ROOT"
+
+run_migrations
 
 echo "Building..."
 npm run build

@@ -1,4 +1,5 @@
 {
+  "buildCommand": "node scripts/migrate.mjs apply && next build",
   "crons": [
     {
       "path": "/api/mime/tick",
