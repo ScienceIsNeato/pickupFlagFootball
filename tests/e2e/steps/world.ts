@@ -8,6 +8,7 @@ export type World = {
   // captured to assert a captain action changed the popup (e.g. cancel advances "next game")
   nextGameCaption?: string;
   rsvpToken?: string; // signed one-click RSVP-link token for the email-link flow
+  attemptId?: string; // the live formation attempt, for the formation-FSM e2e
 };
 
 export const test = base.extend<{ world: World }>({

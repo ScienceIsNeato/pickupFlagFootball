@@ -142,12 +142,14 @@ export async function seedStandingGame(o: {
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, gameId: String(game.id), areaId: String(area.id) };
 }
 
-/** A forming (IN_FORMATION) site with a live suggesting attempt + one suggestion,
- *  so clicking its badge opens the proposed-site popup. Used by the "not
- *  interested" beat. Returns lat/lng so the map can jump to it. */
-export async function seedFormingSite(o: {
+/** A forming (IN_FORMATION) site mid-attempt (SUGGESTING) with one suggestion
+ *  already in — clicking its badge opens the proposed-site popup, and the
+ *  returned attemptId lets the formation-FSM e2e expire its windows + add
+ *  promises, then drive it with engine ticks. The "not interested" beat uses it
+ *  too (it just ignores the attemptId). */
+export async function seedFormingAttempt(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
-}): Promise<{ lat: number; lng: number; placeText: string; areaId: string }> {
+}): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
   const DAY = 86_400_000;
   const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
   const { rows: [act] } = await pool.query(
@@ -167,8 +169,8 @@ export async function seedFormingSite(o: {
   const { rows: [attempt] } = await pool.query(
     `INSERT INTO formation_attempts
        (activity_type_id, area_id, attempt_number, status, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, 1, 'SUGGESTING', now(), $3) RETURNING id`,
-    [act.id, area.id, new Date(Date.now() + 2 * DAY).toISOString()],
+     VALUES ($1, $2, 1, 'SUGGESTING', now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id],
   );
   await pool.query(
     `INSERT INTO suggestions
@@ -176,7 +178,57 @@ export async function seedFormingSite(o: {
      VALUES ($1, $2, $3, $4, $5, $6, 6, '10:00')`,
     [attempt.id, proposer.id, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
   );
-  return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id) };
+  return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
+}
+
+/** Push the suggestion window into the past so the next tick closes it. */
+export async function expireSuggestionWindow(attemptId: string): Promise<void> {
+  await pool.query(
+    `UPDATE formation_attempts SET suggestion_closes_at = now() - interval '1 minute' WHERE id = $1`,
+    [attemptId],
+  );
+}
+
+/** Push the availability window into the past so the next tick closes it. */
+export async function expireAvailabilityWindow(attemptId: string): Promise<void> {
+  await pool.query(
+    `UPDATE formation_attempts SET availability_closes_at = now() - interval '1 minute' WHERE id = $1`,
+    [attemptId],
+  );
+}
+
+/** Soft-promise the attempt's compiled top option with `n` distinct players —
+ *  call AFTER a tick has closed the suggestion window (which compiles options). */
+export async function commitToTopOption(attemptId: string, n: number): Promise<void> {
+  const { rows: [opt] } = await pool.query(
+    `SELECT id FROM formation_options WHERE attempt_id = $1 ORDER BY first_suggested_at, id LIMIT 1`,
+    [attemptId],
+  );
+  if (!opt) throw new Error("no compiled option — tick after the suggestion window closes first");
+  const tag = String(attemptId).slice(0, 8);
+  for (let i = 0; i < n; i++) {
+    const { rows: [u] } = await pool.query(
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, 0, 0, '00000', now()) RETURNING id`,
+      [`seed-${tag}-promise${i}@example.com`, `Promiser ${i + 1}`],
+    );
+    await pool.query(
+      `INSERT INTO soft_promises (attempt_id, option_id, user_id) VALUES ($1, $2, $3)`,
+      [attemptId, opt.id, u.id],
+    );
+  }
+}
+
+/** Whether a game row exists for an area (the formation confirmed). */
+export async function areaHasGame(areaId: string): Promise<boolean> {
+  const { rows } = await pool.query(`SELECT 1 FROM games WHERE area_id = $1 LIMIT 1`, [areaId]);
+  return rows.length > 0;
+}
+
+/** The area's lifecycle status (DORMANT / IN_FORMATION / SCHEDULED / STALLED). */
+export async function getAreaStatus(areaId: string): Promise<string> {
+  const { rows: [a] } = await pool.query(`SELECT status FROM areas WHERE id = $1`, [areaId]);
+  return a?.status ?? "";
 }
 
 /** The id of a registered user, by email — to wire up roster/captain/RSVP rows. */
