@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Wired up real donations. 'Subscribe' now runs a real Stripe checkout for the $5/month support, and Stripe tells the app when someone subscribes or cancels — so the 'please chip in' reminder turns itself off and back on automatically instead of relying on the honor system. Just needs the Stripe account keys plugged in to go live.",
+    "status": "Reworked the account page into three side-by-side sections: supporting the project (a supporter badge + thank-you for donors, or the ask + reminder choice for everyone else), your name plus a snapshot of the games you're in, and your location. Name and location now save independently so editing one can't wipe the other.",
     "direction": "Open to the next thing — more live-testing fixes or a new feature.",
-    "last_update": "2026-06-25T01:00:00Z"
+    "last_update": "2026-06-25T02:00:00Z"
   }
 }
