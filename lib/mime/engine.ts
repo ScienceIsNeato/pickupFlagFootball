@@ -217,7 +217,13 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     firstSuggestedAt: formationOptions.firstSuggestedAt,
     promiseCount: sql<number>`count(${softPromises.id})::int`,
   }).from(formationOptions)
-    .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
+    // An opted-out promiser doesn't count toward p_min — they declined the site.
+    // Excluding them from the tally (not just the roster) keeps the schedule
+    // decision honest: the winner can't clear p_min on paper then roster too few.
+    .leftJoin(softPromises, and(
+      eq(softPromises.optionId, formationOptions.id),
+      sql`not exists (select 1 from area_optouts o where o.user_id = ${softPromises.userId} and o.area_id = ${att.areaId})`,
+    ))
     .where(eq(formationOptions.attemptId, att.id))
     .groupBy(formationOptions.id)
     .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
