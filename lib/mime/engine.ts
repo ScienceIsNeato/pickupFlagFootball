@@ -190,7 +190,12 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
   await db.update(formationAttempts).set({
     status: "AVAILABILITY", availabilityOpenedAt: now, availabilityClosesAt: d.availabilityClosesAt,
   }).where(eq(formationAttempts.id, att.id));
-  await enqueue(db, att.cohortUserIds.map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
+  // The cohort is the spark-time snapshot; drop anyone who's opted out of this
+  // area since, so a decline mid-attempt actually stops the availability ask.
+  const optedOut = await optedOutUserIds(db, att.areaId);
+  await enqueue(db, att.cohortUserIds
+    .filter((u) => !optedOut.has(u))
+    .map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
 }
 
 async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
@@ -233,7 +238,10 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   const winner = d.winner as OptionTally & { optionId: string };
   const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
     .where(eq(softPromises.optionId, winner.optionId));
-  const roster = promisers.map((p) => p.userId);
+  // Drop anyone who opted out of this area after promising — they shouldn't land
+  // on the roster or get the GAME_ON email for a site they declined.
+  const optedOut = await optedOutUserIds(db, att.areaId);
+  const roster = promisers.map((p) => p.userId).filter((u) => !optedOut.has(u));
 
   // Promote to a standing weekly slot if the winning suggestion carried a
   // recurring day/time (proposals from the map do). All suggestions grouped into
@@ -326,6 +334,15 @@ export async function catchmentUsers(db: EngineDb, activityTypeId: string, areaI
       notOptedOut(areaId),
     ));
   return rows.map((r) => r.userId);
+}
+
+/** Users who've opted out of this area — used to drop them from in-flight sends
+ *  and the confirmed roster that rely on the spark-time cohort snapshot (which
+ *  predates any later opt-out). */
+async function optedOutUserIds(db: EngineDb, areaId: string): Promise<Set<string>> {
+  const rows = await db.select({ userId: schema.areaOptouts.userId }).from(schema.areaOptouts)
+    .where(eq(schema.areaOptouts.areaId, areaId));
+  return new Set(rows.map((r) => r.userId));
 }
 
 async function nextAttemptNumber(db: EngineDb, areaId: string): Promise<number> {
