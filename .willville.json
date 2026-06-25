@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "You can now tell the site you're not interested in a particular forming game spot — it stops counting you and stops pestering you about it, while you stay in the mix for other games nearby. It's reversible if you change your mind.",
-    "direction": "Next: add that same 'not interested' option as a one-click link in the emails that invite people to forming games.",
-    "last_update": "2026-06-24T03:00:00Z"
+    "status": "Wrapped up 'not interested': the emails inviting people to a forming game now have a one-click link to stop hearing about that specific spot — no login, and built so email scanners can't trip it. So nobody gets spammed about a game they've already passed on.",
+    "direction": "Open to the next thing — more live-testing fixes or a new feature.",
+    "last_update": "2026-06-24T04:00:00Z"
   }
 }
