@@ -1,12 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useActionState } from "react";
 import Link from "next/link";
-import { updateAccount } from "@/app/(app)/account/actions";
+import { updateLocation } from "@/app/(app)/account/actions";
+import { useSaveToast } from "./useSaveToast";
 
 type Initial = {
-  displayName: string;
   zip: string;
   addressLine1: string;
   addressLine2: string;
@@ -15,33 +14,14 @@ type Initial = {
   travelMiles: number;
 };
 
-/** The profile form. Client component so the submit button can flip to
- *  "saving changes…" while the action runs and a success popup can appear on
- *  completion (the server action returns a result instead of redirecting). */
-export function AccountForm({ initial }: { initial: Initial }) {
-  const [state, formAction, pending] = useActionState(updateAccount, null);
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Show the success popup when a save completes; auto-dismiss after a beat.
-  const [toast, setToast] = useState(false);
-  useEffect(() => {
-    if (state?.ok) {
-      setToast(true);
-      const t = setTimeout(() => setToast(false), 2600);
-      return () => clearTimeout(t);
-    }
-  }, [state]);
-
+/** The "location" card (right column) — ZIP / address / travel radius. Saving it
+ *  re-points your interest to the resolved area. */
+export function LocationForm({ initial }: { initial: Initial }) {
+  const [state, formAction, pending] = useActionState(updateLocation, null);
+  const toast = useSaveToast(state);
   return (
     <>
       <form className="reg-form" action={formAction}>
-        <label>
-          display name
-          <input type="text" name="displayName" placeholder="first name or nickname"
-            defaultValue={initial.displayName} autoComplete="given-name" />
-        </label>
         <label>
           zip code
           <input type="text" name="zip" placeholder="52241" inputMode="numeric"
@@ -81,16 +61,10 @@ export function AccountForm({ initial }: { initial: Initial }) {
         </p>
         {state && !state.ok && <div className="auth-error">{state.error}</div>}
         <button type="submit" className="btn-green" disabled={pending}>
-          {pending ? "saving changes…" : "save changes"}
+          {pending ? "saving…" : "save location"}
         </button>
       </form>
-
-      {mounted && toast && createPortal(
-        <div className="save-toast" role="status" aria-live="polite" onClick={() => setToast(false)}>
-          <span className="save-toast-check" aria-hidden>✓</span> Changes successfully saved
-        </div>,
-        document.body,
-      )}
+      {toast}
     </>
   );
 }

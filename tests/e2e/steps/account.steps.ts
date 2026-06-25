@@ -1,0 +1,35 @@
+import { expect } from "@playwright/test";
+import { When, Then } from "./world";
+
+// Reuses "I am a confirmed player …" (registers + verifies).
+
+When("I open my account", async ({ page }) => {
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: "you", exact: true })).toBeVisible({ timeout: 10000 });
+});
+
+When("I rename myself to {string}", async ({ page }, name: string) => {
+  await page.fill("input[name=displayName]", name);
+  await page.getByRole("button", { name: "save name" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+// Reload and assert the name stuck AND the location (zip) wasn't wiped.
+Then("my account keeps name {string} and zip {string}", async ({ page }, name: string, zip: string) => {
+  await page.reload();
+  await expect(page.locator("input[name=displayName]")).toHaveValue(name);
+  await expect(page.locator("input[name=zip]")).toHaveValue(zip);
+});
+
+When("I change my travel distance to {string}", async ({ page }, miles: string) => {
+  await page.fill("input[name=max_travel_miles]", miles);
+  await page.getByRole("button", { name: "save location" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+// Reload and assert the travel stuck AND the name wasn't wiped by the location save.
+Then("my account keeps name {string} and travel {string}", async ({ page }, name: string, miles: string) => {
+  await page.reload();
+  await expect(page.locator("input[name=max_travel_miles]")).toHaveValue(miles);
+  await expect(page.locator("input[name=displayName]")).toHaveValue(name);
+});

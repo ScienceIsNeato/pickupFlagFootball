@@ -12,11 +12,24 @@ import { str } from "@/lib/forms";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
-export async function updateAccount(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
+/** Save just the display name (the middle "username" card). Kept separate from
+ *  the location save so neither overwrites the other's fields. */
+export async function updateUsername(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/api/auth/signin");
+  await db.update(users)
+    .set({ displayName: str(formData.get("displayName")) || null, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+  revalidatePath("/account");
+  return { ok: true };
+}
+
+/** Save the location card (ZIP / address / travel radius) and re-point interest
+ *  to the resolved area. Does not touch the display name. */
+export async function updateLocation(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
-  const displayName = str(formData.get("displayName")) || null;
   const city = str(formData.get("city"));
   const zip = str(formData.get("zip"));
   const line1 = str(formData.get("address_line1"));
@@ -24,7 +37,6 @@ export async function updateAccount(_prev: SaveResult | null, formData: FormData
   const state = str(formData.get("state"));
 
   const update: Record<string, unknown> = {
-    displayName,
     updatedAt: new Date(),
   };
 
@@ -100,7 +112,7 @@ export async function updateAccount(_prev: SaveResult | null, formData: FormData
 }
 
 // Donation preference is self-declared and independent of location, so it has
-// its own action — it must NOT re-run the ZIP/geocode path in updateAccount.
+// its own action — it must NOT re-run the ZIP/geocode path in updateLocation.
 const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
 type DonationStatus = (typeof DONATION_STATUSES)[number];
 

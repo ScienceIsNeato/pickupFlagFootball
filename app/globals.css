@@ -617,13 +617,40 @@ section h2::after {
 .loc-result-detail { font-size: 12px; color: var(--muted); }
 
 /* donation preference: separate form below the account form */
-.donate-pref { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--border); }
-.donate-pref .donate-opt {
-  flex-direction: row; align-items: center; gap: 10px; cursor: pointer;
+.donate-opt {
+  display: flex; flex-direction: row; align-items: center; gap: 10px; cursor: pointer;
   font-size: 14px; color: var(--ink);
 }
-.donate-pref .donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
+.donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
+
+/* Account page — three columns: support · you · location. */
+.account { max-width: 1040px; }
+.account-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-items: start; margin-top: 26px;
+}
+@media (max-width: 880px) { .account-grid { grid-template-columns: 1fr; gap: 28px; } }
+.account-col { min-width: 0; }
+.account-col-h {
+  font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink);
+  margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.acct-support-badge {
+  display: inline-block; margin-bottom: 12px; padding: 4px 12px; border-radius: 999px;
+  background: rgba(70, 137, 68, 0.18); color: var(--grass-l);
+  border: 1px solid rgba(70, 137, 68, 0.45); font-size: 13px; font-weight: 700;
+}
+.acct-support-cta {
+  display: block; text-align: center; margin: 6px 0 18px; padding: 11px 14px;
+  border-radius: 8px; background: var(--green); color: #fff; font-weight: 700; text-decoration: none;
+}
+.acct-vitals { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border); }
+.acct-vitals-list { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; }
+.acct-vitals-list li {
+  display: flex; justify-content: space-between; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.acct-vitals-link { display: inline-block; margin-top: 12px; font-size: 13px; color: var(--link); }
 
 @media (max-width: 560px) {
   .hero h1 { font-size: 38px; }
