@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { skin } from "@/lib/skin";
+import { stripeConfigured } from "@/lib/stripe/client";
+import { startSubscription } from "./actions";
 
 export const metadata: Metadata = {
   title: skin.donate.seoTitle,
@@ -8,6 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function DonatePage() {
+  const integrated = stripeConfigured(); // show the real subscribe button once wired
   return (
     <main>
       <section>
@@ -23,7 +26,12 @@ export default function DonatePage() {
                   {m.tag && <span className="tag">{m.tag}</span>}
                 </div>
                 <p>{m.desc}</p>
-                {external ? (
+                {m.action === "subscribe" && integrated ? (
+                  // Integrated Stripe Checkout (subscription) — server action.
+                  <form action={startSubscription}>
+                    <button type="submit">{m.cta}</button>
+                  </form>
+                ) : external ? (
                   <a href={m.url} target="_blank" rel="noopener noreferrer">
                     {m.cta}
                   </a>

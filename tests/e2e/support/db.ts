@@ -294,6 +294,12 @@ export async function expireOccurrenceKickoff(occurrenceId: string): Promise<voi
   await pool.query(`UPDATE game_occurrences SET kickoff_at = now() - interval '1 minute' WHERE id = $1`, [occurrenceId]);
 }
 
+/** A user's donation_status (unset / subscribed / declined) — for the Stripe e2e. */
+export async function getDonationStatus(email: string): Promise<string> {
+  const { rows: [u] } = await pool.query("SELECT donation_status FROM users WHERE lower(email) = lower($1)", [email]);
+  return u?.donation_status ?? "";
+}
+
 /** The id of a registered user, by email — to wire up roster/captain/RSVP rows. */
 export async function getUserId(email: string): Promise<string> {
   const { rows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);

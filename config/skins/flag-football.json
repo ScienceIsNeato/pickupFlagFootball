@@ -18,23 +18,72 @@
     "note": ""
   },
   "how": [
-    { "n": "1", "title": "say you're in", "body": "pick your area. one tap." },
-    { "n": "2", "title": "others do too", "body": "the app counts people nearby." },
-    { "n": "3", "title": "someone names a spot", "body": "a local suggests place and time." },
-    { "n": "4", "title": "enough say yes", "body": "the game gets scheduled." }
+    {
+      "n": "1",
+      "title": "say you're in",
+      "body": "pick your area. one tap."
+    },
+    {
+      "n": "2",
+      "title": "others do too",
+      "body": "the app counts people nearby."
+    },
+    {
+      "n": "3",
+      "title": "someone names a spot",
+      "body": "a local suggests place and time."
+    },
+    {
+      "n": "4",
+      "title": "enough say yes",
+      "body": "the game gets scheduled."
+    }
   ],
   "faq": [
-    { "q": "how are game sites determined? who picks them?", "a": "you or someone else nearby suggests a place, day of week, and time for a regular game. from there the matching engine takes over and does the hard work of figuring out whether a game can come together." },
-    { "q": "who runs the games? who's in charge?", "a": "no set leader or organizer for a local game, though there may be captains. it does take a little initiative from the people showing up." },
-    { "q": "what are captains?", "a": "captains have no extra duties, just extra abilities - messaging the players, marking a site as \"off season.\" the first captain is whoever suggested the original game. they can make other players captains too." },
-    { "q": "who brings the gear?", "a": "when you mark that you're coming, you'll see whether anyone else is planning to bring footballs, cones, and flags. if nobody is, grab whatever you can." },
-    { "q": "why show interest before i can see who's around?", "a": "so the count means something. if anyone could just browse, most people would lurk and the numbers would be noise. show you're in, then you see everyone else who is." },
-    { "q": "what if there aren't enough players near me yet?", "a": "then there's no game yet, and we won't fake one. you'll see the interest count for your area. once enough people nearby are interested, anyone can propose a spot and weekly time — and the game forms from there." },
-    { "q": "will a game actually happen, or will everyone flake?", "a": "you don't just rsvp - you make a soft promise ('if it's on, i'm there'). the game only locks once enough people commit, and the night before everyone gets the roster of who's in." },
-    { "q": "why a weekly standing game instead of one-off events?", "a": "a standing slot lasts. once it's 'sundays at noon,' nobody renegotiates every week - people just show up. one-offs make you start from zero every time." },
-    { "q": "why flag football?", "a": "it's underserved - plenty of software for youth leagues, almost nothing for adults who just want a regular pickup game. and it's easy to start: small-sided, light on gear, no pads." },
-    { "q": "what do you do with my info?", "aHtml": "as little as possible. email so we can tell you a game's forming, a display name (a username is fine - no real name needed) so others know who's coming, and your zip to group you with people nearby. never your street address. full details on the <a href=\"privacy.html\">privacy page</a>." },
-    { "q": "how much does this cost?", "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we ask for a $5/month <a href=\"{donate}\">subscription</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too." }
+    {
+      "q": "how are game sites determined? who picks them?",
+      "a": "you or someone else nearby suggests a place, day of week, and time for a regular game. from there the matching engine takes over and does the hard work of figuring out whether a game can come together."
+    },
+    {
+      "q": "who runs the games? who's in charge?",
+      "a": "no set leader or organizer for a local game, though there may be captains. it does take a little initiative from the people showing up."
+    },
+    {
+      "q": "what are captains?",
+      "a": "captains have no extra duties, just extra abilities - messaging the players, marking a site as \"off season.\" the first captain is whoever suggested the original game. they can make other players captains too."
+    },
+    {
+      "q": "who brings the gear?",
+      "a": "when you mark that you're coming, you'll see whether anyone else is planning to bring footballs, cones, and flags. if nobody is, grab whatever you can."
+    },
+    {
+      "q": "why show interest before i can see who's around?",
+      "a": "so the count means something. if anyone could just browse, most people would lurk and the numbers would be noise. show you're in, then you see everyone else who is."
+    },
+    {
+      "q": "what if there aren't enough players near me yet?",
+      "a": "then there's no game yet, and we won't fake one. you'll see the interest count for your area. once enough people nearby are interested, anyone can propose a spot and weekly time — and the game forms from there."
+    },
+    {
+      "q": "will a game actually happen, or will everyone flake?",
+      "a": "you don't just rsvp - you make a soft promise ('if it's on, i'm there'). the game only locks once enough people commit, and the night before everyone gets the roster of who's in."
+    },
+    {
+      "q": "why a weekly standing game instead of one-off events?",
+      "a": "a standing slot lasts. once it's 'sundays at noon,' nobody renegotiates every week - people just show up. one-offs make you start from zero every time."
+    },
+    {
+      "q": "why flag football?",
+      "a": "it's underserved - plenty of software for youth leagues, almost nothing for adults who just want a regular pickup game. and it's easy to start: small-sided, light on gear, no pads."
+    },
+    {
+      "q": "what do you do with my info?",
+      "aHtml": "as little as possible. email so we can tell you a game's forming, a display name (a username is fine - no real name needed) so others know who's coming, and your zip to group you with people nearby. never your street address. full details on the <a href=\"privacy.html\">privacy page</a>."
+    },
+    {
+      "q": "how much does this cost?",
+      "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we ask for a $5/month <a href=\"{donate}\">subscription</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too."
+    }
   ],
   "register": {
     "seoTitle": "show interest · MIME-FF",
@@ -52,9 +101,26 @@
     "heading": "pay what you can",
     "blurb": "free and open source, and it stays that way - no paywall, ever. if the app is running your weekly game, we ask for $5/month to keep the servers on. it's an ask, not a gate: skip it and nothing changes. and there's more than one way to chip in.",
     "methods": [
-      { "name": "$5 / month", "tag": "suggested", "desc": "the soft ask. if this app is managing your weekly game, a fiver a month keeps it alive. cancel anytime, and nothing locks if you don't.", "cta": "subscribe ↗", "url": "https://buy.stripe.com/REPLACE_ME" },
-      { "name": "one-time tip", "desc": "rather not commit? throw in whatever, whenever. a quick one-tap thanks if that's more your speed.", "cta": "buy us a coffee ↗", "url": "https://buymeacoffee.com/REPLACE_ME" },
-      { "name": "just show up", "desc": "money's tight? no problem. the best support is being there - bring a friend, fill a roster, keep your local game alive.", "cta": "find your game →", "url": "/show-interest" }
+      {
+        "name": "$5 / month",
+        "tag": "suggested",
+        "desc": "the soft ask. if this app is managing your weekly game, a fiver a month keeps it alive. cancel anytime, and nothing locks if you don't.",
+        "cta": "subscribe ↗",
+        "url": "https://buy.stripe.com/REPLACE_ME",
+        "action": "subscribe"
+      },
+      {
+        "name": "one-time tip",
+        "desc": "rather not commit? throw in whatever, whenever. a quick one-tap thanks if that's more your speed.",
+        "cta": "buy us a coffee ↗",
+        "url": "https://buymeacoffee.com/REPLACE_ME"
+      },
+      {
+        "name": "just show up",
+        "desc": "money's tight? no problem. the best support is being there - bring a friend, fill a roster, keep your local game alive.",
+        "cta": "find your game →",
+        "url": "/show-interest"
+      }
     ]
   },
   "faqPage": {

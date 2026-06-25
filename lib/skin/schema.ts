@@ -48,6 +48,9 @@ export const SkinSchema = z.object({
         desc: z.string(),
         cta: z.string(),
         url: z.string(), // external (http…) opens in a new tab; internal (/…) is a route
+        // "subscribe" → render an integrated Stripe Checkout button instead of a
+        // link (falls back to `url` until Stripe is configured).
+        action: z.enum(["subscribe"]).optional(),
       })
     ),
   }),

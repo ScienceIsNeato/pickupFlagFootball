@@ -108,8 +108,17 @@ export async function updateDonationPref(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
 
+  // An active Stripe subscriber's status is webhook-managed — ignore a direct
+  // POST (the UI hides the radio for them) so they can't desync to unset/declined
+  // and lose the billing-portal link.
+  const [u] = await db.select({ subId: users.stripeSubscriptionId })
+    .from(users).where(eq(users.id, session.user.id)).limit(1);
+  if (u?.subId) redirect("/account");
+
   const value = str(formData.get("donation_status"));
-  if (!DONATION_STATUSES.includes(value as DonationStatus)) {
+  // "subscribed" is Stripe-managed (set by the webhook), never self-declared —
+  // the form only sets the reminder preference (remind-me / declined).
+  if (value !== "unset" && value !== "declined") {
     throw new Error("invalid donation status");
   }
 
