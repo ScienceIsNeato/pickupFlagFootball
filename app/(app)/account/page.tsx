@@ -49,6 +49,7 @@ export default async function AccountPage() {
   const capRows = await db.select({ areaId: areaCaptains.areaId }).from(areaCaptains).where(eq(areaCaptains.userId, uid));
   const captainAreas = new Set(capRows.map((r) => r.areaId));
   const vitals = myGames.map((g) => ({
+    id: g.id,
     name: g.placeText.split(" — ")[0],
     city: g.city,
     regular: defaultByGame.get(g.id) === "in",
@@ -115,8 +116,8 @@ export default async function AccountPage() {
               <p className="reg-hint">you haven&apos;t joined a game yet. <Link href="/play">find one &rarr;</Link></p>
             ) : (
               <ul className="acct-vitals-list">
-                {vitals.map((g, i) => (
-                  <li key={i}>
+                {vitals.map((g) => (
+                  <li key={g.id}>
                     <span>{g.name}{g.city ? <span className="game-muted"> · {g.city}</span> : null}</span>
                     <span className="game-muted">
                       {g.regular ? "regular" : "occasional"}{g.captain ? " · captain" : ""}

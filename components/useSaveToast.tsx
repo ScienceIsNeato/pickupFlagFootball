@@ -17,6 +17,9 @@ export function useSaveToast(state: { ok?: boolean } | null): ReactNode {
       const t = setTimeout(() => setToast(false), 2600);
       return () => clearTimeout(t);
     }
+    // A new non-ok result (e.g. a re-submit that failed) clears any lingering
+    // success banner so it doesn't show alongside the error.
+    if (state) setToast(false);
   }, [state]);
 
   if (!mounted || !toast) return null;
