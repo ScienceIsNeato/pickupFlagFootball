@@ -1,9 +1,0 @@
-{
-  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then node scripts/migrate.mjs apply; fi && next build",
-  "crons": [
-    {
-      "path": "/api/mime/tick",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}
