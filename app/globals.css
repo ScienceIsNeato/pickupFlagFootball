@@ -291,6 +291,9 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* Volunteer-as-captain prompt (shown to non-captains; emphasized when captainless). */
 .game-volunteer-note { margin: 0 0 10px; font-size: 13px; }
 .game-volunteer { width: 100%; height: 44px; }
+/* "Not interested" control on a forming site popup. */
+.game-optout { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.game-optout-note { margin: 0 0 8px; font-size: 13px; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
 .app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 

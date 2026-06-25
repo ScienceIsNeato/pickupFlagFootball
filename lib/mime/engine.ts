@@ -60,7 +60,7 @@ export async function evaluate(
   const t = await loadTunables(db, activityTypeId, area);
 
   const disk = diskCells(area.h3Cell, 1);
-  const interestCount = await catchmentCount(db, activityTypeId, area.centerLat, area.centerLng);
+  const interestCount = await catchmentCount(db, activityTypeId, area.id, area.centerLat, area.centerLng);
 
   const decision = onInterest({
     status: area.status,
@@ -71,7 +71,7 @@ export async function evaluate(
   });
   if (decision.kind !== "SPARK") return decision;
 
-  const cohort = await catchmentUsers(db, activityTypeId, area.centerLat, area.centerLng);
+  const cohort = await catchmentUsers(db, activityTypeId, area.id, area.centerLat, area.centerLng);
   const attemptNumber = await nextAttemptNumber(db, areaId);
 
   // Spark atomically: the attempt insert, the area → IN_FORMATION flip and the
@@ -169,7 +169,7 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
     id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
     proposedStart: s.proposedStart, createdAt: s.createdAt,
   }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, area.centerLat, area.centerLng);
+  const interestCount = await catchmentCount(db, att.activityTypeId, area.id, area.centerLat, area.centerLng);
 
   const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
 
@@ -190,7 +190,12 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
   await db.update(formationAttempts).set({
     status: "AVAILABILITY", availabilityOpenedAt: now, availabilityClosesAt: d.availabilityClosesAt,
   }).where(eq(formationAttempts.id, att.id));
-  await enqueue(db, att.cohortUserIds.map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
+  // The cohort is the spark-time snapshot; drop anyone who's opted out of this
+  // area since, so a decline mid-attempt actually stops the availability ask.
+  const optedOut = await optedOutUserIds(db, att.areaId);
+  await enqueue(db, att.cohortUserIds
+    .filter((u) => !optedOut.has(u))
+    .map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
 }
 
 async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
@@ -212,7 +217,13 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     firstSuggestedAt: formationOptions.firstSuggestedAt,
     promiseCount: sql<number>`count(${softPromises.id})::int`,
   }).from(formationOptions)
-    .leftJoin(softPromises, eq(softPromises.optionId, formationOptions.id))
+    // An opted-out promiser doesn't count toward p_min — they declined the site.
+    // Excluding them from the tally (not just the roster) keeps the schedule
+    // decision honest: the winner can't clear p_min on paper then roster too few.
+    .leftJoin(softPromises, and(
+      eq(softPromises.optionId, formationOptions.id),
+      sql`not exists (select 1 from area_optouts o where o.user_id = ${softPromises.userId} and o.area_id = ${att.areaId})`,
+    ))
     .where(eq(formationOptions.attemptId, att.id))
     .groupBy(formationOptions.id)
     .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
@@ -221,7 +232,7 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
     optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
     proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
   }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, area.centerLat, area.centerLng);
+  const interestCount = await catchmentCount(db, att.activityTypeId, area.id, area.centerLat, area.centerLng);
 
   const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
 
@@ -233,7 +244,10 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   const winner = d.winner as OptionTally & { optionId: string };
   const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
     .where(eq(softPromises.optionId, winner.optionId));
-  const roster = promisers.map((p) => p.userId);
+  // Drop anyone who opted out of this area after promising — they shouldn't land
+  // on the roster or get the GAME_ON email for a site they declined.
+  const optedOut = await optedOutUserIds(db, att.areaId);
+  const roster = promisers.map((p) => p.userId).filter((u) => !optedOut.has(u));
 
   // Promote to a standing weekly slot if the winning suggestion carried a
   // recurring day/time (proposals from the map do). All suggestions grouped into
@@ -291,7 +305,14 @@ function withinTravelRadius(lat: number, lng: number) {
     ))) <= ${users.maxTravelKm}`;
 }
 
-async function catchmentCount(db: EngineDb, activityTypeId: string, lat: number, lng: number): Promise<number> {
+/** Excludes users who said "not interested" in this forming area (area_optouts).
+ *  They keep their interest signals — they just don't count toward, or get asked
+ *  by, THIS area's formation. */
+function notOptedOut(areaId: string) {
+  return sql`not exists (select 1 from area_optouts o where o.user_id = ${interestSignals.userId} and o.area_id = ${areaId})`;
+}
+
+async function catchmentCount(db: EngineDb, activityTypeId: string, areaId: string, lat: number, lng: number): Promise<number> {
   const [{ c }] = await db.select({ c: sql<number>`count(distinct ${interestSignals.userId})::int` })
     .from(interestSignals)
     .innerJoin(users, eq(users.id, interestSignals.userId))
@@ -299,14 +320,16 @@ async function catchmentCount(db: EngineDb, activityTypeId: string, lat: number,
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
       withinTravelRadius(lat, lng),
+      notOptedOut(areaId),
     ));
   return c;
 }
 
 /** The set of users an area's formation should notify/freeze: active for the
- *  activity AND within their travel radius of the area centroid. Exported for
- *  the manual map-propose spark, which must use the identical rule. */
-export async function catchmentUsers(db: EngineDb, activityTypeId: string, lat: number, lng: number): Promise<string[]> {
+ *  activity, within their travel radius of the area centroid, and not opted out
+ *  of this area. Exported for the manual map-propose spark, which must use the
+ *  identical rule. */
+export async function catchmentUsers(db: EngineDb, activityTypeId: string, areaId: string, lat: number, lng: number): Promise<string[]> {
   const rows = await db.selectDistinct({ userId: interestSignals.userId })
     .from(interestSignals)
     .innerJoin(users, eq(users.id, interestSignals.userId))
@@ -314,8 +337,18 @@ export async function catchmentUsers(db: EngineDb, activityTypeId: string, lat: 
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
       withinTravelRadius(lat, lng),
+      notOptedOut(areaId),
     ));
   return rows.map((r) => r.userId);
+}
+
+/** Users who've opted out of this area — used to drop them from in-flight sends
+ *  and the confirmed roster that rely on the spark-time cohort snapshot (which
+ *  predates any later opt-out). */
+async function optedOutUserIds(db: EngineDb, areaId: string): Promise<Set<string>> {
+  const rows = await db.select({ userId: schema.areaOptouts.userId }).from(schema.areaOptouts)
+    .where(eq(schema.areaOptouts.areaId, areaId));
+  return new Set(rows.map((r) => r.userId));
 }
 
 async function nextAttemptNumber(db: EngineDb, areaId: string): Promise<number> {

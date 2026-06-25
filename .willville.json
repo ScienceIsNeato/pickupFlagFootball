@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Retiring a game is now permanent and final — it stays on the map greyed out with a RETIRED tag and a history of past games, and its players are released back into the general pool so they can join or start something new.",
-    "direction": "Keep polishing the captain tools and game-site views as more live testing turns up snags.",
-    "last_update": "2026-06-24T02:00:00Z"
+    "status": "You can now tell the site you're not interested in a particular forming game spot — it stops counting you and stops pestering you about it, while you stay in the mix for other games nearby. It's reversible if you change your mind.",
+    "direction": "Next: add that same 'not interested' option as a one-click link in the emails that invite people to forming games.",
+    "last_update": "2026-06-24T03:00:00Z"
   }
 }

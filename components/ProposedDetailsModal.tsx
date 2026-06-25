@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { declineSite, reExpressInterest } from "@/app/(app)/play/optout-actions";
 
-type Site = { city: string | null; zip: string | null; status: string | null; captains: string[] };
+type Site = { areaId: string; city: string | null; zip: string | null; status: string | null; captains: string[]; viewerOptedOut: boolean };
 type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
 type FirstWhen = { firstGameAt: string; recurDow: number | null; recurTime: string | null };
 type Data = { site: Site | null; firstPlaceText: string | null; firstWhen: FirstWhen | null; activity: Activity[] };
@@ -64,6 +65,7 @@ export function ProposedDetailsModal({
   onClose: () => void;
 }) {
   const [state, setState] = useState<Data | "loading" | "error">("loading");
+  const [busy, setBusy] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   // Portal to document.body to escape .dash-map's stacking context.
@@ -73,20 +75,19 @@ export function ProposedDetailsModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, mounted);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/proposed?lat=${lat}&lng=${lng}`, { cache: "no-store" });
-        if (!r.ok) throw new Error();
-        const d = (await r.json()) as Data;
-        if (!cancelled) setState(d);
-      } catch {
-        if (!cancelled) setState("error");
-      }
-    })();
-    return () => { cancelled = true; };
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/proposed?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+      if (!r.ok) throw new Error();
+      const d = (await r.json()) as Data;
+      if (aliveRef.current) setState(d);
+    } catch {
+      if (aliveRef.current) setState("error");
+    }
   }, [lat, lng]);
+  useEffect(() => { load(); }, [load]);
 
   // Position the card so its bottom edge sits ~14px above the badge top.
   // Centred horizontally on the badge, clamped to keep the card on-screen.
@@ -114,6 +115,17 @@ export function ProposedDetailsModal({
   const firstPlaceText = data?.firstPlaceText ?? null;
   const firstWhen = data?.firstWhen ?? null;
   const when = firstWhen ? fmtWhen(firstWhen) : null;
+
+  async function toggleInterest() {
+    if (!site) return;
+    setBusy(true);
+    try {
+      await (site.viewerOptedOut ? reExpressInterest(site.areaId) : declineSite(site.areaId));
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!mounted) return null;
   return createPortal((
@@ -181,6 +193,23 @@ export function ProposedDetailsModal({
             ) : (
               <p className="game-muted">no activity yet — be the first to weigh in.</p>
             )}
+
+            {/* "Not interested" in this site — stops it courting/counting you;
+                your interest elsewhere stays live. Reversible. */}
+            <div className="game-optout">
+              {site.viewerOptedOut ? (
+                <>
+                  <p className="game-muted game-optout-note">you said you’re not interested in this site — it won’t count you or ask you.</p>
+                  <button type="button" className="btn-green game-volunteer" disabled={busy} onClick={toggleInterest}>
+                    I’m interested again
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="game-leave" disabled={busy} onClick={toggleInterest}>
+                  not interested in this site
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
