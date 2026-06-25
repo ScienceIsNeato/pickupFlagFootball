@@ -48,6 +48,11 @@ Given(
   async ({ page, world }, name: string, email: string, zip: string) => {
     await registerViaUi(page, world, { name, email, zip });
     await markEmailVerified(email);
+    // Reload so the page re-renders as a confirmed user — otherwise the
+    // "unconfirmed email" banner (rendered at registration) lingers, making a
+    // "confirmed player" look unconfirmed in the story report. (Mirrors the
+    // captain step.)
+    await page.reload();
     await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   },
 );
