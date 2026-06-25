@@ -23,6 +23,7 @@ type GameInfo = {
   myRsvp: "in" | "out" | null;
   rosterCount: number; inCount: number;
   nextOccurrence: string;
+  canRetire: boolean; retireBlockedReason: string | null;
 };
 type Week = { weekStart: string; played: boolean; count: number };
 type PlayedGame = { date: string; inCount: number };
@@ -232,13 +233,17 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" disabled={busy} onClick={() => { if (window.confirm("call off this week's game?")) run(() => cancelWeek(game.gameId)); }}>cancel this week</button>
                     <button type="button" disabled={busy} onClick={() => askConfirm({ kind: "pause", title: "pause this series?", confirmLabel: "pause series", onConfirm: (d, n) => run(() => pauseSeries(game.gameId, d, n)) })}>pause series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
+                    <button type="button" className="game-leave" disabled={busy || !game.canRetire} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
                 ) : (
                   <div className="seg" role="group" aria-label="captain controls">
                     <button type="button" className="btn-green" disabled={busy} onClick={() => { if (window.confirm("resume this series?")) run(() => resumeSeries(game.gameId)); }}>resume series</button>
-                    <button type="button" className="game-leave" disabled={busy} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
+                    <button type="button" className="game-leave" disabled={busy || !game.canRetire} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
+                )}
+                {/* Why retire is disabled — a live game can't be killed off early. */}
+                {!game.canRetire && game.retireBlockedReason && (
+                  <p className="game-muted game-retire-hint">{game.retireBlockedReason}</p>
                 )}
                 {/* Relinquish the role (distinct from retiring the whole series). */}
                 <button type="button" className="game-leave" disabled={busy}

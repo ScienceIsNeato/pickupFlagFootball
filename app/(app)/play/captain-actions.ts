@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
 import { games, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
+import { retireEligibility } from "@/lib/games/retireEligibility";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
@@ -48,6 +49,13 @@ async function setSeriesStatus(
   if (c.game.status === status) return { ok: true }; // idempotent no-op
   if (!ALLOWED[c.game.status].includes(status)) {
     return { ok: false, error: `can't move a ${c.game.status} series to ${status}` };
+  }
+  // Retiring is gated: only after the dead-week window with no game played, so a
+  // live game can't be killed off prematurely. Enforced here (the source of
+  // truth); the popup mirrors it by disabling the control (/api/game.canRetire).
+  if (status === "retired") {
+    const elig = await retireEligibility(gameId, c.game.scheduledStart);
+    if (!elig.ok) return { ok: false, error: elig.reason };
   }
   // Status flip + in-flight cancellation are one atomic unit: if the cancellation
   // fails after the status commits, the idempotent no-op above would skip the retry

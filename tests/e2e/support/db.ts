@@ -49,6 +49,7 @@ export async function seedStandingGame(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
   regulars?: number;    // background players on the roster → "claimed (in a game)"
   interested?: number;  // background players with interest nearby → "interested player"
+  dead?: boolean;       // no game played within the retire window → retire-eligible
 }): Promise<{ lat: number; lng: number; placeText: string; gameId: string; areaId: string }> {
   const regulars = o.regulars ?? 15;
   const interested = o.interested ?? 6;
@@ -64,8 +65,9 @@ export async function seedStandingGame(o: {
   );
   // An established game that's been running ~4 weeks: its first occurrence was
   // 4 weeks ago. The weekly slot (recur_dow/time) is what the app projects
-  // forward to the next occurrence.
-  const anchor = new Date(Date.now() - 28 * DAY).toISOString();
+  // forward to the next occurrence. `dead` games are older (60d) with no recent
+  // play, so they pass the retire eligibility window.
+  const anchor = new Date(Date.now() - (o.dead ? 60 : 28) * DAY).toISOString();
   const { rows: [game] } = await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
@@ -75,9 +77,13 @@ export async function seedStandingGame(o: {
     [act.id, area.id, o.placeText, o.lat, o.lng, anchor],
   );
 
-  // Track record: 3 of the last 4 weeks actually had a game (one week skipped).
-  // These played occurrences feed the popup's "recent games · played 3 of …" list.
-  for (const [daysAgo, count] of [[6, 13], [13, 15], [20, 12]] as const) {
+  // Track record of played weeks (feeds the popup's "recent games" list). A live
+  // game played recently (6/13/20d ago); a dead game's last games are all >4
+  // weeks back (35/42/49d ago) so nothing falls inside the retire window.
+  const playedWeeks: ReadonlyArray<readonly [number, number]> = o.dead
+    ? [[35, 13], [42, 15], [49, 12]]
+    : [[6, 13], [13, 15], [20, 12]];
+  for (const [daysAgo, count] of playedWeeks) {
     const kickoff = new Date(Date.now() - daysAgo * DAY);
     await pool.query(
       `INSERT INTO game_occurrences
