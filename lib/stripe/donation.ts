@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
@@ -18,17 +18,15 @@ export async function setSubscribed(
   return updated.length > 0;
 }
 
-/** A cancelled / ended subscription → back to the gentle reminder ("unset").
- *  Matched on the specific subscription that was deleted (not just the customer),
- *  so a stale event or a second subscription can't downgrade an active one. Only
- *  flips a current subscriber, so an explicit "declined" is left alone. */
+/** A cancelled / ended subscription. Matched on the specific subscription that
+ *  was deleted (not just the customer), so a second subscription can't affect
+ *  this one. The id is ALWAYS cleared (so it can't go stale and wrongly mark
+ *  someone a subscriber), but the status flips to "unset" only if they were
+ *  still "subscribed" — an explicit "declined" is preserved. */
 export async function clearSubscription(subscriptionId: string): Promise<void> {
   await db.update(users).set({
-    donationStatus: "unset",
     stripeSubscriptionId: null,
+    donationStatus: sql`case when ${users.donationStatus} = 'subscribed' then 'unset'::donation_status else ${users.donationStatus} end`,
     updatedAt: new Date(),
-  }).where(and(
-    eq(users.stripeSubscriptionId, subscriptionId),
-    eq(users.donationStatus, "subscribed"),
-  ));
+  }).where(eq(users.stripeSubscriptionId, subscriptionId));
 }

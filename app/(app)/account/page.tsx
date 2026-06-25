@@ -54,14 +54,24 @@ export default async function AccountPage() {
         travelMiles,
       }} />
 
-      {u.stripeSubscriptionId ? (
-        // Active Stripe subscriber: status is Stripe-managed — show thanks + the
-        // billing portal, not the self-declare radio.
-        <form className="reg-form donate-pref" action={openBillingPortal}>
-          <p className="reg-section">supporting the project</p>
-          <p className="reg-hint">you&apos;re chipping in $5/month 💚 — thank you. manage or cancel anytime.</p>
-          <button type="submit" className="btn-green">manage subscription</button>
-        </form>
+      {u.donationStatus === "subscribed" ? (
+        u.stripeSubscriptionId ? (
+          // Active Stripe subscriber → manage via the billing portal.
+          <form className="reg-form donate-pref" action={openBillingPortal}>
+            <p className="reg-section">supporting the project</p>
+            <p className="reg-hint">you&apos;re chipping in $5/month 💚 — thank you. manage or cancel anytime.</p>
+            <button type="submit" className="btn-green">manage subscription</button>
+          </form>
+        ) : (
+          // Legacy honor-system subscriber (self-declared, no Stripe sub): thanks +
+          // an explicit reset, so a stray save can't silently downgrade them.
+          <form className="reg-form donate-pref" action={updateDonationPref}>
+            <p className="reg-section">supporting the project</p>
+            <p className="reg-hint">you&apos;ve told us you&apos;re chipping in 💚 — thank you.</p>
+            <input type="hidden" name="donation_status" value="unset" />
+            <button type="submit" className="game-leave">no longer donating? reset this</button>
+          </form>
+        )
       ) : (
         // Not subscribed: the reminder preference (subscribing is via /donate →
         // Stripe, which sets "subscribed" itself — so it's not a manual option).
