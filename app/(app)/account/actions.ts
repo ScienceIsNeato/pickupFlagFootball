@@ -109,7 +109,9 @@ export async function updateDonationPref(formData: FormData) {
   if (!session?.user?.id) redirect("/api/auth/signin");
 
   const value = str(formData.get("donation_status"));
-  if (!DONATION_STATUSES.includes(value as DonationStatus)) {
+  // "subscribed" is Stripe-managed (set by the webhook), never self-declared —
+  // the form only sets the reminder preference (remind-me / declined).
+  if (value !== "unset" && value !== "declined") {
     throw new Error("invalid donation status");
   }
 

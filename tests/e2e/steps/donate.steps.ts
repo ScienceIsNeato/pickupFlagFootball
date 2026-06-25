@@ -34,7 +34,7 @@ Then("they're marked as a subscriber", async ({ world }) => {
 When("Stripe reports their subscription cancelled", async ({ page }) => {
   await postEvent(page, {
     id: "evt_e2e_cancelled", object: "event", type: "customer.subscription.deleted",
-    data: { object: { object: "subscription", customer: CUSTOMER } },
+    data: { object: { object: "subscription", id: "sub_e2e", customer: CUSTOMER } },
   });
 });
 

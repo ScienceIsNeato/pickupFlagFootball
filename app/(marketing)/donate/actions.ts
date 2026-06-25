@@ -18,8 +18,12 @@ export async function startSubscription() {
   const priceId = process.env.STRIPE_PRICE_ID;
   if (!priceId) throw new Error("STRIPE_PRICE_ID not set");
 
-  const [u] = await db.select({ email: users.email, customerId: users.stripeCustomerId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1);
+  const [u] = await db.select({
+    email: users.email, customerId: users.stripeCustomerId, subscriptionId: users.stripeSubscriptionId,
+  }).from(users).where(eq(users.id, session.user.id)).limit(1);
+
+  // Already subscribed → send them to manage it, don't open a second $5/mo sub.
+  if (u?.subscriptionId) { await openBillingPortal(); return; }
 
   const cs = await stripe().checkout.sessions.create({
     mode: "subscription",

@@ -35,14 +35,19 @@ export async function POST(req: Request) {
         const s = event.data.object as Stripe.Checkout.Session;
         // Only the subscription donation flips status; one-time tips don't.
         if (s.mode === "subscription" && s.client_reference_id) {
-          await setSubscribed(s.client_reference_id, idOf(s.customer), idOf(s.subscription));
+          const ok = await setSubscribed(s.client_reference_id, idOf(s.customer), idOf(s.subscription));
+          if (!ok) {
+            // A paying customer whose client_reference_id matched no user — don't
+            // silently 200. 500 so Stripe retries + the error surfaces.
+            console.error("[stripe webhook] no user for client_reference_id", s.client_reference_id);
+            return NextResponse.json({ error: "unknown user" }, { status: 500 });
+          }
         }
         break;
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        const customerId = idOf(sub.customer);
-        if (customerId) await clearSubscription(customerId);
+        if (sub.id) await clearSubscription(sub.id); // match the exact subscription
         break;
       }
       // other events are acknowledged and ignored
