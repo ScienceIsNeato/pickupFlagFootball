@@ -1,0 +1,188 @@
+name: Deploy to Cloud Run
+
+# Auto-deploy on every merge to main (same trigger as ChronicChronicler /
+# loopcloser). Builds + pushes the image, runs DB migrations, then deploys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURE ME: everything account/domain-specific lives in this block.
+# Non-secret values are fine here; real secrets live in GCP Secret Manager and
+# are referenced by NAME only (see the *_SECRET entries) — never paste values.
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  PROJECT_ID: pickupflagfootball
+  REGION: us-central1
+  REGISTRY: us-central1-docker.pkg.dev/pickupflagfootball/pickupflagfootball-images
+  IMAGE_NAME: pickupflagfootball-app
+  SERVICE_NAME: pickupflagfootball-prod
+
+  # Non-secret runtime config (passed via --set-env-vars):
+  APP_BASE_URL: https://CHANGE-ME.com                 # your production URL
+  BREVO_SENDER_EMAIL: no-reply@CHANGE-ME.com
+  BREVO_SENDER_NAME: Pickup Flag Football
+  STRIPE_PRICE_ID: price_CHANGE_ME                     # Stripe price id (not secret)
+  EMAIL_TRANSPORT: brevo
+
+  # Build-time public var (inlined into the client bundle at `next build`):
+  NEXT_PUBLIC_SUPPORT_EMAIL: support@CHANGE-ME.com
+
+  # Secret Manager entry NAMES (values live in GCP, referenced as name:latest):
+  DATABASE_URL_SECRET: pff-database-url
+  DATABASE_URL_UNPOOLED_SECRET: pff-database-url-unpooled
+  AUTH_SECRET_SECRET: pff-auth-secret
+  AUTH_GOOGLE_ID_SECRET: pff-auth-google-id
+  AUTH_GOOGLE_SECRET_SECRET: pff-auth-google-secret
+  CRON_SECRET_SECRET: pff-cron-secret
+  STRIPE_SECRET_KEY_SECRET: pff-stripe-secret-key
+  STRIPE_WEBHOOK_SECRET_SECRET: pff-stripe-webhook-secret
+  BREVO_API_KEY_SECRET: pff-brevo-api-key
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check for GCP credentials
+        run: |
+          if [ -z "$GCP_SA_KEY" ] && { [ -z "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] || [ -z "$GCP_SERVICE_ACCOUNT" ]; }; then
+            echo "::error::Configure either GCP_SA_KEY or both GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT."
+            exit 1
+          fi
+
+      - name: Authenticate (Workload Identity Federation)
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate (service account key)
+        if: ${{ !(env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '') }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${{ env.NEXT_PUBLIC_SUPPORT_EMAIL }}" \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            .
+
+      - name: Push image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build-and-push
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Authenticate (Workload Identity Federation)
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate (service account key)
+        if: ${{ !(env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != '') }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Verify required secrets exist
+        run: |
+          fail=0
+          for s in \
+            "${{ env.DATABASE_URL_SECRET }}" \
+            "${{ env.DATABASE_URL_UNPOOLED_SECRET }}" \
+            "${{ env.AUTH_SECRET_SECRET }}" \
+            "${{ env.AUTH_GOOGLE_ID_SECRET }}" \
+            "${{ env.AUTH_GOOGLE_SECRET_SECRET }}" \
+            "${{ env.CRON_SECRET_SECRET }}" \
+            "${{ env.STRIPE_SECRET_KEY_SECRET }}" \
+            "${{ env.STRIPE_WEBHOOK_SECRET_SECRET }}" \
+            "${{ env.BREVO_API_KEY_SECRET }}"; do
+            if ! gcloud secrets versions access latest --secret="$s" --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1; then
+              echo "::error::Missing/inaccessible Secret Manager secret: $s"; fail=1
+            fi
+          done
+          exit $fail
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install deps (for the migration runner)
+        run: npm ci
+
+      - name: Apply database migrations
+        run: |
+          # Migrate against the UNPOOLED (direct) connection — preferred for DDL.
+          DATABASE_URL_UNPOOLED="$(gcloud secrets versions access latest \
+            --secret="${{ env.DATABASE_URL_UNPOOLED_SECRET }}" --project="${{ env.PROJECT_ID }}")" \
+          node scripts/migrate.mjs apply
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region=${{ env.REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ env.APP_BASE_URL }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ env.STRIPE_PRICE_ID }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
+            --update-secrets="DATABASE_URL=${{ env.DATABASE_URL_SECRET }}:latest,DATABASE_URL_UNPOOLED=${{ env.DATABASE_URL_UNPOOLED_SECRET }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ env.STRIPE_SECRET_KEY_SECRET }}:latest,STRIPE_WEBHOOK_SECRET=${{ env.STRIPE_WEBHOOK_SECRET_SECRET }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
+            --memory=512Mi \
+            --cpu=1 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --project=${{ env.PROJECT_ID }}
+
+      - name: Verify deployment
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
+            --format='value(status.url)')
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/")
+          echo "Service $URL → HTTP $CODE"
+          [ "$CODE" = "200" ] || { echo "::error::Smoke check failed"; exit 1; }

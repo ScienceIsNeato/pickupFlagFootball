@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Wiring up auto-deploy so the site ships on every merge — going with the same setup our other database-backed apps already use instead of a brand-new stack. Proved the app builds into a container and boots cleanly before going further.",
-    "direction": "Write the deploy pipeline, then hand off the hosting account + secrets setup so it can go live.",
-    "last_update": "2026-06-25T20:30:00Z"
+    "status": "Auto-deploy pipeline is written — on every merge to main it builds the app into a container, runs database migrations, and ships it, same as our other database-backed apps. Wrote up the one-time hosting-account setup too.",
+    "direction": "Hand off the account creation + secrets so it can go live; first merge to main will trigger the first deploy.",
+    "last_update": "2026-06-25T21:00:00Z"
   }
 }
