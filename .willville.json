@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reworked the account page into three side-by-side sections: supporting the project (a supporter badge + thank-you for donors, or the ask + reminder choice for everyone else), your name plus a snapshot of the games you're in, and your location. Name and location now save independently so editing one can't wipe the other.",
-    "direction": "Open to the next thing — more live-testing fixes or a new feature.",
-    "last_update": "2026-06-25T02:00:00Z"
+    "status": "Wiring up auto-deploy so the site ships on every merge — going with the same setup our other database-backed apps already use instead of a brand-new stack. Proved the app builds into a container and boots cleanly before going further.",
+    "direction": "Write the deploy pipeline, then hand off the hosting account + secrets setup so it can go live.",
+    "last_update": "2026-06-25T20:30:00Z"
   }
 }

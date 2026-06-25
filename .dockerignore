@@ -1,0 +1,29 @@
+node_modules
+.next
+.open-next
+.wrangler
+.git
+.github
+
+# agent-ops scaffolding (not part of the app). .cursor is a symlink to an
+# absolute host path — dangling in the container, which breaks next build's
+# file tracing — so these must be kept out of the build context.
+.cursor
+cursor-rules
+.agent
+.windsurfrules
+AGENTS.md
+.envrc
+.slopmop
+.willville.json
+.specstory
+.env*.local
+.dev.vars
+npm-debug.log
+tests/e2e/.features-gen
+tests/e2e/.playwright-report
+tests/e2e/report/output
+tests/e2e/test-results
+.claude
+.DS_Store
+*.tsbuildinfo
