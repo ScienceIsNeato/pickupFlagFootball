@@ -1,14 +1,23 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts } from "@/lib/db/schema";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
 import { rsvpLink } from "@/lib/rsvpLink";
+import { declineLink } from "@/lib/declineLink";
 
 // Only emails whose occurrence is still RSVP-able get the one-click links.
 // WEEK_OFF is a skipped week (settled) — its links would be dead, so it gets none.
 const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
+
+// Formation courting asks carry a one-click "not interested in this site" link
+// so a recipient can stop the emails for that area. GAME_ON / STALLED_NOTICE are
+// one-off notices, not repeated courting, so they don't.
+const DECLINE_LINK_KINDS = new Set<NotifKind>([
+  "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
+  "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
+]);
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
@@ -33,12 +42,15 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     kind: notificationsSent.kind,
     userId: notificationsSent.userId,
     occurrenceId: notificationsSent.occurrenceId,
+    areaId: formationAttempts.areaId,
     email: users.email,
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
     donationStatus: users.donationStatus,
   }).from(notificationsSent)
     .innerJoin(users, eq(users.id, notificationsSent.userId))
+    // Formation emails carry an attempt → its area, for the "not interested" link.
+    .leftJoin(formationAttempts, eq(formationAttempts.id, notificationsSent.attemptId))
     .where(and(eq(notificationsSent.channel, "email"), isNull(notificationsSent.emailedAt)))
     .orderBy(notificationsSent.sentAt)
     .limit(limit);
@@ -62,7 +74,11 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
             outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out"),
           }
         : undefined;
-      const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, rsvp });
+      // Courting asks get a one-click "stop emails about this site" link.
+      const declineUrl = DECLINE_LINK_KINDS.has(r.kind as NotifKind) && r.areaId
+        ? declineLink(APP_BASE_URL, r.userId, r.areaId)
+        : undefined;
+      const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, rsvp, declineUrl });
       const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
       if (delivered) {
         sent++;

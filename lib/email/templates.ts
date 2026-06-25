@@ -30,12 +30,16 @@ function esc(s: string): string {
 
 type RsvpButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; rsvp?: RsvpButtons }): string {
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; rsvp?: RsvpButtons; declineUrl?: string }): string {
   const rsvpHtml = p.rsvp
     ? `<div style="margin:16px 0 0;">
       <a href="${esc(p.rsvp.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.rsvp.inLabel)}</a>
       <a href="${esc(p.rsvp.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.rsvp.outLabel)}</a>
     </div>`
+    : "";
+  // One-click "stop emails about this forming site" — so courting can't spam.
+  const declineHtml = p.declineUrl
+    ? `<p style="color:#6f7891; font-size:12px; line-height:1.6; margin:16px 0 0;">not interested in this site? <a href="${esc(p.declineUrl)}" style="color:#5b9452; text-decoration:none;">stop emails about it</a>.</p>`
     : "";
   const footerHtml = p.footer
     ? `<p style="color:#9fb39a; font-size:13px; line-height:1.55; margin:22px 0 0;">${esc(p.footer.text)} <a href="${esc(p.base + p.footer.donateUrl)}" style="color:#f4c430; text-decoration:none;">chip in</a>.</p>`
@@ -52,6 +56,7 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
       ${rsvpHtml}
       ${footerHtml}
+      ${declineHtml}
     </td></tr>
     <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
       you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>.
@@ -83,6 +88,8 @@ export function buildNotificationEmail(
     displayName: string | null; appBaseUrl: string; footer: DonationFooter | null;
     // one-click RSVP links for the weekly poll emails (lib/rsvpLink.ts)
     rsvp?: { inUrl: string; outUrl: string };
+    // one-click "stop emails about this forming site" (lib/declineLink.ts)
+    declineUrl?: string;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -98,11 +105,12 @@ export function buildNotificationEmail(
 
   const footerLine = opts.footer ? `\n\n${opts.footer.text} ${base}${opts.footer.donateUrl}` : "";
   const rsvpLine = rsvp ? `\n\n${rsvp.inLabel}: ${rsvp.inUrl}\n${rsvp.outLabel}: ${rsvp.outUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}\n\n${c.cta}: ${ctaUrl}${rsvpLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
+  const declineLine = opts.declineUrl ? `\n\nnot interested in this site? stop emails about it: ${opts.declineUrl}` : "";
+  const textContent = `${greeting}\n\n${c.intro}\n\n${c.cta}: ${ctaUrl}${rsvpLine}${declineLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, rsvp }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, rsvp, declineUrl: opts.declineUrl }),
     textContent,
   };
 }
