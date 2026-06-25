@@ -1,6 +1,6 @@
-import { expect, type Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { E2E } from "../support/env";
+import { tickEngine } from "../support/tick";
 import {
   seedFormingAttempt, expireSuggestionWindow, expireAvailabilityWindow,
   commitToTopOption, areaHasGame, getAreaStatus,
@@ -8,15 +8,6 @@ import {
 
 // Reuses "I am a confirmed player …" and "I open the game on the map".
 const SITE = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701" };
-
-// Drive the real engine the way Vercel Cron does — POST /api/mime/tick with the
-// CRON_SECRET bearer (set in playwright.config webServer.env).
-async function tick(page: Page) {
-  const res = await page.request.post(`${E2E.appBaseUrl}/api/mime/tick`, {
-    headers: { authorization: `Bearer ${E2E.cronSecret}` },
-  });
-  expect(res.ok(), `tick failed: ${res.status()}`).toBeTruthy();
-}
 
 Given("a site forming near me", async ({ world }) => {
   const r = await seedFormingAttempt(SITE);
@@ -30,7 +21,7 @@ Then("the proposed site shows", async ({ page }) => {
 
 When("the suggestion window closes and the engine ticks", async ({ page, world }) => {
   await expireSuggestionWindow(world.attemptId!); // SUGGESTING → AVAILABILITY (compiles options)
-  await tick(page);
+  await tickEngine(page);
 });
 
 When("enough players commit to a spot", async ({ world }) => {
@@ -43,7 +34,7 @@ When("too few players commit", async ({ world }) => {
 
 When("the availability window closes and the engine ticks", async ({ page, world }) => {
   await expireAvailabilityWindow(world.attemptId!); // AVAILABILITY → CONFIRMED or STALLED
-  await tick(page);
+  await tickEngine(page);
 });
 
 Then("a game is scheduled here", async ({ world }) => {

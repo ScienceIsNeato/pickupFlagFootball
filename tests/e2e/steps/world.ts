@@ -9,6 +9,7 @@ export type World = {
   nextGameCaption?: string;
   rsvpToken?: string; // signed one-click RSVP-link token for the email-link flow
   attemptId?: string; // the live formation attempt, for the formation-FSM e2e
+  occurrenceId?: string; // the weekly occurrence row, for the occurrence-FSM e2e
 };
 
 export const test = base.extend<{ world: World }>({

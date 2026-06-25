@@ -231,6 +231,63 @@ export async function getAreaStatus(areaId: string): Promise<string> {
   return a?.status ?? "";
 }
 
+/** An active standing game whose weekly poll has JUST CLOSED, with `inCount`
+ *  roster members defaulting to "in". The next engine tick tallies it →
+ *  scheduled (≥ min) or skipped (< min). Returns the occurrence id so steps can
+ *  assert on that exact row (robust against any auto-opened occurrence). */
+export async function seedWeeklyGameWithClosedPoll(o: {
+  lat: number; lng: number; placeText: string; city: string; zip: string; inCount: number;
+}): Promise<{ gameId: string; areaId: string; occurrenceId: string; lat: number; lng: number; placeText: string }> {
+  const DAY = 86_400_000;
+  const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
+  const { rows: [act] } = await pool.query(
+    "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
+  );
+  const { rows: [area] } = await pool.query(
+    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
+  );
+  const { rows: [game] } = await pool.query(
+    `INSERT INTO games
+       (activity_type_id, area_id, place_text, place_lat, place_lng,
+        scheduled_start, status, is_standing, recur_dow, recur_time, color)
+     VALUES ($1, $2, $3, $4, $5, $6, 'active', true, 6, '10:00', '#16633a') RETURNING id`,
+    [act.id, area.id, o.placeText, o.lat, o.lng, new Date(Date.now() - 28 * DAY).toISOString()],
+  );
+  const tag = String(game.id).slice(0, 8);
+  for (let i = 0; i < o.inCount; i++) {
+    const { rows: [u] } = await pool.query(
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
+      [`seed-${tag}-in${i}@example.com`, `In ${i + 1}`, o.lat, o.lng, o.zip],
+    );
+    await pool.query(`INSERT INTO game_roster (game_id, user_id, default_status) VALUES ($1, $2, 'in')`, [game.id, u.id]);
+  }
+  // A poll that just closed: opened 36h ago, closed a minute ago, kickoff ~12h out.
+  const now = Date.now();
+  const { rows: [occ] } = await pool.query(
+    `INSERT INTO game_occurrences
+       (game_id, occurrence_date, status, kickoff_at, poll_opens_at, poll_closes_at, in_count)
+     VALUES ($1, $2::date, 'polling', $3, $4, $5, 0) RETURNING id`,
+    [game.id, new Date(now + 0.5 * DAY).toISOString(), new Date(now + 0.5 * DAY).toISOString(),
+     new Date(now - 1.5 * DAY).toISOString(), new Date(now - 60_000).toISOString()],
+  );
+  return { gameId: String(game.id), areaId: String(area.id), occurrenceId: String(occ.id), lat: o.lat, lng: o.lng, placeText: o.placeText };
+}
+
+/** A specific occurrence's lifecycle status (polling / scheduled / awaiting_game
+ *  / skipped / played / …). */
+export async function getOccurrenceStatus(occurrenceId: string): Promise<string> {
+  const { rows: [o] } = await pool.query(`SELECT status FROM game_occurrences WHERE id = $1`, [occurrenceId]);
+  return o?.status ?? "";
+}
+
+/** Push an occurrence's kickoff into the past so the next tick marks it played. */
+export async function expireOccurrenceKickoff(occurrenceId: string): Promise<void> {
+  await pool.query(`UPDATE game_occurrences SET kickoff_at = now() - interval '1 minute' WHERE id = $1`, [occurrenceId]);
+}
+
 /** The id of a registered user, by email — to wire up roster/captain/RSVP rows. */
 export async function getUserId(email: string): Promise<string> {
   const { rows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);
