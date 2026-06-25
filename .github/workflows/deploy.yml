@@ -4,7 +4,7 @@ name: Deploy to Cloud Run
 # loopcloser). Builds + pushes the image, runs DB migrations, then deploys.
 on:
   push:
-    branches: [main]
+    branches: [main, feat/cloud-run-deploy]   # TEMP: drop the feature branch before merging to main
   workflow_dispatch:
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,14 +20,14 @@ env:
   SERVICE_NAME: pickupflagfootball-prod
 
   # Non-secret runtime config (passed via --set-env-vars):
-  APP_BASE_URL: https://CHANGE-ME.com                 # your production URL
-  BREVO_SENDER_EMAIL: no-reply@CHANGE-ME.com
+  APP_BASE_URL: https://pickupflagfootball.com
+  BREVO_SENDER_EMAIL: support@pickupflagfootball.com
   BREVO_SENDER_NAME: Pickup Flag Football
-  STRIPE_PRICE_ID: price_CHANGE_ME                     # Stripe price id (not secret)
+  STRIPE_PRICE_ID: price_CHANGE_ME                     # TODO: real Stripe price id (runtime-only, won't block deploy)
   EMAIL_TRANSPORT: brevo
 
   # Build-time public var (inlined into the client bundle at `next build`):
-  NEXT_PUBLIC_SUPPORT_EMAIL: support@CHANGE-ME.com
+  NEXT_PUBLIC_SUPPORT_EMAIL: support@pickupflagfootball.com
 
   # Secret Manager entry NAMES (values live in GCP, referenced as name:latest):
   DATABASE_URL_SECRET: pff-database-url
