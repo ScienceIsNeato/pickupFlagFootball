@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedFormingSite, getUserId } from "../support/db";
+import { seedFormingAttempt, getUserId } from "../support/db";
 import { E2E } from "../support/env";
 // Relative (not "@/…") so it resolves at runtime under playwright-bdd's loader.
 import { signDeclineToken } from "../../../lib/declineLink";
@@ -9,9 +9,10 @@ import { signDeclineToken } from "../../../lib/declineLink";
 // the forming badge opens the proposed-site popup (also a .game-card).
 
 Given("a forming game site near me", async ({ world }) => {
-  world.game = await seedFormingSite({
+  const r = await seedFormingAttempt({
     lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701",
   });
+  world.game = { lat: r.lat, lng: r.lng, placeText: r.placeText, areaId: r.areaId };
 });
 
 When("I say I'm not interested in the site", async ({ page }) => {

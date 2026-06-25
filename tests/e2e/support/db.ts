@@ -142,46 +142,11 @@ export async function seedStandingGame(o: {
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, gameId: String(game.id), areaId: String(area.id) };
 }
 
-/** A forming (IN_FORMATION) site with a live suggesting attempt + one suggestion,
- *  so clicking its badge opens the proposed-site popup. Used by the "not
- *  interested" beat. Returns lat/lng so the map can jump to it. */
-export async function seedFormingSite(o: {
-  lat: number; lng: number; placeText: string; city: string; zip: string;
-}): Promise<{ lat: number; lng: number; placeText: string; areaId: string }> {
-  const DAY = 86_400_000;
-  const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
-  const { rows: [act] } = await pool.query(
-    "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
-  );
-  const { rows: [area] } = await pool.query(
-    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'IN_FORMATION') RETURNING id`,
-    [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
-  );
-  const tag = String(area.id).slice(0, 8);
-  const { rows: [proposer] } = await pool.query(
-    `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
-     VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
-    [`seed-${tag}-prop@example.com`, "Pat Proposer", o.lat, o.lng, o.zip],
-  );
-  const { rows: [attempt] } = await pool.query(
-    `INSERT INTO formation_attempts
-       (activity_type_id, area_id, attempt_number, status, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, 1, 'SUGGESTING', now(), $3) RETURNING id`,
-    [act.id, area.id, new Date(Date.now() + 2 * DAY).toISOString()],
-  );
-  await pool.query(
-    `INSERT INTO suggestions
-       (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
-     VALUES ($1, $2, $3, $4, $5, $6, 6, '10:00')`,
-    [attempt.id, proposer.id, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
-  );
-  return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id) };
-}
-
-/** A forming site mid-attempt (SUGGESTING) with one suggestion already in — the
- *  starting point for the formation-FSM e2e. Returns the attemptId so steps can
- *  expire its windows + add promises, then drive it with engine ticks. */
+/** A forming (IN_FORMATION) site mid-attempt (SUGGESTING) with one suggestion
+ *  already in — clicking its badge opens the proposed-site popup, and the
+ *  returned attemptId lets the formation-FSM e2e expire its windows + add
+ *  promises, then drive it with engine ticks. The "not interested" beat uses it
+ *  too (it just ignores the attemptId). */
 export async function seedFormingAttempt(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
 }): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
