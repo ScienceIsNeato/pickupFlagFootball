@@ -1,0 +1,19 @@
+Feature: A weekly game runs (occurrence FSM)
+
+  Scenario: the poll fills — the week is on, then played
+    Given a weekly game whose poll just closed with enough players in
+    And I am a confirmed player "Wendy Week" with email "wendy@example.com" in ZIP "78701"
+    When I open the game on the map
+    Then the weekly game shows on the map
+    When the engine ticks
+    Then the week is on
+    When game day passes and the engine ticks
+    Then the week is played
+
+  Scenario: the poll comes up short — the week is skipped
+    Given a weekly game whose poll just closed with too few players in
+    And I am a confirmed player "Sam Skip" with email "sam@example.com" in ZIP "78701"
+    When I open the game on the map
+    Then the weekly game shows on the map
+    When the engine ticks
+    Then the week is skipped
