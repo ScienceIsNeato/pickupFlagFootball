@@ -8,6 +8,7 @@ import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
 import { updateDonationPref } from "./actions";
+import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account — MIME-FF" };
 
@@ -23,13 +24,14 @@ export default async function AccountPage() {
       city: users.city, state: users.state, zip: users.zip,
       maxTravelKm: users.maxTravelKm,
       donationStatus: users.donationStatus,
+      stripeCustomerId: users.stripeCustomerId,
     })
     .from(users)
     .where(eq(users.id, uid))
     .limit(1);
   const u = rows[0] ?? {
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
-    donationStatus: "unset" as const,
+    donationStatus: "unset" as const, stripeCustomerId: null,
   };
   const travelMiles = Math.round(kmToMiles(u.maxTravelKm ?? 24.14)); // ~15 mi default
 
@@ -73,6 +75,15 @@ export default async function AccountPage() {
         </label>
         <button type="submit" className="btn-green">save preference</button>
       </form>
+
+      {u.donationStatus === "subscribed" && u.stripeCustomerId && (
+        <form className="reg-form donate-pref" action={openBillingPortal}>
+          <p className="reg-hint">
+            thanks for chipping in 💚 — manage or cancel your $5/month support anytime.
+          </p>
+          <button type="submit" className="btn-green">manage subscription</button>
+        </form>
+      )}
     </main>
   );
 }

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Added a guardrail on retiring a game: a captain can't shut one down for good until it's gone 4 straight weeks with no game actually happening — so a live game can't be killed off on a whim. Until then the retire button is greyed out with an explanation, and pausing is the way to take a temporary break.",
+    "status": "Wired up real donations. 'Subscribe' now runs a real Stripe checkout for the $5/month support, and Stripe tells the app when someone subscribes or cancels — so the 'please chip in' reminder turns itself off and back on automatically instead of relying on the honor system. Just needs the Stripe account keys plugged in to go live.",
     "direction": "Open to the next thing — more live-testing fixes or a new feature.",
-    "last_update": "2026-06-25T00:00:00Z"
+    "last_update": "2026-06-25T01:00:00Z"
   }
 }

@@ -52,6 +52,10 @@ export default defineConfig({
       GOOGLE_CLIENT_SECRET: "e2e-google-secret",
       // lets the FSM e2e drive /api/mime/tick (Bearer CRON_SECRET), like Vercel Cron
       CRON_SECRET: E2E.cronSecret,
+      // lets the donation webhook verify signed test events (no STRIPE_PRICE_ID,
+      // so the donate page stays on links — checkout isn't e2e'd)
+      STRIPE_SECRET_KEY: E2E.stripeSecretKey,
+      STRIPE_WEBHOOK_SECRET: E2E.stripeWebhookSecret,
     },
   },
 });

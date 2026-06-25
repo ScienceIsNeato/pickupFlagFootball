@@ -101,6 +101,10 @@ export const users = pgTable("users", {
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
   donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
+  // Stripe donation subscription — set by the checkout/webhook flow; the webhook
+  // maps a Stripe customer back to the user to keep donationStatus in sync.
+  stripeCustomerId:     text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
