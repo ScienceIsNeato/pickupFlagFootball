@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   areas, activityTypes, formationAttempts, suggestions, formationOptions, softPromises,
-  areaCaptains, users,
+  areaCaptains, users, areaOptouts,
 } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
 
@@ -152,8 +152,16 @@ export async function GET(req: Request) {
   // rendering "null" in the popup.
   const captains = captainRows.map((r) => r.name).filter((n): n is string => !!n);
 
+  // Has the viewer said "not interested" in this site? Drives the popup's toggle.
+  const [optedOut] = await db.select({ a: areaOptouts.areaId }).from(areaOptouts)
+    .where(and(eq(areaOptouts.areaId, best.id), eq(areaOptouts.userId, session.user.id)))
+    .limit(1);
+
   return NextResponse.json({
-    site: { city: best.city, zip: best.zip, status: attempt?.status ?? null, captains },
+    site: {
+      areaId: best.id, city: best.city, zip: best.zip,
+      status: attempt?.status ?? null, captains, viewerOptedOut: !!optedOut,
+    },
     firstPlaceText,
     firstWhen,
     activity,

@@ -117,7 +117,7 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
     // Same radius rule the engine uses: everyone active whose travel radius
     // reaches this site. Measure to the proposed venue (the address the user
     // picked) when known, falling back to the area centroid.
-    const cohort = await catchmentUsers(edb(), act.id, placeLat ?? area.centerLat, placeLng ?? area.centerLng);
+    const cohort = await catchmentUsers(edb(), act.id, area.id, placeLat ?? area.centerLat, placeLng ?? area.centerLng);
     const now = new Date();
     // A stalled area is in cooldown — respect the backoff like the engine does,
     // don't let a manual propose re-open it early.

@@ -303,6 +303,20 @@ export const areaCaptains = pgTable("area_captains", {
   primaryKey({ columns: [t.areaId, t.userId] }),
 ]);
 
+// ── area_optouts ───────────────────────────────────────────────────────────
+// A user said "not interested" in a forming site. They keep their interest
+// signals (still free interest elsewhere); this area's formation just stops
+// counting/asking them. One row per (area, user); deleting it re-expresses
+// interest.
+export const areaOptouts = pgTable("area_optouts", {
+  areaId:    uuid("area_id").notNull().references(() => areas.id, { onDelete: "cascade" }),
+  userId:    uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.areaId, t.userId] }),
+  index("idx_area_optouts_user").on(t.userId),
+]);
+
 // ── map_aggregates ─────────────────────────────────────────────────────────
 export const mapAggregates = pgTable("map_aggregates", {
   activityTypeId: uuid("activity_type_id").notNull().references(() => activityTypes.id),
