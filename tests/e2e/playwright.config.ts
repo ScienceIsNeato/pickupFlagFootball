@@ -50,6 +50,8 @@ export default defineConfig({
       // dummy Google creds so the auth provider config doesn't choke at boot
       GOOGLE_CLIENT_ID: "e2e-google-id",
       GOOGLE_CLIENT_SECRET: "e2e-google-secret",
+      // lets the FSM e2e drive /api/mime/tick (Bearer CRON_SECRET), like Vercel Cron
+      CRON_SECRET: E2E.cronSecret,
     },
   },
 });

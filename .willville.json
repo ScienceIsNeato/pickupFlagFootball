@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Wrapped up 'not interested': the emails inviting people to a forming game now have a one-click link to stop hearing about that specific spot — no login, and built so email scanners can't trip it. So nobody gets spammed about a game they've already passed on.",
-    "direction": "Open to the next thing — more live-testing fixes or a new feature.",
-    "last_update": "2026-06-24T04:00:00Z"
+    "status": "Building automated coverage for how a game comes together. The test story now walks a game forming from scratch — people show interest, someone suggests a spot, players commit, it gets scheduled — plus the case where too few commit and it fizzles. It all shows up in the visual test report so you can watch each step happen.",
+    "direction": "Next: the same kind of coverage for the weekly game-night poll (enough people in → game's on, too few → skip this week).",
+    "last_update": "2026-06-24T05:00:00Z"
   }
 }

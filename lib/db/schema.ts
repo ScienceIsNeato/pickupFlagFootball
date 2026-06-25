@@ -50,6 +50,17 @@ export const activityTypes = pgTable("activity_types", {
   nWarm:       integer("n_warm").notNull().default(5),
   pMin:        integer("p_min").notNull().default(6),
   sMin:        integer("s_min").notNull().default(1),
+  // Engine tunables — read by loadTunables (lib/mime/engine). Modeled here so the
+  // ORM schema is complete and drizzle-kit push (the e2e DB) builds them; without
+  // these the formation engine's loadTunables query fails against a pushed DB.
+  optionsCap:         integer("options_cap").notNull().default(6),
+  suggestWindow:      interval("suggest_window").notNull().default("48 hours"),
+  availWindow:        interval("avail_window").notNull().default("48 hours"),
+  restallInterest:    integer("restall_interest").notNull().default(3),
+  restallDays:        integer("restall_days").notNull().default(14),
+  maxTimeRetries:     integer("max_time_retries").notNull().default(2),
+  perUserWeeklyCap:   integer("per_user_weekly_cap").notNull().default(2),
+  ignoreDecayWindows: integer("ignore_decay_windows").notNull().default(3),
   baseH3Res:   integer("base_h3_res").notNull().default(7),
   createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
