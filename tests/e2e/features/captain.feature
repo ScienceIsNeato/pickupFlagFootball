@@ -9,12 +9,18 @@ Feature: Captain controls
     When I resume the series
     Then the game is running again
 
-  Scenario: a captain retires the series for good
-    Given an established weekly game near me
+  Scenario: a captain retires a long-dead series for good
+    Given a long-dead established weekly game near me
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
     When I open the game on the map
     And I retire the series
     Then the game shows as retired
+
+  Scenario: a captain can't retire a game that's still being played
+    Given an established weekly game near me
+    And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
+    When I open the game on the map
+    Then I can't retire it yet
 
   Scenario: a captain calls off this week
     Given an established weekly game near me

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { games, areas, activityTypes, areaCaptains, users, gameOccurrences } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
 import { reachableActiveGame, gameMembership } from "@/lib/db/gameMembership";
+import { retireEligibility } from "@/lib/games/retireEligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +111,10 @@ export async function GET(req: Request) {
       .where(and(eq(areaCaptains.areaId, best.areaId), eq(areaCaptains.userId, session.user.id))).limit(1),
   ]);
 
+  // Whether the viewing captain may retire now (4 straight dead weeks) — drives
+  // the popup's retire control. Only computed for captains (the only consumers).
+  const retire = myCap.length > 0 ? await retireEligibility(best.id, best.scheduledStart) : null;
+
   return NextResponse.json({
     game: {
       gameId: best.id,
@@ -128,6 +133,8 @@ export async function GET(req: Request) {
       rosterCount: membership.rosterCount,
       inCount: membership.inCount,
       nextOccurrence: membership.occurrence,
+      canRetire: retire ? retire.ok : false,
+      retireBlockedReason: retire && !retire.ok ? retire.reason : null,
     },
     weeks,
     playedHistory,

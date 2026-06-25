@@ -45,6 +45,13 @@ Then("the game is running again", async ({ page }) => {
   await expect(page.getByRole("button", { name: "pause series" })).toBeVisible();
 });
 
+Then("I can't retire it yet", async ({ page }) => {
+  // A game played within the last 4 weeks can't be retired — the control is
+  // disabled and the popup explains why.
+  await expect(page.getByRole("button", { name: "retire series" })).toBeDisabled({ timeout: 10000 });
+  await expect(page.locator(".game-retire-hint")).toContainText(/4 straight weeks/i);
+});
+
 When("I retire the series", async ({ page }) => {
   await page.getByRole("button", { name: "retire series" }).click(); // opens the type-to-confirm dialog
   const dlg = page.getByRole("alertdialog");

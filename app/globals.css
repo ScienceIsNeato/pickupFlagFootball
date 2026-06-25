@@ -294,6 +294,8 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* "Not interested" control on a forming site popup. */
 .game-optout { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .game-optout-note { margin: 0 0 8px; font-size: 13px; }
+/* Why the retire control is disabled (the 4-dead-weeks rule). */
+.game-retire-hint { margin: 8px 0 0; font-size: 12px; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
 .app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
 

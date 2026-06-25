@@ -35,6 +35,10 @@ Given("an established weekly game near me", async ({ world }) => {
   world.game = await seedStandingGame(NEAR);
 });
 
+Given("a long-dead established weekly game near me", async ({ world }) => {
+  world.game = await seedStandingGame({ ...NEAR, dead: true }); // no game in 4+ weeks → retire-eligible
+});
+
 Given("an established weekly game outside my travel radius", async ({ world }) => {
   world.game = await seedStandingGame(FAR);
 });
