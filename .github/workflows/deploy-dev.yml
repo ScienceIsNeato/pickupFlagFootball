@@ -1,0 +1,26 @@
+name: Deploy dev
+
+# Every push to develop → build → unit tests → deploy to the dev service.
+# Wild west: full app open (COMING_SOON unset), no e2e gate, scales to zero.
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pipeline:
+    uses: ./.github/workflows/_pipeline.yml
+    with:
+      environment: dev
+      service_name: pickupflagfootball-dev
+      app_base_url: ""            # set to the dev *.run.app URL after the first deploy
+      coming_soon: ""            # full app visible
+      db_secret: pff-dev-database-url
+      db_unpooled_secret: pff-dev-database-url-unpooled
+      run_e2e: false
+      min_instances: "0"
+    secrets: inherit
