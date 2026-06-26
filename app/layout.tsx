@@ -23,6 +23,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${barlow.variable}`}>
       <body>
         <FlagFieldCanvas />
+        {/* Unmistakable marker on the dev site (keyed off its base URL) so it's
+            never confused with prod. Renders nowhere else. */}
+        {process.env.APP_BASE_URL?.includes("//dev.") && (
+          <div
+            aria-hidden
+            style={{
+              position: "fixed",
+              top: 8,
+              left: 8,
+              zIndex: 9999,
+              fontFamily: "var(--font-barlow), sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              padding: "3px 9px",
+              borderRadius: 5,
+              background: "#f4c430",
+              color: "#1a1a1a",
+              opacity: 0.92,
+              pointerEvents: "none",
+            }}
+          >
+            dev
+          </div>
+        )}
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
