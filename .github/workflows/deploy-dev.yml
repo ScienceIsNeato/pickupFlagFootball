@@ -17,7 +17,7 @@ jobs:
     with:
       environment: dev
       service_name: pickupflagfootball-dev
-      app_base_url: https://pickupflagfootball-dev-7edlhkv5cq-uc.a.run.app
+      app_base_url: https://dev.pickupflagfootball.com
       coming_soon: ""            # full app visible
       db_secret: pff-dev-database-url
       db_unpooled_secret: pff-dev-database-url-unpooled
