@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reworked the account page into three side-by-side sections: supporting the project (a supporter badge + thank-you for donors, or the ask + reminder choice for everyone else), your name plus a snapshot of the games you're in, and your location. Name and location now save independently so editing one can't wipe the other.",
-    "direction": "Open to the next thing — more live-testing fixes or a new feature.",
-    "last_update": "2026-06-25T02:00:00Z"
+    "status": "Split dev and production into separate environments with their own databases. Pushing the dev branch ships a wide-open dev site; the main branch ships to production behind a full test gate, and production stays parked behind a 'coming soon' page until we're ready for real traffic.",
+    "direction": "Wire up the dev database + first dev deploy, then run the whole pipeline through end to end.",
+    "last_update": "2026-06-25T22:30:00Z"
   }
 }
