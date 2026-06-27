@@ -21,6 +21,10 @@ jobs:
       coming_soon: ""            # full app visible
       db_secret: pff-dev-database-url
       db_unpooled_secret: pff-dev-database-url-unpooled
+      # Stripe TEST mode on dev:
+      stripe_secret_key_secret: pff-dev-stripe-secret-key
+      stripe_webhook_secret_secret: pff-dev-stripe-webhook-secret
+      stripe_price_id: price_1Tm8ah5dNONyK4ZWXwfedPnn      # test-mode price
       run_e2e: false
       min_instances: "0"
     secrets: inherit
