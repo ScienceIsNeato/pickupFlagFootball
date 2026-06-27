@@ -15,17 +15,33 @@ type OccNotifKind = "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
 // must not keep tallying, notifying, or completing weeks.
 const activeSeries = sql`exists (select 1 from games g where g.id = ${gameOccurrences.gameId} and g.status = 'active')`;
 
+/** Scheduled sweep: advance the occurrence FSM for every active game. */
 export async function runOccurrences(db: EngineDb, now: Date): Promise<void> {
+  await runOccurrenceSteps(db, now);
+}
+
+/** Event-driven entry: advance just this game's occurrence FSM now (a join, a
+ *  captain resume, etc.). Same idempotent steps as the sweep, scoped to one game
+ *  so an event doesn't re-scan every series. */
+export async function evaluateOccurrence(db: EngineDb, gameId: string, now: Date): Promise<void> {
+  await runOccurrenceSteps(db, now, gameId);
+}
+
+async function runOccurrenceSteps(db: EngineDb, now: Date, gameId?: string): Promise<void> {
   let firstErr: unknown;
   const guard = async (fn: () => Promise<void>) => {
     try { await fn(); } catch (e) { firstErr ??= e; }
   };
-  await guard(() => openDuePolls(db, now));
-  await guard(() => tallyClosedPolls(db, now));
-  await guard(() => notifyDecided(db, now));
-  await guard(() => markPlayed(db, now));
+  await guard(() => openDuePolls(db, now, gameId));
+  await guard(() => tallyClosedPolls(db, now, gameId));
+  await guard(() => notifyDecided(db, now, gameId));
+  await guard(() => markPlayed(db, now, gameId));
   if (firstErr) throw firstErr;
 }
+
+/** Scope a step to one game when given (event path), or all games (sweep). */
+const only = (gameId: string | undefined) =>
+  gameId ? [eq(gameOccurrences.gameId, gameId)] : [];
 
 /** kickoff datetime = the occurrence date at the recurring time of day. */
 function kickoffAt(date: string, recurTime: string): Date {
@@ -60,13 +76,14 @@ async function nextOpenableDate(
 /** For each active standing game whose next occurrence's poll window has opened,
  *  lazily create the occurrence row (status=polling) and email the roster the
  *  RSVP request. "pending" is implicit — a row only exists once polling starts. */
-async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
+async function openDuePolls(db: EngineDb, now: Date, gameId?: string): Promise<void> {
+  const filter = gameId ? sql` and g.id = ${gameId}` : sql``;
   const res = await db.execute(sql`
     select g.id as game_id, g.recur_dow, g.recur_time, g.scheduled_start,
            extract(epoch from a.polling_start_offset) as offset_s,
            extract(epoch from a.polling_window_length) as window_s
     from games g join areas a on a.id = g.area_id
-    where g.is_standing = true and g.status = 'active'
+    where g.is_standing = true and g.status = 'active'${filter}
   `);
   const rows = (((res as { rows?: unknown[] }).rows ?? []) as Array<{
     game_id: string; recur_dow: number | null; recur_time: string | null;
@@ -105,9 +122,9 @@ async function openDuePolls(db: EngineDb, now: Date): Promise<void> {
 
 // ── 2. tally closed polls ────────────────────────────────────────────────────
 /** Poll window closed: count the "in" RSVPs and decide scheduled vs skipped. */
-async function tallyClosedPolls(db: EngineDb, now: Date): Promise<void> {
+async function tallyClosedPolls(db: EngineDb, now: Date, gameId?: string): Promise<void> {
   const due = await db.select().from(gameOccurrences)
-    .where(and(eq(gameOccurrences.status, "polling"), lte(gameOccurrences.pollClosesAt, now), activeSeries));
+    .where(and(eq(gameOccurrences.status, "polling"), lte(gameOccurrences.pollClosesAt, now), activeSeries, ...only(gameId)));
   for (const occ of due) {
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -129,9 +146,9 @@ async function tallyClosedPolls(db: EngineDb, now: Date): Promise<void> {
 // ── 3. notify decided ────────────────────────────────────────────────────────
 /** Both scheduled and skipped send the status email. Scheduled then awaits
  *  kickoff; skipped is done for the week (next week is a fresh occurrence). */
-async function notifyDecided(db: EngineDb, now: Date): Promise<void> {
+async function notifyDecided(db: EngineDb, now: Date, gameId?: string): Promise<void> {
   const due = await db.select().from(gameOccurrences)
-    .where(and(inArray(gameOccurrences.status, ["scheduled", "skipped"]), isNull(gameOccurrences.notifiedAt), activeSeries));
+    .where(and(inArray(gameOccurrences.status, ["scheduled", "skipped"]), isNull(gameOccurrences.notifiedAt), activeSeries, ...only(gameId)));
   for (const occ of due) {
     await db.transaction(async (txx) => {
       const tx = txx as unknown as EngineDb;
@@ -154,9 +171,9 @@ async function notifyDecided(db: EngineDb, now: Date): Promise<void> {
 
 // ── 4. mark played ───────────────────────────────────────────────────────────
 /** A scheduled occurrence becomes played once kickoff passes. */
-async function markPlayed(db: EngineDb, now: Date): Promise<void> {
+async function markPlayed(db: EngineDb, now: Date, gameId?: string): Promise<void> {
   await db.update(gameOccurrences).set({ status: "played", updatedAt: now })
-    .where(and(eq(gameOccurrences.status, "awaiting_game"), lte(gameOccurrences.kickoffAt, now), activeSeries));
+    .where(and(eq(gameOccurrences.status, "awaiting_game"), lte(gameOccurrences.kickoffAt, now), activeSeries, ...only(gameId)));
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

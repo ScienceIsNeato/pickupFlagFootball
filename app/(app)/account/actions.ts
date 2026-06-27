@@ -8,6 +8,7 @@ import { users, activityTypes } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
+import { sparkArea } from "@/lib/mime/trigger";
 import { str } from "@/lib/forms";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
@@ -89,6 +90,9 @@ export async function updateLocation(_prev: SaveResult | null, formData: FormDat
         // active interest either.
         await db.update(users).set(update).where(eq(users.id, session.user.id!));
         await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
+        // Event-driven: interest just landed in this area — evaluate it now so a
+        // game can spark in-request rather than waiting for the next cron tick.
+        await sparkArea(activityTypeId, areaId);
         revalidatePath("/account");
         return { ok: true };
       } else {

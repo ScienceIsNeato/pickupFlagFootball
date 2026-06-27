@@ -8,6 +8,7 @@ import { txnDb } from "@/lib/db/pool";
 import { games, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { retireEligibility } from "@/lib/games/retireEligibility";
+import { runOccurrence } from "@/lib/mime/trigger";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
@@ -89,6 +90,9 @@ async function setSeriesStatus(
     return false;
   });
   if (raced) return { ok: false, error: "the series state just changed — try again" };
+  // Event-driven: a resume can re-open a due poll immediately; pause/retire just
+  // NOOP through the (now-inactive) series. Either way, reconcile this game now.
+  await runOccurrence(gameId);
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };
