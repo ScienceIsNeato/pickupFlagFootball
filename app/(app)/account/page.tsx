@@ -8,7 +8,7 @@ import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { UsernameForm } from "@/components/UsernameForm";
 import { LocationForm } from "@/components/LocationForm";
-import { updateDonationPref } from "./actions";
+import { updateDonationPref, saveDonationReminder } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account — MIME-FF" };
@@ -91,14 +91,10 @@ export default async function AccountPage() {
                 helps more local games get off the ground — an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              <form className="reg-form" action={updateDonationPref}>
+              <form className="reg-form" action={saveDonationReminder}>
                 <label className="donate-opt">
-                  <input type="radio" name="donation_status" value="unset" defaultChecked={me.donationStatus !== "declined"} />
-                  <span>remind me later</span>
-                </label>
-                <label className="donate-opt">
-                  <input type="radio" name="donation_status" value="declined" defaultChecked={me.donationStatus === "declined"} />
-                  <span>i&apos;d rather not donate — stop asking</span>
+                  <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+                  <span>remind me to make a small monthly donation once I find a game</span>
                 </label>
                 <button type="submit" className="btn-green">save preference</button>
               </form>

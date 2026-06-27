@@ -4,17 +4,31 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { skin } from "@/lib/skin";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { users, gameRoster, games } from "@/lib/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
+import { DonationReminderBanner } from "@/components/DonationReminderBanner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const loggedIn = !!session?.user?.id;
   let unverified = false;
+  let remindDonate = false;
   if (loggedIn) {
-    const [u] = await db.select({ v: users.emailVerified }).from(users).where(eq(users.id, session!.user!.id!)).limit(1);
+    const uid = session!.user!.id!;
+    const [u] = await db.select({ v: users.emailVerified, ds: users.donationStatus })
+      .from(users).where(eq(users.id, uid)).limit(1);
     unverified = !!u && !u.v; // a real account that hasn't confirmed its email
+    // Support nudge: reminder still on AND they're actually on a weekly game
+    // ("once I find a game"). Skip while unverified — that banner takes priority,
+    // and an unconfirmed account can't be on a roster anyway.
+    if (u && u.ds === "unset" && !unverified) {
+      const mine = await db.select({ g: gameRoster.gameId })
+        .from(gameRoster).innerJoin(games, eq(games.id, gameRoster.gameId))
+        .where(and(eq(gameRoster.userId, uid), inArray(games.status, ["active", "paused"])))
+        .limit(1);
+      remindDonate = mine.length > 0;
+    }
   }
   return (
     <>
@@ -35,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="app-frost" aria-hidden />
       {unverified && <UnverifiedBanner />}
+      {remindDonate && <DonationReminderBanner />}
       <div className="app-body">{children}</div>
 
       <footer className="app-foot">
