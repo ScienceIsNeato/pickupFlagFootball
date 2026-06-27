@@ -546,6 +546,25 @@ section h2::after {
 .unverified-resend:hover:not(:disabled) { background: rgba(0,0,0,.2); }
 .unverified-resend:disabled { opacity: 0.65; cursor: default; }
 
+/* Support nudge — same shape as the unverified banner, green "supporter" tone. */
+.donate-banner {
+  position: fixed; top: 72px; left: 12px; z-index: 20; max-width: calc(100% - 24px);
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+  font-size: 13px; color: #eafff0; background: #2f7a39;
+  box-shadow: 0 6px 18px rgba(0,0,0,.28);
+}
+.donate-banner-dot { flex: none; font-size: 13px; line-height: 1; }
+.donate-banner-cta {
+  flex: none; font-weight: 700; color: #1a1407; background: var(--yellow);
+  border-radius: 6px; padding: 3px 9px; text-decoration: none;
+}
+.donate-banner-cta:hover { filter: brightness(1.05); }
+.donate-banner-stop {
+  flex: none; cursor: pointer; font: inherit; color: inherit; opacity: 0.82;
+  background: rgba(255,255,255,.14); border: none; border-radius: 6px; padding: 3px 9px;
+}
+.donate-banner-stop:hover { opacity: 1; background: rgba(255,255,255,.22); }
+
 /* right-hand "past games" panel mirrors the left one */
 .mine-right { left: auto; right: 12px; }
 /* per-site default pref toggle */

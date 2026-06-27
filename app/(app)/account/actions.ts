@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, activityTypes } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
 import { str } from "@/lib/forms";
@@ -139,5 +139,33 @@ export async function updateDonationPref(formData: FormData) {
     .set({ donationStatus: value as DonationStatus, updatedAt: new Date() })
     .where(eq(users.id, session.user.id));
 
+  redirect("/account");
+}
+
+// Shared write for the reminder preference: checked → remind ("unset"),
+// unchecked / dismissed → "declined". Never clobbers an active subscription
+// (that status is webhook-managed).
+async function setReminder(userId: string, remind: boolean) {
+  await db
+    .update(users)
+    .set({ donationStatus: remind ? "unset" : "declined", updatedAt: new Date() })
+    .where(and(eq(users.id, userId), ne(users.donationStatus, "subscribed")));
+}
+
+/** Banner "stop asking for contributions" — turns the reminder off and refreshes
+ *  the layout so the banner disappears app-wide. Stays put (no navigation). */
+export async function dismissDonationReminder() {
+  const session = await auth();
+  if (!session?.user?.id) return;
+  await setReminder(session.user.id, false);
+  revalidatePath("/", "layout");
+}
+
+/** Account checkbox: "remind me to make a small monthly donation once I find a
+ *  game". Present (checked) → remind; absent (unchecked) → stop asking. */
+export async function saveDonationReminder(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/api/auth/signin");
+  await setReminder(session.user.id, formData.get("remind") != null);
   redirect("/account");
 }
