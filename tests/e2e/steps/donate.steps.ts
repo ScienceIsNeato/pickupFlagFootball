@@ -43,8 +43,11 @@ Then("the donation reminder is back on", async ({ world }) => {
 });
 
 // ── support-nudge banner ─────────────────────────────────────────────────────
-Given("I am on that game's roster", async ({ world }) => {
+Given("I am on that game's roster", async ({ page, world }) => {
   await seedRosterMember(world.game!.gameId!, world.email!);
+  // Load the map so this step's report screenshot reflects the seeded state
+  // (member of an active game) rather than a stale pre-seed page.
+  await page.goto("/play");
 });
 
 When("I open the map", async ({ page }) => {
