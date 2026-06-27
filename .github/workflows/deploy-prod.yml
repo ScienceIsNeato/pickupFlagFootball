@@ -21,6 +21,10 @@ jobs:
       coming_soon: "1"          # splash gate ON
       db_secret: pff-database-url
       db_unpooled_secret: pff-database-url-unpooled
+      # Stripe LIVE mode on prod:
+      stripe_secret_key_secret: pff-stripe-secret-key
+      stripe_webhook_secret_secret: pff-stripe-webhook-secret
+      stripe_price_id: price_1Tmqd97dX3bjywYI5k8NaeTU     # live-mode price
       run_e2e: true             # full Playwright gate before prod
       min_instances: "1"
     secrets: inherit

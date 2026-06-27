@@ -12,6 +12,10 @@ on:
       coming_soon:        { type: string, required: false, default: "" }   # "1" = show splash (prod)
       db_secret:          { type: string, required: true }   # Secret Manager name for DATABASE_URL
       db_unpooled_secret: { type: string, required: true }   # …for DATABASE_URL_UNPOOLED
+      # Stripe per-env: dev → test keys/webhook/price, prod → live.
+      stripe_secret_key_secret:     { type: string, required: true }   # …for STRIPE_SECRET_KEY
+      stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
+      stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -27,16 +31,13 @@ env:
   # Shared non-secret runtime config:
   BREVO_SENDER_EMAIL: support@pickupflagfootball.com
   BREVO_SENDER_NAME: Pickup Flag Football
-  STRIPE_PRICE_ID: price_CHANGE_ME
   EMAIL_TRANSPORT: brevo
   NEXT_PUBLIC_SUPPORT_EMAIL: support@pickupflagfootball.com
-  # Shared Secret Manager entry names (DB secrets come in per-env as inputs):
+  # Shared Secret Manager entry names (DB + Stripe secrets come in per-env as inputs):
   AUTH_SECRET_SECRET: pff-auth-secret
   AUTH_GOOGLE_ID_SECRET: pff-auth-google-id
   AUTH_GOOGLE_SECRET_SECRET: pff-auth-google-secret
   CRON_SECRET_SECRET: pff-cron-secret
-  STRIPE_SECRET_KEY_SECRET: pff-stripe-secret-key
-  STRIPE_WEBHOOK_SECRET_SECRET: pff-stripe-webhook-secret
   BREVO_API_KEY_SECRET: pff-brevo-api-key
 
 jobs:
@@ -124,7 +125,7 @@ jobs:
             "${{ inputs.db_secret }}" "${{ inputs.db_unpooled_secret }}" \
             "${{ env.AUTH_SECRET_SECRET }}" "${{ env.AUTH_GOOGLE_ID_SECRET }}" \
             "${{ env.AUTH_GOOGLE_SECRET_SECRET }}" "${{ env.CRON_SECRET_SECRET }}" \
-            "${{ env.STRIPE_SECRET_KEY_SECRET }}" "${{ env.STRIPE_WEBHOOK_SECRET_SECRET }}" \
+            "${{ inputs.stripe_secret_key_secret }}" "${{ inputs.stripe_webhook_secret_secret }}" \
             "${{ env.BREVO_API_KEY_SECRET }}"; do
             gcloud secrets versions access latest --secret="$s" --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 \
               || { echo "::error::Missing/inaccessible secret: $s"; fail=1; }
@@ -143,8 +144,8 @@ jobs:
           gcloud run deploy ${{ inputs.service_name }} \
             --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
-            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;COMING_SOON=${{ inputs.coming_soon }};APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ env.STRIPE_PRICE_ID }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
-            --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ env.STRIPE_SECRET_KEY_SECRET }}:latest,STRIPE_WEBHOOK_SECRET=${{ env.STRIPE_WEBHOOK_SECRET_SECRET }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;COMING_SOON=${{ inputs.coming_soon }};APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
+            --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
       - name: Verify deployment
