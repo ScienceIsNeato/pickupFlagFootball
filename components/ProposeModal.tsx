@@ -36,10 +36,14 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
       style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
         border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
       <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
-        thanks for proposing a game!
+        Game proposed!
       </h2>
-      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 6px", lineHeight: 1.55 }}>
-        our matching engine will take care of the rest — you should be receiving an official invite shortly.
+      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 10px", lineHeight: 1.55 }}>
+        We&apos;ll see if any other games have been proposed in the area and spend the next 48 hours
+        gathering interest. At the end of that time, we&apos;ll let you know if a game has formed or not.
+      </p>
+      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px", lineHeight: 1.55 }}>
+        That&apos;s all you have to do for now — thank you for supporting community sports!
       </p>
       <button type="button" className="btn-green" onClick={onClose}>got it</button>
     </div>

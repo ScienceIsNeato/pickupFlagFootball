@@ -29,7 +29,7 @@ Then("I am a captain of the scheduled game", async ({ world }) => {
 Then("I am already in the game as its captain", async ({ page }) => {
   const card = page.locator(".game-card");
   await expect(card).toContainText(/captain controls/i, { timeout: 10000 });
-  await expect(card).toContainText(/you.re in/i);
+  await expect(card).toContainText(/found your weekly game/i);
   await expect(card).not.toContainText(/join weekly game/i);
   await expect(card).not.toContainText(/this game has no captain/i);
 });

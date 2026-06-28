@@ -228,11 +228,17 @@ export async function proposeAsUser(email: string, o: {
     );
     cohort.push(String(nb.id));
   }
+  // Reused areas may already carry a prior attempt — derive the next number rather
+  // than hardcoding 1 (which would seed a bogus second "first attempt").
+  const { rows: [next] } = await pool.query(
+    "SELECT COALESCE(MAX(attempt_number), 0) + 1 AS n FROM formation_attempts WHERE area_id = $1",
+    [area.id],
+  );
   const { rows: [attempt] } = await pool.query(
     `INSERT INTO formation_attempts
        (activity_type_id, area_id, attempt_number, status, cohort_user_ids, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, 1, 'SUGGESTING', $3, now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
-    [act.id, area.id, cohort],
+     VALUES ($1, $2, $3, 'SUGGESTING', $4, now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id, next.n, cohort],
   );
   await pool.query(
     `INSERT INTO suggestions

@@ -283,7 +283,14 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   await db.update(formationAttempts).set({ status: "CONFIRMED", scheduledGameId: game.id })
     .where(eq(formationAttempts.id, att.id));
   await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, att.areaId));
-  await enqueue(db, roster.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
+  // The "game on" summary goes to every interested party we courted (the cohort),
+  // not just the committed roster — neighbours who didn't vote still hear a game
+  // formed nearby and can come join. Roster members are deduped in; opt-outs out.
+  const gameOnRecipients = [...new Set([
+    ...roster,
+    ...(att.cohortUserIds ?? []).filter((u) => !optedOut.has(u)),
+  ])];
+  await enqueue(db, gameOnRecipients.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
 }
 
 async function stall(

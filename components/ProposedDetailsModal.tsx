@@ -6,7 +6,7 @@ import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { declineSite, reExpressInterest } from "@/app/(app)/play/optout-actions";
 
-type Site = { areaId: string; city: string | null; zip: string | null; status: string | null; captains: string[]; viewerOptedOut: boolean };
+type Site = { areaId: string; city: string | null; zip: string | null; status: string | null; phaseClosesAt: string | null; captains: string[]; viewerOptedOut: boolean };
 type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
 type FirstWhen = { firstGameAt: string; recurDow: number | null; recurTime: string | null };
 type Data = { site: Site | null; firstPlaceText: string | null; firstWhen: FirstWhen | null; activity: Activity[] };
@@ -29,6 +29,17 @@ function whenAbsolute(iso: string): string {
 function firstLine(placeText: string): string {
   // Suggestions are stored as "street, city zip — notes". Show the street line.
   return placeText.split(" — ")[0];
+}
+/** "2 days left" / "11h left" / "47m left" / "closing now" — how long is left in
+ *  the current forming phase, for the popup status countdown. */
+function timeLeft(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "closing now";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m left`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h left`;
+  return `${Math.round(hours / 24)} days left`;
 }
 /** "Mondays at 6:30 pm" for a recurring slot, or "Mon Jun 23 at 6:30 pm" for a
  *  one-off. The first-game date is returned separately so the renderer can show
@@ -167,7 +178,10 @@ export function ProposedDetailsModal({
                 </>
               )}
               <dt>status</dt>
-              <dd>{(site.status && STATUS_LABEL[site.status]) ?? "forming"}</dd>
+              <dd>
+                {(site.status && STATUS_LABEL[site.status]) ?? "forming"}
+                {site.phaseClosesAt && <span className="game-muted"> · {timeLeft(site.phaseClosesAt)}</span>}
+              </dd>
               {site.captains.length > 0 && (
                 <>
                   <dt>captain{site.captains.length > 1 ? "s" : ""}</dt>

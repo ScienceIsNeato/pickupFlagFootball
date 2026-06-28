@@ -79,10 +79,20 @@ export async function GET(req: Request) {
   }
   if (!best) return NextResponse.json({ site: null });
 
-  const [attempt] = await db.select({ id: formationAttempts.id, status: formationAttempts.status })
+  const [attempt] = await db.select({
+    id: formationAttempts.id, status: formationAttempts.status,
+    suggestionClosesAt: formationAttempts.suggestionClosesAt,
+    availabilityClosesAt: formationAttempts.availabilityClosesAt,
+  })
     .from(formationAttempts)
     .where(and(eq(formationAttempts.areaId, best.id), inArray(formationAttempts.status, [...LIVE])))
     .limit(1);
+  // When the current phase closes — drives the "· 2 days left" countdown in the
+  // popup status. SUGGESTING counts down its suggestion window; AVAILABILITY its
+  // availability window; the transient COMPILING/ADJUDICATING ticks have none.
+  const phaseClose = attempt?.status === "SUGGESTING" ? attempt.suggestionClosesAt
+    : attempt?.status === "AVAILABILITY" ? attempt.availabilityClosesAt
+    : null;
 
   // Suggestions (oldest first — the earliest is the proposer).
   const sRows = attempt
@@ -160,7 +170,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     site: {
       areaId: best.id, city: best.city, zip: best.zip,
-      status: attempt?.status ?? null, captains, viewerOptedOut: !!optedOut,
+      status: attempt?.status ?? null,
+      phaseClosesAt: phaseClose ? new Date(phaseClose).toISOString() : null,
+      captains, viewerOptedOut: !!optedOut,
     },
     firstPlaceText,
     firstWhen,

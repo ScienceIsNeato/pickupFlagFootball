@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The 'someone suggests a game' tests now show the actual emails going out at each step — the neighbor invites, the 'game on' note, and a 'not enough players' note I had to switch on (it was written but never being sent). Also fixed it so whoever suggests a game is automatically in it.",
+    "status": "Polished the propose-a-game flow: a friendly 'game proposed!' confirmation, a countdown showing how long the gathering phase has left, the person who proposed it shown as already in and running it, and the 'game formed / didn't form' summary now goes to everyone nearby who was interested. Also cleaned up a few review notes.",
     "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-28T03:00:00Z"
+    "last_update": "2026-06-28T04:00:00Z"
   }
 }

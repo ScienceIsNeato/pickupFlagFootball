@@ -55,9 +55,18 @@ export async function allEmails(): Promise<{ to: string; subject: string; html: 
   const data = (await res.json()) as { messages?: MailpitListItem[] };
   const out: { to: string; subject: string; html: string }[] = [];
   for (const m of data.messages ?? []) {
-    const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
-    const full = detail.ok ? ((await detail.json()) as { HTML?: string }) : { HTML: "" };
-    out.push({ to: (m.To ?? [])[0]?.Address ?? "", subject: m.Subject, html: full.HTML ?? "" });
+    // A slow/aborted detail fetch must degrade to empty HTML, not abort the whole
+    // outbox read (which would take down every email assertion).
+    let full: { HTML?: string } = { HTML: "" };
+    try {
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
+      if (detail.ok) full = (await detail.json()) as { HTML?: string };
+    } catch { /* leave full as empty HTML */ }
+    // One row per recipient so multi-recipient messages aren't undercounted.
+    const recipients = (m.To ?? []).map((t) => t.Address);
+    for (const to of recipients.length ? recipients : [""]) {
+      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
+    }
   }
   return out;
 }
