@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "MIME now reacts the moment things change — joining a game, a captain pausing or resuming, or someone updating where they live kicks off processing right away instead of waiting for the next scheduled pass. Also made fresh Stripe branding from the game badge.",
-    "direction": "Running the new event-driven work through the dev site to watch it behave with real traffic, then on to production.",
-    "last_update": "2026-06-28T00:00:00Z"
+    "status": "Cleaned up the account page — one Save Changes button instead of three, and your membership (free or monthly supporter) is now front and center. Earlier: MIME reacts instantly to joins/captain actions/location changes, plus fresh Stripe branding.",
+    "direction": "Running the new work through the dev site to watch it behave with real traffic, then on to production.",
+    "last_update": "2026-06-28T01:00:00Z"
   }
 }

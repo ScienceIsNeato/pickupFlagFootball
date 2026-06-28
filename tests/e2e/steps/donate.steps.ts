@@ -81,13 +81,13 @@ When("I turn off the donation reminder in account settings", async ({ page }) =>
   const cb = page.locator('input[name="remind"]');
   await expect(cb).toBeChecked();
   await cb.uncheck();
-  await page.getByRole("button", { name: /save preference/i }).click();
-  await page.waitForURL("**/account", { timeout: 10000 });
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
 });
 
 When("I turn on the donation reminder in account settings", async ({ page }) => {
   await page.goto("/account");
   await page.locator('input[name="remind"]').check();
-  await page.getByRole("button", { name: /save preference/i }).click();
-  await page.waitForURL("**/account", { timeout: 10000 });
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
 });

@@ -6,9 +6,8 @@ import { db } from "@/lib/db";
 import { users, gameRoster, games, areas, areaCaptains } from "@/lib/db/schema";
 import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
-import { UsernameForm } from "@/components/UsernameForm";
-import { LocationForm } from "@/components/LocationForm";
-import { updateDonationPref, saveDonationReminder } from "./actions";
+import { AccountForm } from "@/components/AccountForm";
+import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account — MIME-FF" };
@@ -62,28 +61,32 @@ export default async function AccountPage() {
       <h1 className="reg-h">your account</h1>
       <p className="reg-blurb">signed in as <strong>{session.user.email}</strong>.</p>
 
+      <AccountForm>
       <div className="account-grid">
         {/* LEFT — supporting the project */}
         <section className="account-col">
           <h2 className="account-col-h">supporting the project</h2>
+          <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
+            <span className="acct-membership-label">membership</span>
+            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
+          </div>
           {supporting ? (
-            <div className="acct-support-on">
-              <span className="acct-support-badge">supporter 💚</span>
+            <>
               <p className="reg-hint">
                 thank you for chipping in. your support keeps the servers on — and it&apos;s what lets
                 people like you find games in brand-new areas.
               </p>
               {me.stripeSubscriptionId ? (
-                <form action={openBillingPortal}>
-                  <button type="submit" className="btn-green">manage subscription</button>
-                </form>
+                <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
+                  manage subscription
+                </button>
               ) : (
-                <form action={updateDonationPref}>
-                  <input type="hidden" name="donation_status" value="unset" />
-                  <button type="submit" className="game-leave">no longer donating? reset this</button>
-                </form>
+                <button type="submit" formAction={updateDonationPref} formNoValidate
+                  name="donation_status" value="unset" className="game-leave">
+                  no longer donating? reset this
+                </button>
               )}
-            </div>
+            </>
           ) : (
             <>
               <p className="reg-hint">
@@ -91,21 +94,24 @@ export default async function AccountPage() {
                 helps more local games get off the ground — an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              <form className="reg-form" action={saveDonationReminder}>
-                <label className="donate-opt">
-                  <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
-                  <span>remind me to make a small monthly donation once I find a game</span>
-                </label>
-                <button type="submit" className="btn-green">save preference</button>
-              </form>
+              <label className="donate-opt">
+                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+                <span>remind me to make a small monthly donation once I find a game</span>
+              </label>
             </>
           )}
         </section>
 
-        {/* MIDDLE — you: username + game-membership vitals */}
+        {/* MIDDLE — you: display name + game-membership vitals */}
         <section className="account-col">
           <h2 className="account-col-h">you</h2>
-          <UsernameForm displayName={me.displayName ?? ""} />
+          <div className="reg-form">
+            <label>
+              display name
+              <input type="text" name="displayName" placeholder="first name or nickname"
+                defaultValue={me.displayName ?? ""} autoComplete="given-name" />
+            </label>
+          </div>
           <div className="acct-vitals">
             <p className="reg-section">your games</p>
             {vitals.length === 0 ? (
@@ -129,16 +135,48 @@ export default async function AccountPage() {
         {/* RIGHT — location */}
         <section className="account-col">
           <h2 className="account-col-h">location</h2>
-          <LocationForm initial={{
-            zip: me.zip ?? "",
-            addressLine1: me.addressLine1 ?? "",
-            addressLine2: me.addressLine2 ?? "",
-            city: me.city ?? "",
-            state: me.state ?? "",
-            travelMiles,
-          }} />
+          <div className="reg-form">
+            <label>
+              zip code
+              <input type="text" name="zip" placeholder="52241" inputMode="numeric"
+                autoComplete="postal-code" pattern="[0-9]{5}" required defaultValue={me.zip ?? ""} />
+            </label>
+            <p className="reg-section">your address <span className="reg-optional">(optional — sharpens distance to games)</span></p>
+            <label>
+              street address
+              <input type="text" name="address_line1" placeholder="1806 Brown Deer Trail"
+                autoComplete="address-line1" defaultValue={me.addressLine1 ?? ""} />
+            </label>
+            <label>
+              apt / suite / unit
+              <input type="text" name="address_line2" placeholder="Apt 4"
+                autoComplete="address-line2" defaultValue={me.addressLine2 ?? ""} />
+            </label>
+            <div className="reg-row">
+              <label>
+                city
+                <input type="text" name="city" placeholder="Coralville"
+                  defaultValue={me.city ?? ""} autoComplete="address-level2" />
+              </label>
+              <label className="reg-state">
+                state
+                <input type="text" name="state" placeholder="IA" maxLength={20}
+                  defaultValue={me.state ?? ""} autoComplete="address-level1" />
+              </label>
+            </div>
+            <label>
+              how far will you travel? (miles)
+              <input type="number" name="max_travel_miles" min="1" max="100" step="1"
+                defaultValue={travelMiles} inputMode="numeric" />
+            </label>
+            <p className="reg-hint">
+              your address and travel distance are only used to measure how far games
+              are from you — never shown to anyone. <Link href="/privacy">privacy</Link>.
+            </p>
+          </div>
         </section>
       </div>
+      </AccountForm>
     </main>
   );
 }
