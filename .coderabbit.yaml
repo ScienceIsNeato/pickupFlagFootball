@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit config. By default auto-review only runs on PRs targeting the
+# default branch (main); this repo also gates feature → develop, so enable
+# auto-review on develop too.
+language: en-US
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - main
+      - develop

@@ -17,12 +17,12 @@ COPY . .
 ARG NEXT_PUBLIC_SUPPORT_EMAIL
 ENV NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL}
 ENV NEXT_TELEMETRY_DISABLED=1
-# The DB clients validate DATABASE_URL at import, and `next build` imports route
-# modules while collecting page data. A throwaway value satisfies that check —
-# no connection is opened at build time (the pool is lazy). Real values are
-# injected from Secret Manager at runtime, never baked into the image.
-ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
-ENV DATABASE_URL_UNPOOLED=postgresql://build:build@localhost:5432/build
+# The DB clients only check DATABASE_URL is non-empty at import (the pool is lazy
+# — no connection is opened at build time), and `next build` imports route modules
+# while collecting page data. A credential-less placeholder satisfies that check.
+# Real values are injected from Secret Manager at runtime, never baked into the image.
+ENV DATABASE_URL=postgresql://localhost:5432/build
+ENV DATABASE_URL_UNPOOLED=postgresql://localhost:5432/build
 RUN npm run build
 
 # ---- production: minimal runtime ----
