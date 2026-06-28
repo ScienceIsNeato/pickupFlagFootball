@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Added end-to-end tests for the whole 'someone suggests a game' story — one where it doesn't draw enough people and quietly fizzles, one where it does and the game gets locked in (with the person who suggested it running it).",
-    "direction": "Get these tests reviewed and merged to dev, then keep filling in coverage gaps.",
-    "last_update": "2026-06-28T02:00:00Z"
+    "status": "The 'someone suggests a game' tests now show the actual emails going out at each step — the neighbor invites, the 'game on' note, and a 'not enough players' note I had to switch on (it was written but never being sent). Also fixed it so whoever suggests a game is automatically in it.",
+    "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
+    "last_update": "2026-06-28T03:00:00Z"
   }
 }

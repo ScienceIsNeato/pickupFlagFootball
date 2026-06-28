@@ -215,11 +215,24 @@ export async function proposeAsUser(email: string, o: {
       [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
     ));
   }
+  // Seed a few nearby "neighbors" as the courting cohort so the formation's emails
+  // (SPARK_ASK now, OPTIONS_AVAILABLE / STALLED_NOTICE on tick) have real
+  // recipients — mirrors the cohort the real proposeGame snapshots at spark time.
+  const tag = String(area.id).slice(0, 8);
+  const cohort: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const { rows: [nb] } = await pool.query(
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
+      [`seed-${tag}-neighbor${i}@example.com`, `Neighbor ${i + 1}`, o.lat, o.lng, o.zip],
+    );
+    cohort.push(String(nb.id));
+  }
   const { rows: [attempt] } = await pool.query(
     `INSERT INTO formation_attempts
-       (activity_type_id, area_id, attempt_number, status, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, 1, 'SUGGESTING', now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
-    [act.id, area.id],
+       (activity_type_id, area_id, attempt_number, status, cohort_user_ids, suggestion_opened_at, suggestion_closes_at)
+     VALUES ($1, $2, 1, 'SUGGESTING', $3, now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id, cohort],
   );
   await pool.query(
     `INSERT INTO suggestions
@@ -232,6 +245,15 @@ export async function proposeAsUser(email: string, o: {
     "INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
     [area.id, userId],
   );
+  // SPARK_ASK to the cohort — pending (emailed_at NULL) until the first tick
+  // flushes it, exactly like the real proposeGame's user-initiated spark.
+  for (const u of cohort) {
+    await pool.query(
+      `INSERT INTO notifications_sent (user_id, attempt_id, kind, channel)
+       VALUES ($1, $2, 'SPARK_ASK', 'email') ON CONFLICT DO NOTHING`,
+      [u, attempt.id],
+    );
+  }
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
 }
 

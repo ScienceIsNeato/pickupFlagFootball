@@ -174,7 +174,7 @@ async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$infe
   const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
 
   if (d.kind === "STALL") {
-    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
+    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest, now);
     return;
   }
 
@@ -237,7 +237,7 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
 
   if (d.kind === "STALL") {
-    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
+    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest, now);
     return;
   }
 
@@ -288,13 +288,19 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
 
 async function stall(
   db: EngineDb, att: typeof formationAttempts.$inferSelect, stallCount: number,
-  reason: string, nextTriggerAt: Date | null, nextTriggerInterest: number
+  reason: string, nextTriggerAt: Date | null, nextTriggerInterest: number, now: Date
 ) {
   await db.update(formationAttempts).set({ status: "FAILED", failureReason: reason })
     .where(eq(formationAttempts.id, att.id));
   await db.update(areas).set({
     status: "STALLED", stallCount: stallCount + 1, nextTriggerAt, nextTriggerInterest,
   }).where(eq(areas.id, att.areaId));
+  // Tell the people we courted that it didn't come together this round — the
+  // formation's cohort, minus anyone who's opted out of the area since. (Interest
+  // sticks around; the area can re-trigger later.)
+  const optedOut = await optedOutUserIds(db, att.areaId);
+  const recipients = (att.cohortUserIds ?? []).filter((u) => !optedOut.has(u));
+  await enqueue(db, recipients.map((userId) => ({ userId, attemptId: att.id, kind: "STALLED_NOTICE" as NotifKind })), now);
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
