@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Split dev and production into separate environments with their own databases. Pushing the dev branch ships a wide-open dev site; the main branch ships to production behind a full test gate, and production stays parked behind a 'coming soon' page until we're ready for real traffic.",
-    "direction": "Wire up the dev database + first dev deploy, then run the whole pipeline through end to end.",
-    "last_update": "2026-06-25T22:30:00Z"
+    "status": "MIME now reacts the moment things change — joining a game, a captain pausing or resuming, or someone updating where they live kicks off processing right away instead of waiting for the next scheduled pass. Also made fresh Stripe branding from the game badge.",
+    "direction": "Running the new event-driven work through the dev site to watch it behave with real traffic, then on to production.",
+    "last_update": "2026-06-28T00:00:00Z"
   }
 }
