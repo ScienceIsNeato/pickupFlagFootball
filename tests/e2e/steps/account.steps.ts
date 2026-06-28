@@ -10,7 +10,7 @@ When("I open my account", async ({ page }) => {
 
 When("I rename myself to {string}", async ({ page }, name: string) => {
   await page.fill("input[name=displayName]", name);
-  await page.getByRole("button", { name: "save name" }).click();
+  await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
 });
 
@@ -23,7 +23,7 @@ Then("my account keeps name {string} and zip {string}", async ({ page }, name: s
 
 When("I change my travel distance to {string}", async ({ page }, miles: string) => {
   await page.fill("input[name=max_travel_miles]", miles);
-  await page.getByRole("button", { name: "save location" }).click();
+  await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
 });
 

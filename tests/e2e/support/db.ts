@@ -59,8 +59,8 @@ export async function seedStandingGame(o: {
     "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
   );
   const { rows: [area] } = await pool.query(
-    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'SCHEDULED') RETURNING id`,
     [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
   );
   // An established game that's been running ~4 weeks: its first occurrence was
@@ -250,8 +250,8 @@ export async function seedWeeklyGameWithClosedPoll(o: {
     "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
   );
   const { rows: [area] } = await pool.query(
-    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'SCHEDULED') RETURNING id`,
     [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
   );
   const { rows: [game] } = await pool.query(

@@ -12,7 +12,7 @@ import { db } from "@/lib/db";
 import { users, games, gameRoster } from "@/lib/db/schema";
 
 const EMAIL = "banner-test@local.test";
-const PASSWORD = "test1234";
+const PASSWORD = "test1234"; // pragma: allowlist secret — throwaway local-test password, not a real credential
 
 async function main() {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);

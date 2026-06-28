@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games, gameOccurrences } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
+import { runOccurrence } from "@/lib/mime/trigger";
 import { occurrenceDatesInRange, kickoffAtFor } from "@/lib/datetime";
 
 /**
@@ -42,6 +43,9 @@ export async function setAttendance(formData: FormData) {
       .where(eq(games.id, gameId));
   }
 
+  // Event-driven: the roster just changed — re-run this game's occurrence FSM now
+  // (an open poll's headcount may have shifted) instead of waiting for the tick.
+  await runOccurrence(gameId);
   revalidatePath("/my-games");
 }
 
