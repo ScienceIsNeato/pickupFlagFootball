@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Cleaned up the account page — one Save Changes button instead of three, and your membership (free or monthly supporter) is now front and center. Earlier: MIME reacts instantly to joins/captain actions/location changes, plus fresh Stripe branding.",
-    "direction": "Running the new work through the dev site to watch it behave with real traffic, then on to production.",
-    "last_update": "2026-06-28T01:00:00Z"
+    "status": "Added end-to-end tests for the whole 'someone suggests a game' story — one where it doesn't draw enough people and quietly fizzles, one where it does and the game gets locked in (with the person who suggested it running it).",
+    "direction": "Get these tests reviewed and merged to dev, then keep filling in coverage gaps.",
+    "last_update": "2026-06-28T02:00:00Z"
   }
 }

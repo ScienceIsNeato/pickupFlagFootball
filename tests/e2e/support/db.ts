@@ -187,6 +187,54 @@ export async function seedFormingAttempt(o: {
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
 }
 
+/** A confirmed player proposes a game at `site` — mirrors the proposeGame action's
+ *  user-initiated spark: find-or-create the area, open a SUGGESTING attempt, record
+ *  the proposer's own suggestion, and make them a captain of the site. Unlike
+ *  seedFormingAttempt, the proposer IS the test user (so we can assert their view). */
+export async function proposeAsUser(email: string, o: {
+  lat: number; lng: number; placeText: string; city: string; zip: string;
+}): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
+  const DAY = 86_400_000;
+  const userId = await getUserId(email);
+  const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
+  const { rows: [act] } = await pool.query(
+    "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
+  );
+  // Find-or-create the area for the venue's cell — registration may already own it
+  // when the proposer's home falls in the same H3 r7 cell. Either way → IN_FORMATION.
+  let { rows: [area] } = await pool.query(
+    "SELECT id FROM areas WHERE activity_type_id = $1 AND h3_cell = $2 LIMIT 1",
+    [act.id, h3Cell],
+  );
+  if (area) {
+    await pool.query("UPDATE areas SET status = 'IN_FORMATION' WHERE id = $1", [area.id]);
+  } else {
+    ({ rows: [area] } = await pool.query(
+      `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'IN_FORMATION') RETURNING id`,
+      [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
+    ));
+  }
+  const { rows: [attempt] } = await pool.query(
+    `INSERT INTO formation_attempts
+       (activity_type_id, area_id, attempt_number, status, suggestion_opened_at, suggestion_closes_at)
+     VALUES ($1, $2, 1, 'SUGGESTING', now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id],
+  );
+  await pool.query(
+    `INSERT INTO suggestions
+       (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
+     VALUES ($1, $2, $3, $4, $5, $6, 6, '10:00')`,
+    [attempt.id, userId, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
+  );
+  // The proposer becomes a captain of the site (the proposeGame action does this).
+  await pool.query(
+    "INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [area.id, userId],
+  );
+  return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
+}
+
 /** Push the suggestion window into the past so the next tick closes it. */
 export async function expireSuggestionWindow(attemptId: string): Promise<void> {
   await pool.query(
@@ -314,6 +362,16 @@ export async function seedCaptain(areaId: string, email: string): Promise<void> 
     "INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
     [areaId, userId],
   );
+}
+
+/** Whether a user is a captain of an area — to assert the propose flow claimed them. */
+export async function isAreaCaptain(areaId: string, email: string): Promise<boolean> {
+  const userId = await getUserId(email);
+  const { rows } = await pool.query(
+    "SELECT 1 FROM area_captains WHERE area_id = $1 AND user_id = $2 LIMIT 1",
+    [areaId, userId],
+  );
+  return rows.length > 0;
 }
 
 /** Put a user on a game's roster (needed before they can RSVP). */
