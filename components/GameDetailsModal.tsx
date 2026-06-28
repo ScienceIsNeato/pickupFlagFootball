@@ -188,8 +188,9 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 </div>
               ) : game.onRoster || (game.eligible && !game.viewerIsCaptain) ? (
                 <>
-                  {/* Players (and playing captains, who are on the roster) join / manage RSVP. */}
-                  <p className="game-join-h">join weekly game</p>
+                  {/* Players (and playing captains, who are on the roster) join / manage RSVP.
+                      Members are already in — the heading + button say so, not "join". */}
+                  <p className="game-join-h">{game.onRoster ? "you're in" : "join weekly game"}</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
                     <button type="button" className={pref === "regular" ? "seg-on" : ""}
                       aria-pressed={pref === "regular"} disabled={busy} onClick={() => setPref("regular")}>regular player</button>

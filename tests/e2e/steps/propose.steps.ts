@@ -21,3 +21,14 @@ Then("I am a captain of the proposed site", async ({ world }) => {
 Then("I am a captain of the scheduled game", async ({ world }) => {
   expect(await isAreaCaptain(world.game!.areaId!, world.email!)).toBe(true);
 });
+
+// The proposer is rostered when their game forms (engine adds the winning option's
+// suggesters), so the popup shows captain controls + "you're in" — never a "join
+// weekly game" prompt or a "no captain" plea.
+Then("I am already in the game as its captain", async ({ page }) => {
+  const card = page.locator(".game-card");
+  await expect(card).toContainText(/captain controls/i, { timeout: 10000 });
+  await expect(card).toContainText(/you.re in/i);
+  await expect(card).not.toContainText(/join weekly game/i);
+  await expect(card).not.toContainText(/this game has no captain/i);
+});

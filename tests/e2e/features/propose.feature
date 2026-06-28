@@ -26,3 +26,6 @@ Feature: Proposing a game (the proposer's view)
     And the availability window closes and the engine ticks
     Then a game is scheduled here
     And I am a captain of the scheduled game
+    When I refresh the map
+    And I open the game on the map
+    Then I am already in the game as its captain

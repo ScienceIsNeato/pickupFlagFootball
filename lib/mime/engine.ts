@@ -242,12 +242,20 @@ async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$in
   }
 
   const winner = d.winner as OptionTally & { optionId: string };
+  // The roster is everyone committed to the winning spot: those who promised
+  // availability for it, PLUS the people who suggested it — a proposer is in by
+  // definition and shouldn't have to "join" their own game. Suggesters are
+  // rostered post-decision; only promises decide whether the game forms, so this
+  // doesn't move the p_min threshold.
   const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
     .where(eq(softPromises.optionId, winner.optionId));
-  // Drop anyone who opted out of this area after promising — they shouldn't land
+  const suggesters = await db.select({ userId: suggestions.userId }).from(suggestions)
+    .where(eq(suggestions.optionId, winner.optionId));
+  // Drop anyone who opted out of this area after committing — they shouldn't land
   // on the roster or get the GAME_ON email for a site they declined.
   const optedOut = await optedOutUserIds(db, att.areaId);
-  const roster = promisers.map((p) => p.userId).filter((u) => !optedOut.has(u));
+  const roster = [...new Set([...promisers, ...suggesters].map((r) => r.userId))]
+    .filter((u) => !optedOut.has(u));
 
   // Promote to a standing weekly slot if the winning suggestion carried a
   // recurring day/time (proposals from the map do). All suggestions grouped into
