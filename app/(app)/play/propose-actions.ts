@@ -14,6 +14,7 @@ import { ensureArea } from "@/lib/geo/ensureArea";
 import { haversineKm } from "@/lib/geo/distance";
 import { loadTunables, catchmentUsers, nextAttemptNumber } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
+import { resolveProposal } from "@/lib/mime/trigger";
 import { isEmailVerified } from "@/lib/auth/verified";
 
 const edb = () => db as unknown as EngineDb;
@@ -126,5 +127,22 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
     }
   });
 
+  return { ok: true };
+}
+
+/** In-app Interested / Not-Interested on a proposal (the map popup buttons).
+ *  Mirrors the email one-click flow; an "I'm in" can form the game on the spot. */
+export async function respondInterest(attemptId: string, interested: boolean): Promise<ProposeResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, reason: "unauth" };
+  if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
+  const [att] = await db.select({ status: formationAttempts.status })
+    .from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
+  if (!att) return { ok: false, reason: "missing" };
+  if (att.status !== "OPEN") return { ok: false, reason: "closed" };
+  await db.insert(attemptInterest)
+    .values({ attemptId, userId: session.user.id, interested })
+    .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });
+  if (interested) await resolveProposal(attemptId);
   return { ok: true };
 }

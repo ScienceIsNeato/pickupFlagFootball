@@ -4,39 +4,28 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { declineSite, reExpressInterest } from "@/app/(app)/play/optout-actions";
+import { respondInterest } from "@/app/(app)/play/propose-actions";
 
-type Site = { areaId: string; city: string | null; zip: string | null; status: string | null; phaseClosesAt: string | null; captains: string[]; viewerOptedOut: boolean };
-type Activity = { kind: "propose" | "suggest" | "vote"; byName: string; placeText: string; proposedStart: string; at: string };
-type FirstWhen = { firstGameAt: string; recurDow: number | null; recurTime: string | null };
-type Data = { site: Site | null; firstPlaceText: string | null; firstWhen: FirstWhen | null; activity: Activity[] };
+type Proposal = {
+  attemptId: string; areaId: string; placeText: string;
+  proposedStart: string; recurDow: number | null; recurTime: string | null;
+  interestClosesAt: string; proposerName: string | null; interestCount: number;
+  viewerInterested: boolean | null; captains: string[];
+};
+type Data = { proposal: Proposal | null };
 
 const DOW_PLURAL = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
-const STATUS_LABEL: Record<string, string> = {
-  SUGGESTING: "collecting suggestions",
-  COMPILING: "tallying suggestions",
-  AVAILABILITY: "voting open",
-  ADJUDICATING: "picking a winner",
-};
-
-function whenShort(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
-}
-function whenAbsolute(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
 function firstLine(placeText: string): string {
-  // Suggestions are stored as "street, city zip — notes". Show the street line.
+  // "street, city zip — notes" → show the street line.
   return placeText.split(" — ")[0];
 }
-/** "2 days left" / "11h left" / "47m left" / "closing now" — how long is left in
- *  the current forming phase, for the popup status countdown. */
+
+/** "2 days left" / "11h left" / "47m left" / "closing now" — time left in the
+ *  proposal's interest window. */
 function timeLeft(iso: string): string {
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "closing now";
-  // Floor (not round) so a unit never rolls over early — 59.9m stays "59m left",
-  // not "1h left" — and sub-minute reads "< 1m left", not "0m left".
   const mins = Math.floor(ms / 60000);
   if (mins < 1) return "< 1m left";
   if (mins < 60) return `${mins}m left`;
@@ -44,24 +33,23 @@ function timeLeft(iso: string): string {
   if (hours < 48) return `${hours}h left`;
   return `${Math.floor(hours / 24)} days left`;
 }
-/** "Mondays at 6:30 pm" for a recurring slot, or "Mon Jun 23 at 6:30 pm" for a
- *  one-off. The first-game date is returned separately so the renderer can show
- *  it under the recurring label. */
-function fmtWhen(w: FirstWhen): { primary: string; firstDate: string | null } {
-  const start = new Date(w.firstGameAt);
-  const timeStr = (raw: string | null, fallback: Date): string => {
-    const [h, m] = raw ? raw.split(":").map(Number) : [fallback.getHours(), fallback.getMinutes()];
+
+/** "Mondays at 6:30 pm" + first-game date for a recurring slot, or a one-off. */
+function fmtWhen(p: Proposal): { primary: string; firstDate: string | null } {
+  const start = new Date(p.proposedStart);
+  const timeStr = (raw: string | null): string => {
+    const [h, m] = raw ? raw.split(":").map(Number) : [start.getHours(), start.getMinutes()];
     return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
   };
-  const recurring = w.recurDow != null && w.recurDow >= 0 && w.recurDow < 7;
+  const recurring = p.recurDow != null && p.recurDow >= 0 && p.recurDow < 7;
   if (recurring) {
     return {
-      primary: `${DOW_PLURAL[w.recurDow!]} at ${timeStr(w.recurTime, start)}`,
+      primary: `${DOW_PLURAL[p.recurDow!]} at ${timeStr(p.recurTime)}`,
       firstDate: `first game ${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`,
     };
   }
   return {
-    primary: `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at ${timeStr(null, start)}`,
+    primary: `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at ${timeStr(null)}`,
     firstDate: null,
   };
 }
@@ -73,8 +61,6 @@ export function ProposedDetailsModal({
   lat, lng, anchor, onClose,
 }: {
   lat: number; lng: number;
-  // anchor: the badge's base on the map (x,y) + its rendered pixel height,
-  // so we can place this card just above the badge top without hardcoding sizes.
   anchor?: { x: number; y: number; badgeHeight: number } | null;
   onClose: () => void;
 }) {
@@ -82,7 +68,6 @@ export function ProposedDetailsModal({
   const [busy, setBusy] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  // Portal to document.body to escape .dash-map's stacking context.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEscape(onClose);
@@ -103,8 +88,6 @@ export function ProposedDetailsModal({
   }, [lat, lng]);
   useEffect(() => { load(); }, [load]);
 
-  // Position the card so its bottom edge sits ~14px above the badge top.
-  // Centred horizontally on the badge, clamped to keep the card on-screen.
   useLayoutEffect(() => {
     if (!anchor || !cardRef.current) return;
     const el = cardRef.current;
@@ -114,9 +97,6 @@ export function ProposedDetailsModal({
     const GAP = 14;
     let left = anchor.x - cw / 2;
     left = Math.max(8, Math.min(W - cw - 8, left));
-    // anchor.y is the badge ANCHOR (its base on the map); the badge extends up
-    // from there by anchor.badgeHeight. Place the card's bottom just above the
-    // badge top, with a small gap.
     const badgeTop = anchor.y - anchor.badgeHeight;
     let top = badgeTop - GAP - ch;
     top = Math.max(8, top);
@@ -124,17 +104,14 @@ export function ProposedDetailsModal({
   }, [anchor, state]);
 
   const data = state !== "loading" && state !== "error" ? state : null;
-  const site = data?.site ?? null;
-  const activity = data?.activity ?? [];
-  const firstPlaceText = data?.firstPlaceText ?? null;
-  const firstWhen = data?.firstWhen ?? null;
-  const when = firstWhen ? fmtWhen(firstWhen) : null;
+  const proposal = data?.proposal ?? null;
+  const when = proposal ? fmtWhen(proposal) : null;
 
-  async function toggleInterest() {
-    if (!site) return;
+  async function respond(interested: boolean) {
+    if (!proposal || busy) return;
     setBusy(true);
     try {
-      await (site.viewerOptedOut ? reExpressInterest(site.areaId) : declineSite(site.areaId));
+      await respondInterest(proposal.attemptId, interested);
       await load();
     } finally {
       setBusy(false);
@@ -159,18 +136,13 @@ export function ProposedDetailsModal({
         <button type="button" className="game-close" onClick={onClose} aria-label="close">×</button>
         {state === "loading" && <p className="game-muted">loading…</p>}
         {state === "error" && <p className="game-muted">couldn&apos;t load this site.</p>}
-        {state !== "loading" && state !== "error" && !site && <p className="game-muted">no proposed site here.</p>}
-        {site && (
+        {state !== "loading" && state !== "error" && !proposal && <p className="game-muted">no proposed site here.</p>}
+        {proposal && (
           <>
             <h2 id="proposed-details-title" className="game-h">proposed game site</h2>
             <dl className="game-dl">
               <dt>where</dt>
-              <dd>
-                {firstPlaceText
-                  ? firstLine(firstPlaceText)
-                  : (site.city ?? "this area")}
-                {site.zip ? <span className="game-muted"> · {site.zip}</span> : null}
-              </dd>
+              <dd>{firstLine(proposal.placeText)}</dd>
               {when && (
                 <>
                   <dt>when</dt>
@@ -181,51 +153,25 @@ export function ProposedDetailsModal({
                 </>
               )}
               <dt>status</dt>
-              <dd>
-                {(site.status && STATUS_LABEL[site.status]) ?? "forming"}
-                {site.phaseClosesAt && <span className="game-muted"> · {timeLeft(site.phaseClosesAt)}</span>}
-              </dd>
-              {site.captains.length > 0 && (
+              <dd>gathering interest <span className="game-muted">· {timeLeft(proposal.interestClosesAt)}</span></dd>
+              <dt>interested</dt>
+              <dd>{proposal.interestCount} so far</dd>
+              {proposal.captains.length > 0 && (
                 <>
-                  <dt>captain{site.captains.length > 1 ? "s" : ""}</dt>
-                  <dd>{site.captains.join(", ")}</dd>
+                  <dt>captain{proposal.captains.length > 1 ? "s" : ""}</dt>
+                  <dd>{proposal.captains.join(", ")}</dd>
                 </>
               )}
             </dl>
 
-            <div className="game-collapse" style={{ cursor: "default" }}>activity</div>
-            {activity.length > 0 ? (
-              <ul className="game-recent">
-                {activity.map((a, i) => (
-                  <li key={i}>
-                    <span>
-                      {a.kind === "propose" && <>site proposed by <strong>{a.byName}</strong></>}
-                      {a.kind === "suggest" && <><strong>{a.byName}</strong> suggested {firstLine(a.placeText)} · {whenShort(a.proposedStart)}</>}
-                      {a.kind === "vote"    && <><strong>{a.byName}</strong> voted for {firstLine(a.placeText)} · {whenShort(a.proposedStart)}</>}
-                    </span>
-                    <span className="game-muted">{whenAbsolute(a.at)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="game-muted">no activity yet — be the first to weigh in.</p>
-            )}
-
-            {/* "Not interested" in this site — stops it courting/counting you;
-                your interest elsewhere stays live. Reversible. */}
-            <div className="game-optout">
-              {site.viewerOptedOut ? (
-                <>
-                  <p className="game-muted game-optout-note">you said you’re not interested in this site — it won’t count you or ask you.</p>
-                  <button type="button" className="btn-green game-volunteer" disabled={busy} onClick={toggleInterest}>
-                    I’m interested again
-                  </button>
-                </>
-              ) : (
-                <button type="button" className="game-leave" disabled={busy} onClick={toggleInterest}>
-                  not interested in this site
-                </button>
-              )}
+            {/* In / out on THIS proposal (a different nearby proposal can still
+                reach you). "in" counts toward forming + rosters you if it forms. */}
+            <p className="game-join-h">{proposal.viewerInterested === true ? "you're in" : "want in?"}</p>
+            <div className="seg" role="group" aria-label="interest">
+              <button type="button" className={proposal.viewerInterested === true ? "seg-on" : ""}
+                aria-pressed={proposal.viewerInterested === true} disabled={busy} onClick={() => respond(true)}>i&apos;m interested</button>
+              <button type="button" className={proposal.viewerInterested === false ? "seg-on seg-on-out" : ""}
+                aria-pressed={proposal.viewerInterested === false} disabled={busy} onClick={() => respond(false)}>not interested</button>
             </div>
           </>
         )}

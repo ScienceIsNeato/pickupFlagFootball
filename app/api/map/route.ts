@@ -4,7 +4,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  interestSignals, areas, games, gameRoster, formationAttempts, suggestions,
+  interestSignals, areas, games, gameRoster, formationAttempts,
 } from "@/lib/db/schema";
 import { bigIntToH3 } from "@/lib/geo/h3";
 import { gameColor } from "@/lib/brand";
@@ -112,43 +112,22 @@ export async function GET(req: Request) {
     }
   }
 
-  // Areas with a live formation (a proposed game site, not yet scheduled).
-  // Suppressed entirely in "mine" mode — that view is about my established games.
-  // The badge is placed at the proposed venue — the representative suggestion's
-  // address — not the cell centroid, so it lands on the spot that was named.
-  const formingAreas = mineOnly ? [] : await db.select({ id: areas.id, h3Cell: areas.h3Cell })
-    .from(areas).where(eq(areas.status, "IN_FORMATION"));
+  // Live proposals (OPEN attempts) — each is an independent proposed game site,
+  // not yet scheduled. Suppressed in "mine" mode (that view is established games).
+  // The badge sits at the proposed venue, not the cell centroid; one forming
+  // badge per display cell (last proposal in a cell wins the point).
   const formingCells = new Set<string>();
-  const formingPoint = new Map<string, { lat: number; lng: number }>(); // display cell → venue point
-  if (formingAreas.length) {
-    const areaIds = formingAreas.map((a) => a.id);
-    const liveAttempts = await db
-      .select({ id: formationAttempts.id, areaId: formationAttempts.areaId })
-      .from(formationAttempts)
-      .where(and(
-        inArray(formationAttempts.areaId, areaIds),
-        inArray(formationAttempts.status, ["SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING"]),
-      ));
-    const areaOfAttempt = new Map(liveAttempts.map((l) => [l.id, l.areaId]));
-    const suggRows = liveAttempts.length
-      ? await db.select({
-          attemptId: suggestions.attemptId, lat: suggestions.placeLat, lng: suggestions.placeLng,
-        }).from(suggestions)
-          .where(inArray(suggestions.attemptId, liveAttempts.map((l) => l.id)))
-          .orderBy(asc(suggestions.createdAt))
-      : [];
-    // Latest suggestion with coords wins (asc order → last write per area).
-    const venueByArea = new Map<string, { lat: number; lng: number }>();
-    for (const s of suggRows) {
-      if (s.lat == null || s.lng == null) continue;
-      const areaId = areaOfAttempt.get(s.attemptId);
-      if (areaId) venueByArea.set(areaId, { lat: s.lat, lng: s.lng });
-    }
-    for (const a of formingAreas) {
+  const formingPoint = new Map<string, { lat: number; lng: number }>();
+  if (!mineOnly) {
+    const openAttempts = await db.select({
+      lat: formationAttempts.placeLat, lng: formationAttempts.placeLng, h3Cell: areas.h3Cell,
+    }).from(formationAttempts)
+      .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
+      .where(eq(formationAttempts.status, "OPEN"));
+    for (const a of openAttempts) {
       const parent = cellToParent(bigIntToH3(a.h3Cell), res);
       formingCells.add(parent);
-      const v = venueByArea.get(a.id);
-      if (v) formingPoint.set(parent, v);
+      if (a.lat != null && a.lng != null) formingPoint.set(parent, { lat: a.lat, lng: a.lng });
     }
   }
 
