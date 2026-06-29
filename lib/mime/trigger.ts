@@ -1,27 +1,29 @@
+import { eq } from "drizzle-orm";
 import { txnDb } from "@/lib/db/pool";
-import { evaluate } from "./engine";
+import { formationAttempts } from "@/lib/db/schema";
+import { resolveAttempt } from "./engine";
 import { evaluateOccurrence } from "./occurrences";
 import type { EngineDb } from "./engine";
 
 /**
- * Event-driven entry to the MIME FSM. The same engine the cron runs, fired the
- * moment a user action changes the relevant state (interest in an area, a game's
- * roster/lifecycle) so transitions happen in-request instead of waiting up to a
- * tick.
+ * Event-driven entry to the MIME engine, fired the moment a user action changes
+ * relevant state so the work happens in-request instead of waiting for a tick.
  *
- * Contract (matches the scheduled path): idempotent — the FSM reconciles current
- * state and assumes prior runs cleaned up after themselves — and **non-fatal**:
- * an engine error here must never fail the user action that triggered it. The
- * cron is the backstop that catches anything an event misses or that errors out.
+ * Contract (matches the scheduled path): idempotent and **non-fatal** — an engine
+ * error here must never fail the user action that triggered it; the cron is the
+ * backstop that catches anything an event misses or that errors out.
  */
 
-/** Re-run the formation FSM for one area now (interest there just changed). */
-export async function sparkArea(activityTypeId: string, areaId: string): Promise<void> {
+/** Re-resolve one proposal now (someone just responded). An early "I'm in" that
+ *  clears the threshold can form the game before the deadline. */
+export async function resolveProposal(attemptId: string): Promise<void> {
   try {
-    await evaluate(txnDb as unknown as EngineDb, activityTypeId, areaId, new Date());
+    const db = txnDb as unknown as EngineDb;
+    const [att] = await db.select().from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
+    if (att) await resolveAttempt(db, att, new Date());
   } catch (e) {
-    console.error("[mime] sparkArea failed (cron will retry)", {
-      areaId,
+    console.error("[mime] resolveProposal failed (cron will retry)", {
+      attemptId,
       error: e instanceof Error ? e.message : String(e),
     });
   }

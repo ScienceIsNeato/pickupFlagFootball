@@ -8,9 +8,11 @@ import { sql } from "drizzle-orm";
 export const areaStatusEnum = pgEnum("area_status", [
   "DORMANT", "PRIMED", "IN_FORMATION", "SCHEDULED", "STALLED",
 ]);
+// A formation attempt is one isolated game proposal: OPEN while it gathers
+// interest, then CONFIRMED (enough said they're in → game scheduled) or FAILED
+// (fell short by the deadline). CANCELLED = proposer pulled it.
 export const attemptStatusEnum = pgEnum("attempt_status", [
-  "SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING",
-  "CONFIRMED", "FAILED", "CANCELLED",
+  "OPEN", "CONFIRMED", "FAILED", "CANCELLED",
 ]);
 // The standing game (series) lifecycle. The per-week lifecycle is occurrenceStatusEnum.
 export const seriesStatusEnum = pgEnum("series_status", ["active", "paused", "retired"]);
@@ -21,9 +23,8 @@ export const occurrenceStatusEnum = pgEnum("occurrence_status", [
   "notifying", "awaiting_game", "played", "cancelled",
 ]);
 export const notificationKindEnum = pgEnum("notification_kind", [
-  "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
-  "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
-  "GAME_ON", "STALLED_NOTICE",
+  // formation: a game is proposed → it forms or it stalls
+  "GAME_PROPOSED", "GAME_ON", "STALLED_NOTICE",
   // weekly occurrence poll
   "POLL_ASK", "WEEK_ON", "WEEK_OFF",
 ]);
@@ -156,63 +157,53 @@ export const interestSignals = pgTable("interest_signals", {
 export type InterestSignal = typeof interestSignals.$inferSelect;
 
 // ── formation_attempts ─────────────────────────────────────────────────────
+// One row = one isolated game proposal. The proposal's details (place, day, time)
+// live right here — there's no separate suggestions/options layer. People respond
+// Interested / Not-Interested in attempt_interest; at interestClosesAt the engine
+// forms the game (enough interested) or fails the attempt.
 export const formationAttempts = pgTable("formation_attempts", {
-  id:                   uuid("id").primaryKey().defaultRandom(),
-  activityTypeId:       uuid("activity_type_id").notNull().references(() => activityTypes.id),
-  areaId:               uuid("area_id").notNull().references(() => areas.id),
-  attemptNumber:        integer("attempt_number").notNull(),
-  status:               attemptStatusEnum("status").notNull().default("SUGGESTING"),
-  catchmentCells:       bigint("catchment_cells", { mode: "bigint" }).array().notNull().default([]),
-  cohortUserIds:        uuid("cohort_user_ids").array().notNull().default([]),
-  suggestionOpenedAt:   timestamp("suggestion_opened_at", { withTimezone: true }),
-  suggestionClosesAt:   timestamp("suggestion_closes_at", { withTimezone: true }),
-  availabilityOpenedAt: timestamp("availability_opened_at", { withTimezone: true }),
-  availabilityClosesAt: timestamp("availability_closes_at", { withTimezone: true }),
-  scheduledGameId:      uuid("scheduled_game_id"),
-  failureReason:        text("failure_reason"),
-  createdAt:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export type FormationAttempt = typeof formationAttempts.$inferSelect;
-
-// ── suggestions ────────────────────────────────────────────────────────────
-export const suggestions = pgTable("suggestions", {
-  id:            uuid("id").primaryKey().defaultRandom(),
-  attemptId:     uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
-  userId:        uuid("user_id").notNull().references(() => users.id),
-  placeText:     text("place_text").notNull(),
-  placeLat:      doublePrecision("place_lat"),
-  placeLng:      doublePrecision("place_lng"),
-  proposedStart: timestamp("proposed_start", { withTimezone: true }).notNull(),
-  // Recurring weekly slot the proposer picked (local wall-clock). NULL = one-off.
-  // proposedStart is the first game; these drive the standing game on adjudication.
-  recurDow:      integer("recur_dow"),   // 0=Sun…6=Sat
-  recurTime:     time("recur_time"),     // HH:MM:SS, local
-  optionId:      uuid("option_id"),
-  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-// ── formation_options ──────────────────────────────────────────────────────
-export const formationOptions = pgTable("formation_options", {
   id:               uuid("id").primaryKey().defaultRandom(),
-  attemptId:        uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  activityTypeId:   uuid("activity_type_id").notNull().references(() => activityTypes.id),
+  areaId:           uuid("area_id").notNull().references(() => areas.id),
+  attemptNumber:    integer("attempt_number").notNull(),
+  status:           attemptStatusEnum("status").notNull().default("OPEN"),
+  // Who proposed it, and the proposal itself.
+  proposerId:       uuid("proposer_id").notNull().references(() => users.id),
   placeText:        text("place_text").notNull(),
   placeLat:         doublePrecision("place_lat"),
   placeLng:         doublePrecision("place_lng"),
   proposedStart:    timestamp("proposed_start", { withTimezone: true }).notNull(),
-  firstSuggestedAt: timestamp("first_suggested_at", { withTimezone: true }).notNull(),
-  promiseCount:     integer("promise_count").notNull().default(0),
+  // Recurring weekly slot the proposer picked (local wall-clock). NULL = one-off.
+  // proposedStart is the first game; these promote the formed game to standing.
+  recurDow:         integer("recur_dow"),   // 0=Sun…6=Sat
+  recurTime:        time("recur_time"),     // HH:MM:SS, local
+  // Who we emailed about this proposal (frozen snapshot at propose time).
+  catchmentCells:   bigint("catchment_cells", { mode: "bigint" }).array().notNull().default([]),
+  cohortUserIds:    uuid("cohort_user_ids").array().notNull().default([]),
+  // The single interest window.
+  interestClosesAt: timestamp("interest_closes_at", { withTimezone: true }).notNull(),
+  scheduledGameId:  uuid("scheduled_game_id"),
+  failureReason:    text("failure_reason"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("idx_attempt_open_close").on(t.status, t.interestClosesAt),
+]);
 
-// ── soft_promises ──────────────────────────────────────────────────────────
-export const softPromises = pgTable("soft_promises", {
-  id:        uuid("id").primaryKey().defaultRandom(),
-  attemptId: uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
-  optionId:  uuid("option_id").notNull(),
-  userId:    uuid("user_id").notNull().references(() => users.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export type FormationAttempt = typeof formationAttempts.$inferSelect;
+
+// ── attempt_interest ───────────────────────────────────────────────────────
+// One row = one person's response to a proposal. interested=true ("I'm in") feeds
+// the form threshold + the roster; interested=false ("not interested") declines
+// just this proposal (a different nearby proposal can still reach them).
+export const attemptInterest = pgTable("attempt_interest", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  attemptId:  uuid("attempt_id").notNull().references(() => formationAttempts.id, { onDelete: "cascade" }),
+  userId:     uuid("user_id").notNull().references(() => users.id),
+  interested: boolean("interested").notNull(),
+  createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uq_attempt_interest").on(t.attemptId, t.userId),
+]);
 
 // ── games ──────────────────────────────────────────────────────────────────
 export const games = pgTable("games", {
@@ -220,7 +211,6 @@ export const games = pgTable("games", {
   activityTypeId:  uuid("activity_type_id").notNull().references(() => activityTypes.id),
   areaId:          uuid("area_id").notNull().references(() => areas.id),
   originAttemptId: uuid("origin_attempt_id"),
-  winningOptionId: uuid("winning_option_id"),
   placeText:       text("place_text").notNull(),
   placeLat:        doublePrecision("place_lat"),
   placeLng:        doublePrecision("place_lng"),

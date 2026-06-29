@@ -8,7 +8,6 @@ import { users, activityTypes } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
-import { sparkArea } from "@/lib/mime/trigger";
 import { str } from "@/lib/forms";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
@@ -77,9 +76,6 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
     // the profile still shows the old one.
     await db.update(users).set(update).where(eq(users.id, uid));
     await setActiveInterest(activity.id, uid, areaId, home.r7);
-    // Event-driven: interest just landed in this area — evaluate it now so a game
-    // can spark in-request rather than waiting for the next cron tick.
-    await sparkArea(activity.id, areaId);
   } else {
     await db.update(users).set(update).where(eq(users.id, uid));
   }
