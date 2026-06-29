@@ -10,12 +10,12 @@ type Copy = { subject: string; title: string; intro: string; cta: string; path: 
 
 // Per-kind copy. CTA path is app-relative; the layer makes it absolute.
 const COPY: Record<NotifKind, Copy> = {
-  GAME_PROPOSED:  { subject: "a game's been proposed near you", title: "want in?", intro: "someone proposed a game near you. here's the spot and time — tap below if you're in.", cta: "see it on the map", path: "/play" },
+  GAME_PROPOSED:  { subject: "a game's been proposed near you", title: "want in?", intro: "someone proposed a game near you. here's the spot and time - tap below if you're in.", cta: "see it on the map", path: "/play" },
   GAME_ON:        { subject: "game on — you're in", title: "your game is scheduled", intro: "enough players are in. here's your standing weekly game — check the spot, time, and who's coming.", cta: "see your game", path: "/my-games" },
-  STALLED_NOTICE: { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough interest to lock this one in — but you can always propose another, or jump on the next one nearby.", cta: "find a game", path: "/play" },
+  STALLED_NOTICE: { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough interest to lock this one in - but you can always propose another, or jump on the next one nearby.", cta: "find a game", path: "/play" },
   POLL_ASK:       { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
-  WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in — this week's game is on. check the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
-  WEEK_OFF:       { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week — and you can still rally folks.", cta: "see your games", path: "/my-games" },
+  WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in - this week's game is on. here's the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
+  WEEK_OFF:       { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week - and you can still rally folks.", cta: "see your games", path: "/my-games" },
 };
 
 function esc(s: string): string {
@@ -24,8 +24,9 @@ function esc(s: string): string {
 
 type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
 type Details = { place: string; when: string };
+type Roster = { count: number; names: string[] };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details }): string {
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster }): string {
   // The proposal's spot + time, shown right in the email so the recipient can
   // decide without clicking through.
   const detailsHtml = p.details
@@ -35,6 +36,11 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
         <p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">when</p>
         <p style="margin:0; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.when)}</p>
       </td></tr></table>`
+    : "";
+  // Who said they're in, for the "game on" email.
+  const rosterHtml = p.roster
+    ? `<p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">${p.roster.count} planning to play</p>
+       <p style="margin:0 0 18px; color:#cdd6d0; font-size:14px; line-height:1.5;">${p.roster.names.length ? esc(p.roster.names.join(", ")) : "—"}</p>`
     : "";
   const buttonsHtml = p.buttons
     ? `<div style="margin:16px 0 0;">
@@ -55,6 +61,7 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 8px;">${esc(p.greeting)}</p>
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 18px;">${esc(p.intro)}</p>
       ${detailsHtml}
+      ${rosterHtml}
       <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
       ${buttonsHtml}
       ${footerHtml}
@@ -90,8 +97,10 @@ export function buildNotificationEmail(
     // one-click two-button row: RSVP (POLL_ASK/WEEK_ON, lib/rsvpLink) or
     // Interested/Not-Interested (GAME_PROPOSED, lib/interestLink).
     buttons?: { inUrl: string; outUrl: string };
-    // the proposed spot + time, shown in the GAME_PROPOSED email.
+    // spot + time, shown in the GAME_PROPOSED + weekly occurrence emails.
     details?: Details;
+    // who said they're in, shown in the WEEK_ON ("game on this week") email.
+    roster?: Roster;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -108,12 +117,13 @@ export function buildNotificationEmail(
 
   const footerLine = opts.footer ? `\n\n${opts.footer.text} ${base}${opts.footer.donateUrl}` : "";
   const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}\nwhen: ${opts.details.when}` : "";
+  const rosterLine = opts.roster ? `\n\n${opts.roster.count} planning to play: ${opts.roster.names.join(", ") || "—"}` : "";
   const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}${detailsLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
+  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster }),
     textContent,
   };
 }

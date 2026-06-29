@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import { tickEngine } from "../support/tick";
 import { seedWeeklyGameWithClosedPoll, getOccurrenceStatus, expireOccurrenceKickoff, seedRosterMember } from "../support/db";
+import { allEmails } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map".
 const SITE = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701" };
@@ -41,6 +42,14 @@ Then("the week is on", async ({ world }) => {
   expect(await getOccurrenceStatus(world.occurrenceId!)).toBe("awaiting_game");
 });
 
+// The "game on this week" email carries the spot, time, headcount, and roster.
+Then("the game-on email lists who's coming", async () => {
+  await expect.poll(async () => {
+    const won = (await allEmails()).find((e) => /game on this week/i.test(e.subject));
+    return won ? /Republic Square/.test(won.html) && /planning to play/i.test(won.html) && /Wendy Week/.test(won.html) : false;
+  }, { timeout: 10000 }).toBe(true);
+});
+
 When("game day passes and the engine ticks", async ({ page, world }) => {
   await expireOccurrenceKickoff(world.occurrenceId!);
   await tickEngine(page);
@@ -52,4 +61,12 @@ Then("the week is played", async ({ world }) => {
 
 Then("the week is skipped", async ({ world }) => {
   expect(await getOccurrenceStatus(world.occurrenceId!)).toBe("skipped");
+});
+
+// A called-off week doesn't beg for money.
+Then("the off-week email has no donation ask", async () => {
+  await expect.poll(async () => {
+    const off = (await allEmails()).find((e) => /no game this week/i.test(e.subject));
+    return off ? !/chip in/i.test(off.html) : false;
+  }, { timeout: 10000 }).toBe(true);
 });

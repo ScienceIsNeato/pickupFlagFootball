@@ -8,6 +8,7 @@ Feature: A weekly game runs (occurrence FSM)
     Then I've found my weekly game
     When the engine ticks
     Then the week is on
+    And the game-on email lists who's coming
     When game day passes and the engine ticks
     Then the week is played
 
@@ -19,3 +20,4 @@ Feature: A weekly game runs (occurrence FSM)
     Then I've found my weekly game
     When the engine ticks
     Then the week is skipped
+    And the off-week email has no donation ask

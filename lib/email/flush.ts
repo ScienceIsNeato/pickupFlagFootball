@@ -1,6 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users, formationAttempts } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts, gameOccurrences, games } from "@/lib/db/schema";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -9,6 +9,12 @@ import { interestLink } from "@/lib/interestLink";
 
 // Weekly poll emails carry one-click RSVP links. WEEK_OFF is settled (no links).
 const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
+// Weekly emails that show the game's spot + time (a "game's off" email doesn't —
+// there's no game to detail).
+const OCCURRENCE_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
+// Bad-news emails don't carry a donation ask — asking for money when a game falls
+// through is in poor taste.
+const NO_FOOTER_KINDS = new Set<NotifKind>(["WEEK_OFF", "STALLED_NOTICE"]);
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
@@ -26,6 +32,31 @@ function whenText(start: Date, recurDow: number | null, recurTime: string | null
     : `${date} at ${time}`;
 }
 
+/** Human "when" for a weekly occurrence: its date + kickoff time. */
+function whenOccurrence(date: string, kickoff: Date): string {
+  const d = new Date(`${date}T00:00:00`);
+  const k = new Date(kickoff);
+  const time = `${((k.getHours() + 11) % 12) + 1}:${String(k.getMinutes()).padStart(2, "0")} ${k.getHours() < 12 ? "am" : "pm"}`;
+  return `${d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
+}
+
+/** The players who are effectively "in" for an occurrence, by display name —
+ *  same rule as the tally (override ?? site default), for the "game on" roster. */
+async function occurrenceRoster(gameId: string, date: string): Promise<{ count: number; names: string[] }> {
+  const res = await db.execute(sql`
+    select coalesce(u.display_name, 'someone') as name from (
+      select r.user_id from game_roster r
+        left join game_attendance a on a.game_id = r.game_id and a.user_id = r.user_id and a.occurrence_date = ${date}::date
+        where r.game_id = ${gameId} and coalesce(a.status, r.default_status) = 'in'
+      union
+      select a.user_id from game_attendance a
+        where a.game_id = ${gameId} and a.occurrence_date = ${date}::date and a.status = 'in'
+          and not exists (select 1 from game_roster r where r.game_id = a.game_id and r.user_id = a.user_id)
+    ) eff join users u on u.id = eff.user_id order by u.display_name`);
+  const names = ((res as unknown as { rows?: { name: string }[] }).rows ?? []).map((r) => r.name);
+  return { count: names.length, names };
+}
+
 /**
  * Send the backlog of claimed-but-unsent email notifications. Runs from the tick
  * cron, OUTSIDE any DB transaction. Each row is claimed atomically before send,
@@ -41,10 +72,14 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     userId: notificationsSent.userId,
     occurrenceId: notificationsSent.occurrenceId,
     attemptId: notificationsSent.attemptId,
+    gameId: notificationsSent.gameId,
     placeText: formationAttempts.placeText,
     proposedStart: formationAttempts.proposedStart,
     recurDow: formationAttempts.recurDow,
     recurTime: formationAttempts.recurTime,
+    occDate: gameOccurrences.occurrenceDate,
+    kickoffAt: gameOccurrences.kickoffAt,
+    gamePlace: games.placeText,
     email: users.email,
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
@@ -53,6 +88,9 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     .innerJoin(users, eq(users.id, notificationsSent.userId))
     // GAME_PROPOSED carries an attempt → its proposal details + interest links.
     .leftJoin(formationAttempts, eq(formationAttempts.id, notificationsSent.attemptId))
+    // Weekly emails carry an occurrence + game → the date/time/location + roster.
+    .leftJoin(gameOccurrences, eq(gameOccurrences.id, notificationsSent.occurrenceId))
+    .leftJoin(games, eq(games.id, notificationsSent.gameId))
     .where(and(eq(notificationsSent.channel, "email"), isNull(notificationsSent.emailedAt)))
     .orderBy(notificationsSent.sentAt)
     .limit(limit);
@@ -66,18 +104,26 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     if (!r.emailOptIn || !r.email) { skipped++; continue; }
 
     try {
-      const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       const kind = r.kind as NotifKind;
+      // No donation ask on bad-news emails.
+      const footer = NO_FOOTER_KINDS.has(kind) ? null : donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
       // Weekly poll emails → RSVP links; proposal emails → Interested/Not-Interested.
       const buttons = RSVP_LINK_KINDS.has(kind) && r.occurrenceId
         ? { inUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "in"), outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out") }
         : kind === "GAME_PROPOSED" && r.attemptId
         ? { inUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "in"), outUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "out") }
         : undefined;
+      // Spot + time: GAME_PROPOSED from the attempt; weekly emails from the occurrence.
       const details = kind === "GAME_PROPOSED" && r.placeText && r.proposedStart
         ? { place: r.placeText, when: whenText(r.proposedStart, r.recurDow, r.recurTime) }
+        : OCCURRENCE_KINDS.has(kind) && r.gamePlace && r.occDate && r.kickoffAt
+        ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) }
         : undefined;
-      const mail = buildNotificationEmail(kind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details });
+      // The "game on" email lists who said they're in.
+      const roster = kind === "WEEK_ON" && r.gameId && r.occDate
+        ? await occurrenceRoster(r.gameId, r.occDate)
+        : undefined;
+      const mail = buildNotificationEmail(kind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster });
       const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
       if (delivered) {
         sent++;
