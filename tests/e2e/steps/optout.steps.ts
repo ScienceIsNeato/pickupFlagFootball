@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import { seedFormingAttempt } from "../support/db";
-import { allEmails, extractInterestLink } from "../support/mailpit";
+import { allEmails, extractButtonLink } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map" — clicking
 // the forming badge opens the proposed-site popup (also a .game-card).
@@ -54,7 +54,7 @@ When("I open my not-interested email link", async ({ page, world }) => {
   // to the same inbox, so "first email to me" would be the wrong one.
   const proposal = (await allEmails()).find((e) => e.to.toLowerCase() === me && /proposed near you/i.test(e.subject));
   if (!proposal) throw new Error(`no proposal email in ${me}'s inbox`);
-  await page.goto(extractInterestLink(proposal.html, "out")); // the real link from the email
+  await page.goto(extractButtonLink(proposal.html, "not interested")); // the real link from the email
   await expect(page.getByRole("heading", { name: /not this one/i })).toBeVisible({ timeout: 10000 });
 });
 

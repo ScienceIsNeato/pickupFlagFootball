@@ -391,18 +391,40 @@ export async function seedRosterMember(gameId: string, email: string, defaultSta
   );
 }
 
-/** A scheduled (decided-on) upcoming occurrence with a future kickoff, so the
- *  one-click RSVP link is live. Returns the occurrence id for the signed token. */
-export async function seedScheduledOccurrence(gameId: string): Promise<string> {
+/** A weekly occurrence with its poll OPEN (opened in the past, closes + kicks off
+ *  in the future) so the one-click RSVP link is live. Pass `notifyEmail` to also
+ *  enqueue a POLL_ASK to that roster member — the next tick flushes the weekly
+ *  rsvp email (with its i'm in / i'm out links) to their inbox, the way the real
+ *  poll-opener would. Returns the occurrence id. */
+export async function seedScheduledOccurrence(gameId: string, notifyEmail?: string): Promise<string> {
   const DAY = 86_400_000;
-  const kickoff = new Date(Date.now() + 2 * DAY); // safely in the future
-  const pollOpens = new Date(Date.now() - 1 * DAY);
+  const now = Date.now();
+  const kickoff = new Date(now + 2 * DAY);    // future → rsvp stays open
+  const pollOpens = new Date(now - 1 * DAY);
+  const pollCloses = new Date(now + 1 * DAY); // future → the tick won't tally/close it
   const { rows } = await pool.query(
     `INSERT INTO game_occurrences
        (game_id, occurrence_date, status, kickoff_at, poll_opens_at, poll_closes_at, in_count)
-     VALUES ($1, $2::date, 'scheduled', $3, $4, $3, 8)
+     VALUES ($1, $2::date, 'polling', $3, $4, $5, 0)
      RETURNING id`,
-    [gameId, kickoff.toISOString(), kickoff.toISOString(), pollOpens.toISOString()],
+    [gameId, kickoff.toISOString(), kickoff.toISOString(), pollOpens.toISOString(), pollCloses.toISOString()],
   );
-  return String(rows[0].id);
+  const occId = String(rows[0].id);
+  if (notifyEmail) {
+    const uid = await getUserId(notifyEmail);
+    await pool.query(
+      `INSERT INTO notifications_sent (user_id, occurrence_id, game_id, kind, channel)
+       VALUES ($1, $2, $3, 'POLL_ASK', 'email') ON CONFLICT DO NOTHING`,
+      [uid, occId, gameId],
+    );
+    // Keep the engine's poll-opener out of this scenario: shrink the game's poll
+    // window so its next recurrence isn't "due to open" now. The tick then only
+    // flushes the POLL_ASK above — no spontaneous second poll for another week.
+    await pool.query(
+      `UPDATE areas SET polling_start_offset = interval '1 hour'
+       WHERE id = (SELECT area_id FROM games WHERE id = $1)`,
+      [gameId],
+    );
+  }
+  return occId;
 }

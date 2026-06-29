@@ -1,22 +1,29 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedRosterMember, seedScheduledOccurrence, getUserId } from "../support/db";
-import { E2E } from "../support/env";
-// Relative (not "@/…") so it resolves at runtime under playwright-bdd's loader.
-import { signRsvpToken } from "../../../lib/rsvpLink";
+import { seedRosterMember, seedScheduledOccurrence } from "../support/db";
+import { allEmails, extractButtonLink } from "../support/mailpit";
 
 Given("I am on the roster with a game scheduled this week", async ({ world }) => {
-  const gameId = world.game!.gameId!;
-  await seedRosterMember(gameId, world.email!);
-  const occurrenceId = await seedScheduledOccurrence(gameId);
-  const userId = await getUserId(world.email!);
-  // Sign with the same secret the app verifies under (see playwright webServer.env).
-  process.env.AUTH_SECRET = E2E.authSecret;
-  world.rsvpToken = signRsvpToken(userId, occurrenceId, "in");
+  await seedRosterMember(world.game!.gameId!, world.email!);
+  // Enqueues a POLL_ASK to me — the next tick flushes the weekly rsvp email.
+  world.occurrenceId = await seedScheduledOccurrence(world.game!.gameId!, world.email!);
 });
 
-When("I open my {string} rsvp link", async ({ page, world }, _label: string) => {
-  await page.goto(`/rsvp?t=${encodeURIComponent(world.rsvpToken!)}`);
+Then("the weekly rsvp email reaches me", async ({ world }) => {
+  const me = world.email!.toLowerCase();
+  await expect.poll(
+    async () => (await allEmails()).some((e) => e.to.toLowerCase() === me && /this week's game/i.test(e.subject)),
+    { timeout: 10000 },
+  ).toBe(true);
+});
+
+When("I open my {string} rsvp link", async ({ page, world }, label: string) => {
+  const me = world.email!.toLowerCase();
+  // The weekly poll email by subject (registration sent a verification email to
+  // the same inbox), then the real link behind its "i'm in" button.
+  const poll = (await allEmails()).find((e) => e.to.toLowerCase() === me && /this week's game/i.test(e.subject));
+  if (!poll) throw new Error(`no weekly poll email in ${me}'s inbox`);
+  await page.goto(extractButtonLink(poll.html, label)); // the real link from the email
   await expect(page.getByRole("heading", { name: /rsvp for/i })).toBeVisible({ timeout: 10000 });
 });
 

@@ -7,7 +7,6 @@ export type World = {
   game?: { lat: number; lng: number; placeText: string; gameId?: string; areaId?: string };
   // captured to assert a captain action changed the popup (e.g. cancel advances "next game")
   nextGameCaption?: string;
-  rsvpToken?: string; // signed one-click RSVP-link token for the email-link flow
   attemptId?: string; // the live formation attempt, for the formation-FSM e2e
   occurrenceId?: string; // the weekly occurrence row, for the occurrence-FSM e2e
 };
