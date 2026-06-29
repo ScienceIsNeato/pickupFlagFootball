@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Polished the propose-a-game flow: a friendly 'game proposed!' confirmation, a countdown showing how long the gathering phase has left, the person who proposed it shown as already in and running it, and the 'game formed / didn't form' summary now goes to everyone nearby who was interested. Also cleaned up a few review notes.",
+    "status": "Made the test story-report honest: it only snaps a picture when the screen actually changes (no more duplicate filler shots), and every email a flow sends now shows up automatically. Also fixed the weekly-game test so the player is clearly a member of the game, not a bystander.",
     "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-28T04:00:00Z"
+    "last_update": "2026-06-28T05:00:00Z"
   }
 }

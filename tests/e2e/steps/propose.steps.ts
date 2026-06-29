@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { When, Then } from "./world";
 import { proposeAsUser, isAreaCaptain } from "../support/db";
-import { allEmails, inboxHtml } from "../support/mailpit";
+import { allEmails } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …", "I open the game on the map", and the
 // formation-FSM steps (suggestion/availability windows, commit, schedule/stall).
@@ -37,30 +37,30 @@ Then("I am already in the game as its captain", async ({ page }) => {
 // ── Email beats: capture what the flow actually sent (Mailpit) and render it into
 //    the story report, so the report shows the inboxes, not just the UI. ──────────
 
+// These steps assert the RIGHT emails fired (teeth); the AfterStep hook renders
+// them into the report automatically when the triggering tick flushes them.
+
 // After the suggestion window closes: the cohort gets the spark + options asks.
-Then("the courting emails go out", async ({ page }) => {
+Then("the courting emails go out", async () => {
   await expect.poll(async () => {
     const subjects = (await allEmails()).map((e) => e.subject).join(" | ");
     return /forming near you/i.test(subjects) && /vote on where & when/i.test(subjects);
   }, { timeout: 10000 }).toBe(true);
-  await page.setContent(inboxHtml(await allEmails(), "courting the neighbors"));
 });
 
 // On confirm: the proposer (now rostered) gets the "game on — you're in" email.
-Then("I get the game-on email", async ({ page, world }) => {
+Then("I get the game-on email", async ({ world }) => {
   const me = world.email!.toLowerCase();
   await expect.poll(
     async () => (await allEmails()).some((e) => e.to.toLowerCase() === me && /game on/i.test(e.subject)),
     { timeout: 10000 },
   ).toBe(true);
-  await page.setContent(inboxHtml(await allEmails(), "game on"));
 });
 
 // On stall: the cohort gets the "not enough players this round" notice.
-Then("everyone hears the formation stalled", async ({ page }) => {
+Then("everyone hears the formation stalled", async () => {
   await expect.poll(
     async () => (await allEmails()).some((e) => /not enough players/i.test(e.subject)),
     { timeout: 10000 },
   ).toBe(true);
-  await page.setContent(inboxHtml(await allEmails(), "not enough players this round"));
 });

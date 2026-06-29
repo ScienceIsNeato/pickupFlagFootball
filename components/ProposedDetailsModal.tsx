@@ -35,11 +35,14 @@ function firstLine(placeText: string): string {
 function timeLeft(iso: string): string {
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "closing now";
-  const mins = Math.round(ms / 60000);
+  // Floor (not round) so a unit never rolls over early — 59.9m stays "59m left",
+  // not "1h left" — and sub-minute reads "< 1m left", not "0m left".
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "< 1m left";
   if (mins < 60) return `${mins}m left`;
-  const hours = Math.round(mins / 60);
+  const hours = Math.floor(mins / 60);
   if (hours < 48) return `${hours}h left`;
-  return `${Math.round(hours / 24)} days left`;
+  return `${Math.floor(hours / 24)} days left`;
 }
 /** "Mondays at 6:30 pm" for a recurring slot, or "Mon Jun 23 at 6:30 pm" for a
  *  one-off. The first-game date is returned separately so the renderer can show

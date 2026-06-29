@@ -71,6 +71,32 @@ export async function allEmails(): Promise<{ to: string; subject: string; html: 
   return out;
 }
 
+/** Messages not yet in `seen` (mutates it), as {to, subject, html} — lets the
+ *  AfterStep hook auto-capture the emails each step caused, across every flow,
+ *  without per-step wiring. */
+export async function freshEmails(seen: Set<string>): Promise<{ to: string; subject: string; html: string }[]> {
+  const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages?limit=200`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { messages?: MailpitListItem[] };
+  // Oldest-first so the report shows emails in the order they were sent.
+  const msgs = (data.messages ?? []).slice().reverse();
+  const out: { to: string; subject: string; html: string }[] = [];
+  for (const m of msgs) {
+    if (seen.has(m.ID)) continue;
+    seen.add(m.ID);
+    let full: { HTML?: string } = { HTML: "" };
+    try {
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
+      if (detail.ok) full = (await detail.json()) as { HTML?: string };
+    } catch { /* leave empty */ }
+    const recipients = (m.To ?? []).map((t) => t.Address);
+    for (const to of recipients.length ? recipients : [""]) {
+      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
+    }
+  }
+  return out;
+}
+
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 }
