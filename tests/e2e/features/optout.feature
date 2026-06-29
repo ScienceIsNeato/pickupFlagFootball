@@ -13,8 +13,10 @@ Feature: Not interested in a proposal
     Then the proposal shows I'm in
 
   Scenario: a player says not interested from the proposal email link
-    Given a forming game site near me
-    And I am a confirmed player "Em Out" with email "emout@example.com" in ZIP "78701"
+    Given I am a confirmed player "Em Out" with email "emout@example.com" in ZIP "78701"
+    And a neighbor proposes a game near me, asking me in
+    When the engine ticks
+    Then the proposal email reaches me
     When I open my not-interested email link
     And I confirm not interested from the email
     Then I'm marked not interested

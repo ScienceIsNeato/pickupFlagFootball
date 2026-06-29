@@ -134,3 +134,15 @@ export function extractConfirmLink(html: string): string {
   if (!m) throw new Error("no /verify-email confirm link found in email HTML");
   return m[0];
 }
+
+/** Pull the one-click Interested / Not-Interested link out of a GAME_PROPOSED
+ *  email, picked by the button's visible label — so a test clicks the real link
+ *  the recipient would, not a reconstructed token. */
+export function extractInterestLink(html: string, action: "in" | "out"): string {
+  // Labels are HTML-escaped in the template (esc() turns ' into &#39;).
+  const label = (action === "in" ? "i'm interested" : "not interested").replace(/'/g, "&#39;");
+  const re = new RegExp(`<a[^>]+href="([^"]*/interested\\?t=[^"]+)"[^>]*>\\s*${label}\\s*</a>`, "i");
+  const m = html.match(re);
+  if (!m) throw new Error(`no "${action}" interest link found in email HTML`);
+  return m[1];
+}

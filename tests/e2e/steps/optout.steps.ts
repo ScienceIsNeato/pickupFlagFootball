@@ -1,19 +1,32 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedFormingAttempt, getUserId } from "../support/db";
-import { E2E } from "../support/env";
-// Relative (not "@/…") so it resolves at runtime under playwright-bdd's loader.
-import { signInterestToken } from "../../../lib/interestLink";
+import { seedFormingAttempt } from "../support/db";
+import { allEmails, extractInterestLink } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map" — clicking
 // the forming badge opens the proposed-site popup (also a .game-card).
+const SITE = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701" };
 
 Given("a forming game site near me", async ({ world }) => {
-  const r = await seedFormingAttempt({
-    lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701",
-  });
+  const r = await seedFormingAttempt(SITE);
   world.game = { lat: r.lat, lng: r.lng, placeText: r.placeText, areaId: r.areaId };
   world.attemptId = r.attemptId;
+});
+
+// Same seed, but it also enqueues a GAME_PROPOSED ask to me — so a tick delivers
+// the real proposal email to my inbox (with its not-interested link to click).
+Given("a neighbor proposes a game near me, asking me in", async ({ world }) => {
+  const r = await seedFormingAttempt({ ...SITE, notifyEmail: world.email! });
+  world.game = { lat: r.lat, lng: r.lng, placeText: r.placeText, areaId: r.areaId };
+  world.attemptId = r.attemptId;
+});
+
+Then("the proposal email reaches me", async ({ world }) => {
+  const me = world.email!.toLowerCase();
+  await expect.poll(
+    async () => (await allEmails()).some((e) => e.to.toLowerCase() === me && /proposed near you/i.test(e.subject)),
+    { timeout: 10000 },
+  ).toBe(true);
 });
 
 When("I say I'm not interested", async ({ page }) => {
@@ -36,10 +49,12 @@ Then("the proposal shows I'm in", async ({ page }) => {
 });
 
 When("I open my not-interested email link", async ({ page, world }) => {
-  const userId = await getUserId(world.email!);
-  process.env.AUTH_SECRET = E2E.authSecret; // sign with the secret the app verifies under
-  const token = signInterestToken(userId, world.attemptId!, "out");
-  await page.goto(`/interested?t=${encodeURIComponent(token)}`);
+  const me = world.email!.toLowerCase();
+  // The proposal email by subject — registration already sent a verification email
+  // to the same inbox, so "first email to me" would be the wrong one.
+  const proposal = (await allEmails()).find((e) => e.to.toLowerCase() === me && /proposed near you/i.test(e.subject));
+  if (!proposal) throw new Error(`no proposal email in ${me}'s inbox`);
+  await page.goto(extractInterestLink(proposal.html, "out")); // the real link from the email
   await expect(page.getByRole("heading", { name: /not this one/i })).toBeVisible({ timeout: 10000 });
 });
 

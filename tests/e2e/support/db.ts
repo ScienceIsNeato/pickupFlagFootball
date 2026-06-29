@@ -148,18 +148,29 @@ export async function seedStandingGame(o: {
 
 /** A live proposal (OPEN attempt) by a stand-in proposer (not the test user) —
  *  for flows that need a proposed site near the viewer without driving the propose
- *  action. The proposer is auto-interested + captain. */
+ *  action. The proposer is auto-interested + captain. Pass `notifyEmail` to also
+ *  enqueue a real GAME_PROPOSED ask to that user (flushed on the next tick), the
+ *  way the live proposeGame would — so the recipient's inbox carries the proposal
+ *  email with its one-click Interested / Not-Interested links. */
 export async function seedFormingAttempt(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
+  notifyEmail?: string;
 }): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
   const DAY = 86_400_000;
   const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
   const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
-  const { rows: [area] } = await pool.query(
-    `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'DORMANT') RETURNING id`,
-    [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
+  // Find-or-create the venue's area: registration may already own this cell (when
+  // the recipient registered first), so a plain INSERT would hit the unique cell.
+  let { rows: [area] } = await pool.query(
+    "SELECT id FROM areas WHERE activity_type_id = $1 AND h3_cell = $2 LIMIT 1", [act.id, h3Cell],
   );
+  if (!area) {
+    ({ rows: [area] } = await pool.query(
+      `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'DORMANT') RETURNING id`,
+      [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
+    ));
+  }
   const tag = String(area.id).slice(0, 8);
   const { rows: [proposer] } = await pool.query(
     `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
@@ -175,6 +186,16 @@ export async function seedFormingAttempt(o: {
   );
   await pool.query("INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)", [attempt.id, proposer.id]);
   await pool.query("INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [area.id, proposer.id]);
+  // A pending GAME_PROPOSED ask to the named recipient — the next tick flushes it
+  // into their inbox with the proposal's details + Interested/Not-Interested links.
+  if (o.notifyEmail) {
+    const uid = await getUserId(o.notifyEmail);
+    await pool.query(
+      `INSERT INTO notifications_sent (user_id, attempt_id, kind, channel)
+       VALUES ($1, $2, 'GAME_PROPOSED', 'email') ON CONFLICT DO NOTHING`,
+      [uid, attempt.id],
+    );
+  }
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
 }
 
