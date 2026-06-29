@@ -17,12 +17,12 @@ const TIME_OPTS = gameTimeOptions();
 const ERRORS: Record<string, string> = {
   missing: "Please fill in the address and a day, time, and date.",
   scheduled: "There's already a game scheduled at this spot.",
-  closed: "This area's suggestion window just closed — try again soon.",
-  cooldown: "This area is cooling down after a recent attempt — try again later.",
+  closed: "This area's suggestion window just closed - try again soon.",
+  cooldown: "This area is cooling down after a recent attempt - try again later.",
   nolocation: "Set your home address on your account before proposing.",
-  outofrange: "This spot is outside your travel radius — raise it from /account to propose here.",
-  unverified: "Confirm your email before proposing a game — check your inbox.",
-  retry: "Something hiccuped — please try again.",
+  outofrange: "This spot is outside your travel radius - raise it from /account to propose here.",
+  unverified: "Confirm your email before proposing a game - check your inbox.",
+  retry: "Something hiccuped - please try again.",
 };
 
 type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
@@ -43,7 +43,7 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
         gathering interest. At the end of that time, we&apos;ll let you know if a game has formed or not.
       </p>
       <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px", lineHeight: 1.55 }}>
-        That&apos;s all you have to do for now — thank you for supporting community sports!
+        That&apos;s all you have to do for now - thank you for supporting community sports!
       </p>
       <button type="button" className="btn-green" onClick={onClose}>got it</button>
     </div>
@@ -149,7 +149,7 @@ export function ProposeModal({
         {/* Top-of-dialog: out-of-range (lead with the actionable message) */}
         {outOfRange && home && distKm != null && (
           <div className="auth-error">
-            this spot is about {kmToMi(distKm)} mi from your home — outside your {kmToMi(home.maxTravelKm)}-mile area of interest.{" "}
+            this spot is about {kmToMi(distKm)} mi from your home - outside your {kmToMi(home.maxTravelKm)}-mile area of interest.{" "}
             <Link href="/account">increase your radius</Link> to propose a game here.
           </div>
         )}
@@ -185,9 +185,9 @@ export function ProposeModal({
           </label>
         </div>
         <label>
-          notes <span className="reg-optional">(optional — where to meet, parking, gate code…)</span>
+          notes <span className="reg-optional">(optional - where to meet, parking, gate code…)</span>
           <textarea name="place_notes" value={notes} onChange={(e) => setNotes(e.target.value)}
-            rows={2} placeholder="park in the east lot — gate code 1234" />
+            rows={2} placeholder="park in the east lot - gate code 1234" />
         </label>
 
         <label>

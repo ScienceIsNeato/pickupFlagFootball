@@ -33,7 +33,7 @@ export function donationFooterFor(user: DonationFooterUser): DonationFooter | nu
   return {
     text:
       "this app is free and pay-what-you-can. if it's running your weekly game, " +
-      "please update your account to chip in $5/month — or tell us you'd rather not, " +
+      "please update your account to chip in $5/month - or tell us you'd rather not, " +
       "and we'll drop this reminder from future emails.",
     donateUrl: skin.donate.url,
   };

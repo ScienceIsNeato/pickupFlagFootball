@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { hashToken } from "@/lib/auth/tokens";
 
-export const metadata = { title: "confirm your email — MIME-FF" };
+export const metadata = { title: "confirm your email - MIME-FF" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -37,7 +37,7 @@ export default async function VerifyEmailPage({
       <h1>this link didn&apos;t work</h1>
       <p>
         it may have already been used, or it&apos;s not valid. <Link href="/play">sign in</Link>{" "}
-        — if your email is still unconfirmed, use the <strong>resend</strong> link on the
+        - if your email is still unconfirmed, use the <strong>resend</strong> link on the
         banner at the top.
       </p>
     </main>

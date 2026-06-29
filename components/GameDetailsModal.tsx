@@ -239,7 +239,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                   <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
                 </>
               ) : (
-                <p className="game-muted">this game is outside your travel radius — widen it in your <a href="/account">account</a> to join.</p>
+                <p className="game-muted">this game is outside your travel radius - widen it in your <a href="/account">account</a> to join.</p>
               )}
               {actionErr && <p className="game-err">{actionErr}</p>}
             </div>
@@ -375,7 +375,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 <textarea
                   id="game-pause-note" className="game-confirm-input game-pause-note" rows={2}
                   value={pauseNote} onChange={(e) => setPauseNote(e.target.value)}
-                  placeholder="summer break — back in september" aria-label="why"
+                  placeholder="summer break - back in september" aria-label="why"
                 />
                 <p className="game-muted game-pause-hint">no resume date in mind? retire the series instead.</p>
                 <div className="seg" role="group" aria-label="confirm actions">

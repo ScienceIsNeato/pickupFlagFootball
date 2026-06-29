@@ -55,7 +55,7 @@ export default async function ShowInterestPage() {
     <main className="reg">
       <h1 className="reg-h">corrupted account</h1>
       <p className="reg-blurb">
-        your account is registered but has no interest on file — a state that shouldn&apos;t be
+        your account is registered but has no interest on file - a state that shouldn&apos;t be
         possible. it needs manual resolution: email{" "}
         <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&apos;ll sort it out.
       </p>

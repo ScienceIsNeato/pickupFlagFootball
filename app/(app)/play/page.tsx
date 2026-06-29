@@ -5,7 +5,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { MapView } from "@/components/MapView";
 
-export const metadata = { title: "Find a Game — MIME-FF" };
+export const metadata = { title: "Find a Game - MIME-FF" };
 
 export default async function PlayPage() {
   const session = await auth();

@@ -80,14 +80,14 @@ export function GoogleButton({
               // login modal with no explanation). Gate on `error` first.
               if (res?.error) {
                 onError?.(mode === "signup"
-                  ? "account created, but sign-in failed — try logging in"
-                  : "no account for that google address yet — use “create an account” below");
+                  ? "account created, but sign-in failed - try logging in"
+                  : "no account for that google address yet - use “create an account” below");
                 return;
               }
               if (res?.ok) { window.location.href = dest; return; }
-              onError?.("google sign-in failed — please try again");
+              onError?.("google sign-in failed - please try again");
             } catch {
-              onError?.("google sign-in failed — please try again");
+              onError?.("google sign-in failed - please try again");
             }
           },
         });
@@ -102,6 +102,6 @@ export function GoogleButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (off) return <p className="auth-note">google sign-in isn&apos;t configured yet — use email below.</p>;
+  if (off) return <p className="auth-note">google sign-in isn&apos;t configured yet - use email below.</p>;
   return <div ref={ref} />;
 }

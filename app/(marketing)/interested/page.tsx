@@ -5,7 +5,7 @@ import { formationAttempts } from "@/lib/db/schema";
 import { verifyInterestToken } from "@/lib/interestLink";
 import { applyInterest } from "./actions";
 
-export const metadata = { title: "interested? — MIME-FF" };
+export const metadata = { title: "interested? - MIME-FF" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -21,7 +21,7 @@ export default async function InterestedPage({
 
   if (done) {
     const copy: Record<string, { title: string; body: string }> = {
-      in: { title: "you're in", body: "nice — we've counted you in. if enough people are in by the deadline, the game's on and you'll get a heads-up." },
+      in: { title: "you're in", body: "nice - we've counted you in. if enough people are in by the deadline, the game's on and you'll get a heads-up." },
       out: { title: "no worries", body: "we won't count you toward this one. you'll still hear about other games proposed near you." },
       closed: { title: "this one's settled", body: "the interest window for this proposal has already closed." },
       invalid: { title: "this link didn't work", body: "it may have expired or been altered." },

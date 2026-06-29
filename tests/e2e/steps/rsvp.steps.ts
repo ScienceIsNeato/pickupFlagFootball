@@ -21,7 +21,7 @@ When("I open my {string} rsvp link", async ({ page, world }, _label: string) => 
 });
 
 When("I confirm the rsvp", async ({ page }) => {
-  await page.getByRole("button", { name: /confirm — i'm in/i }).click();
+  await page.getByRole("button", { name: /confirm.*i'm in/i }).click();
 });
 
 Then("I'm marked in for the week", async ({ page }) => {

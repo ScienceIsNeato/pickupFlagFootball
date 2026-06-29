@@ -11,7 +11,7 @@ export function UnverifiedBanner() {
   return (
     <div className="unverified-banner" role="status">
       <span className="unverified-dot" aria-hidden />
-      <span>email <strong>unconfirmed</strong> — confirm to join or propose games.</span>
+      <span>email <strong>unconfirmed</strong> - confirm to join or propose games.</span>
       <button
         type="button"
         className="unverified-resend"

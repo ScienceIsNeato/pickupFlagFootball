@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Big simplification of how games come together: instead of a whole neighborhood voting between competing spots, each game someone proposes is now its own thing — neighbors just get an email with the details and tap Interested or Not. Reworked the whole flow end to end; tests all green.",
+    "status": "Wrapped up the big change to how games come together (each proposed game is now its own thing - neighbors get the details by email and tap Interested or Not). Now polishing the wording: the weekly game-on email spells out where, when, and who's coming, called-off weeks don't ask for money, and I cleaned up punctuation across the app's copy.",
     "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-29T01:00:00Z"
+    "last_update": "2026-06-29T20:24:55Z"
   }
 }

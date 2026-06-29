@@ -11,7 +11,7 @@ type Copy = { subject: string; title: string; intro: string; cta: string; path: 
 // Per-kind copy. CTA path is app-relative; the layer makes it absolute.
 const COPY: Record<NotifKind, Copy> = {
   GAME_PROPOSED:  { subject: "a game's been proposed near you", title: "want in?", intro: "someone proposed a game near you. here's the spot and time - tap below if you're in.", cta: "see it on the map", path: "/play" },
-  GAME_ON:        { subject: "game on — you're in", title: "your game is scheduled", intro: "enough players are in. here's your standing weekly game — check the spot, time, and who's coming.", cta: "see your game", path: "/my-games" },
+  GAME_ON:        { subject: "game on - you're in", title: "your game is scheduled", intro: "enough players are in. here's your standing weekly game - check the spot, time, and who's coming.", cta: "see your game", path: "/my-games" },
   STALLED_NOTICE: { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough interest to lock this one in - but you can always propose another, or jump on the next one nearby.", cta: "find a game", path: "/play" },
   POLL_ASK:       { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
   WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in - this week's game is on. here's the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
@@ -81,7 +81,7 @@ export function buildVerificationEmail(
   const base = appBaseUrl.replace(/\/+$/, "");
   const ctaUrl = `${base}/verify-email?token=${encodeURIComponent(token)}`;
   const greeting = `hey ${displayName ?? "there"},`;
-  const intro = `you're on the map — nice. one last step: click below to confirm your email. you won't be able to join or propose local games until you do.`;
+  const intro = `you're on the map - nice. one last step: click below to confirm your email. you won't be able to join or propose local games until you do.`;
   return {
     subject: `confirm your email to play · ${skin.brandName}`,
     htmlContent: layout({ title: "confirm your email", intro, cta: "confirm my email", ctaUrl, greeting, footer: null, base }),
