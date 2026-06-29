@@ -27,8 +27,9 @@ Given("a weekly game whose poll just closed with too few players in", async ({ w
 Then("I've found my weekly game", async ({ page }) => {
   const card = page.locator(".game-card");
   await expect(card).toContainText(/standing game/i, { timeout: 10000 });
-  // I'm a member — the popup says so, no "join weekly game" prompt.
+  // I'm a member — the popup says so, with no "join weekly game" bystander prompt.
   await expect(card).toContainText(/found your weekly game/i);
+  await expect(card).not.toContainText(/join weekly game/i);
 });
 
 When("the engine ticks", async ({ page }) => {

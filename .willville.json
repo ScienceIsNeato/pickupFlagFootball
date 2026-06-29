@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Made the test story-report honest: it only snaps a picture when the screen actually changes (no more duplicate filler shots), and every email a flow sends now shows up automatically. Also fixed the weekly-game test so the player is clearly a member of the game, not a bystander.",
-    "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-28T05:00:00Z"
+    "status": "Big simplification of how games come together: instead of a whole neighborhood voting between competing spots, each game someone proposes is now its own thing — neighbors just get an email with the details and tap Interested or Not. Reworked the whole flow end to end; tests all green.",
+    "direction": "Get this reviewed and merged to dev. Still need to soften the landing-page promise to match the new 'propose a game' model.",
+    "last_update": "2026-06-29T00:00:00Z"
   }
 }
