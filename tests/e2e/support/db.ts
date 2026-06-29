@@ -355,6 +355,11 @@ export async function getDonationStatus(email: string): Promise<string> {
   return u?.donation_status ?? "";
 }
 
+/** Mark a user a supporter (or any donation_status) — for the email thank-you path. */
+export async function setDonationStatus(email: string, status: "unset" | "subscribed" | "declined"): Promise<void> {
+  await pool.query("UPDATE users SET donation_status = $2 WHERE lower(email) = lower($1)", [email, status]);
+}
+
 /** The id of a registered user, by email — to wire up roster/captain/RSVP rows. */
 export async function getUserId(email: string): Promise<string> {
   const { rows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);

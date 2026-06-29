@@ -49,7 +49,9 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
     </div>`
     : "";
   const footerHtml = p.footer
-    ? `<p style="color:#9fb39a; font-size:13px; line-height:1.55; margin:22px 0 0;">${esc(p.footer.text)} <a href="${esc(p.base + p.footer.donateUrl)}" style="color:#f4c430; text-decoration:none;">chip in</a>.</p>`
+    ? `<p style="color:#9fb39a; font-size:13px; line-height:1.55; margin:22px 0 0;">${esc(p.footer.text)}${
+        p.footer.donateUrl ? ` <a href="${esc(p.base + p.footer.donateUrl)}" style="color:#f4c430; text-decoration:none;">chip in</a>.` : ""
+      }</p>`
     : "";
   return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>${esc(p.title)}</title></head>
 <body style="margin:0; padding:0; background:#0b1210; color:#e9edf6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -115,7 +117,7 @@ export function buildNotificationEmail(
     : { inLabel: "play after all", outLabel: "bail" };
   const buttons = opts.buttons ? { inUrl: opts.buttons.inUrl, outUrl: opts.buttons.outUrl, ...labels } : undefined;
 
-  const footerLine = opts.footer ? `\n\n${opts.footer.text} ${base}${opts.footer.donateUrl}` : "";
+  const footerLine = opts.footer ? `\n\n${opts.footer.text}${opts.footer.donateUrl ? ` ${base}${opts.footer.donateUrl}` : ""}` : "";
   const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}\nwhen: ${opts.details.when}` : "";
   const rosterLine = opts.roster ? `\n\n${opts.roster.count} planning to play: ${opts.roster.names.join(", ") || "—"}` : "";
   const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";

@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import { tickEngine } from "../support/tick";
-import { seedWeeklyGameWithClosedPoll, getOccurrenceStatus, expireOccurrenceKickoff, seedRosterMember } from "../support/db";
+import { seedWeeklyGameWithClosedPoll, getOccurrenceStatus, expireOccurrenceKickoff, seedRosterMember, setDonationStatus } from "../support/db";
 import { allEmails } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map".
@@ -42,11 +42,13 @@ Then("the week is on", async ({ world }) => {
   expect(await getOccurrenceStatus(world.occurrenceId!)).toBe("awaiting_game");
 });
 
-// The "game on this week" email carries the spot, time, headcount, and roster.
+// The "game on this week" email carries the spot, time, headcount, and roster —
+// and (for never-decided players) the donation ask, which lives only on this email.
 Then("the game-on email lists who's coming", async () => {
   await expect.poll(async () => {
     const won = (await allEmails()).find((e) => /game on this week/i.test(e.subject));
-    return won ? /Republic Square/.test(won.html) && /planning to play/i.test(won.html) && /Wendy Week/.test(won.html) : false;
+    return won ? /Republic Square/.test(won.html) && /planning to play/i.test(won.html)
+      && /Wendy Week/.test(won.html) && /chip in/i.test(won.html) : false;
   }, { timeout: 10000 }).toBe(true);
 });
 
@@ -68,5 +70,20 @@ Then("the off-week email has no donation ask", async () => {
   await expect.poll(async () => {
     const off = (await allEmails()).find((e) => /no game this week/i.test(e.subject));
     return off ? !/chip in/i.test(off.html) : false;
+  }, { timeout: 10000 }).toBe(true);
+});
+
+// A supporter on the roster — for the game-on thank-you branch.
+Given("I'm a supporter in this game", async ({ world }) => {
+  await seedRosterMember(world.game!.gameId!, world.email!, "in");
+  await setDonationStatus(world.email!, "subscribed");
+});
+
+// Supporters get thanked on the game-on email, never asked.
+Then("my game-on email thanks me instead of asking", async ({ world }) => {
+  const me = world.email!.toLowerCase();
+  await expect.poll(async () => {
+    const won = (await allEmails()).find((e) => e.to.toLowerCase() === me && /game on this week/i.test(e.subject));
+    return won ? /thank/i.test(won.html) && !/chip in/i.test(won.html) : false;
   }, { timeout: 10000 }).toBe(true);
 });

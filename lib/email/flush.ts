@@ -12,9 +12,11 @@ const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
 // Weekly emails that show the game's spot + time (a "game's off" email doesn't —
 // there's no game to detail).
 const OCCURRENCE_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
-// Bad-news emails don't carry a donation ask — asking for money when a game falls
-// through is in poor taste.
-const NO_FOOTER_KINDS = new Set<NotifKind>(["WEEK_OFF", "STALLED_NOTICE"]);
+// The donation block lives ONLY on the weekly "game on" email — an ask for
+// never-decided players, a thank-you for supporters. Every other email (the
+// proposal ask, the formation "you're in", the poll request, and the bad-news
+// emails) stays clean.
+const DONATION_BLOCK_KIND: NotifKind = "WEEK_ON";
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
@@ -105,8 +107,8 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
 
     try {
       const kind = r.kind as NotifKind;
-      // No donation ask on bad-news emails.
-      const footer = NO_FOOTER_KINDS.has(kind) ? null : donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
+      // Donation block only on the weekly "game on" email (ask vs thank-you by status).
+      const footer = kind === DONATION_BLOCK_KIND ? donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn }) : null;
       // Weekly poll emails → RSVP links; proposal emails → Interested/Not-Interested.
       const buttons = RSVP_LINK_KINDS.has(kind) && r.occurrenceId
         ? { inUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "in"), outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out") }

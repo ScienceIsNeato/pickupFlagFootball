@@ -27,6 +27,9 @@ Then("the proposal email reaches me", async ({ world }) => {
     async () => (await allEmails()).some((e) => e.to.toLowerCase() === me && /proposed near you/i.test(e.subject)),
     { timeout: 10000 },
   ).toBe(true);
+  // The proposal email never carries a donation ask — that lives only on week-on.
+  const proposal = (await allEmails()).find((e) => e.to.toLowerCase() === me && /proposed near you/i.test(e.subject));
+  expect(proposal!.html, "proposal email must not carry a donation ask").not.toMatch(/chip in/i);
 });
 
 When("I say I'm not interested", async ({ page }) => {

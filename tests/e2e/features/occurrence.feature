@@ -21,3 +21,10 @@ Feature: A weekly game runs (occurrence FSM)
     When the engine ticks
     Then the week is skipped
     And the off-week email has no donation ask
+
+  Scenario: a supporter is thanked, not asked, on the game-on email
+    Given a weekly game whose poll just closed with enough players in
+    And I am a confirmed player "Sue Porter" with email "sue@example.com" in ZIP "78701"
+    And I'm a supporter in this game
+    When the engine ticks
+    Then my game-on email thanks me instead of asking

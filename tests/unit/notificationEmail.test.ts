@@ -25,3 +25,23 @@ test("a plain notice omits the two-button row", () => {
   assert.ok(!/\/interested\?t=/.test(mail.htmlContent), "no interest links in html");
   assert.ok(!/i'm interested/i.test(mail.textContent), "no interest button in text");
 });
+
+test("week-on renders the donation ask with a chip-in link", () => {
+  const mail = buildNotificationEmail("WEEK_ON", {
+    displayName: "Sam", appBaseUrl: "https://app.test",
+    footer: { text: "if it's running your weekly game, chip in $5/month.", donateUrl: "/donate" },
+  });
+  assert.match(mail.htmlContent, />chip in<\/a>/, "ask renders a chip-in link");
+  assert.ok(mail.htmlContent.includes("https://app.test/donate"), "link is absolute");
+  assert.ok(mail.textContent.includes("https://app.test/donate"), "text carries the donate url");
+});
+
+test("week-on renders a supporter thank-you with no ask link", () => {
+  const mail = buildNotificationEmail("WEEK_ON", {
+    displayName: "Sam", appBaseUrl: "https://app.test",
+    footer: { text: "thanks for chipping in - your support keeps your weekly game running.", donateUrl: null },
+  });
+  assert.match(mail.htmlContent, /thanks for chipping in/i, "shows the thank-you");
+  assert.ok(!/>chip in<\/a>/.test(mail.htmlContent), "no chip-in link for supporters");
+  assert.ok(!/\/donate/.test(mail.textContent), "no donate url in the text");
+});
