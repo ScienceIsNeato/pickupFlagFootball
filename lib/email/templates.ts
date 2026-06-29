@@ -2,8 +2,7 @@ import { skin } from "@/lib/skin";
 import type { DonationFooter } from "./donationFooter";
 
 export type NotifKind =
-  | "SPARK_ASK" | "OPTIONS_AVAILABLE" | "GAME_ON"
-  | "SUGGEST_NUDGE" | "SUGGEST_LASTCALL" | "AVAIL_NUDGE" | "AVAIL_LASTCALL" | "STALLED_NOTICE"
+  | "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE"
   // weekly occurrence poll
   | "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
 
@@ -11,35 +10,37 @@ type Copy = { subject: string; title: string; intro: string; cta: string; path: 
 
 // Per-kind copy. CTA path is app-relative; the layer makes it absolute.
 const COPY: Record<NotifKind, Copy> = {
-  SPARK_ASK:         { subject: "a game might be forming near you", title: "enough interest to get rolling", intro: "people near you want to play. suggest a spot and a weekly time to get a game off the ground.", cta: "suggest a spot", path: "/play" },
-  OPTIONS_AVAILABLE: { subject: "vote on where & when to play", title: "the options are in", intro: "spots and times have been suggested for your area. say which ones you'd actually show up for.", cta: "see the options", path: "/play" },
-  GAME_ON:           { subject: "game on — you're in", title: "your game is scheduled", intro: "enough players committed. here's your standing weekly game — check the spot, time, and who's coming.", cta: "see your game", path: "/my-games" },
-  SUGGEST_NUDGE:     { subject: "still time to pick a spot", title: "got a spot in mind?", intro: "the suggestion window for your area is open. drop a place and time before it closes.", cta: "suggest a spot", path: "/play" },
-  SUGGEST_LASTCALL:  { subject: "last call to suggest a spot", title: "the window's closing", intro: "last chance to suggest where and when your game should happen.", cta: "suggest a spot", path: "/play" },
-  AVAIL_NUDGE:       { subject: "don't forget to vote", title: "your vote keeps it alive", intro: "say which of the suggested spots and times you'd come to — the game only forms if enough of you commit.", cta: "vote now", path: "/play" },
-  AVAIL_LASTCALL:    { subject: "last call to vote", title: "voting closes soon", intro: "last chance to weigh in on where and when to play.", cta: "vote now", path: "/play" },
-  STALLED_NOTICE:    { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough commitment to lock a game this round — but interest sticks around and we'll try again. tell a friend who'd play.", cta: "find a game", path: "/play" },
-  POLL_ASK:          { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
-  WEEK_ON:           { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in — this week's game is on. check the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
-  WEEK_OFF:          { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week — and you can still rally folks.", cta: "see your games", path: "/my-games" },
+  GAME_PROPOSED:  { subject: "a game's been proposed near you", title: "want in?", intro: "someone proposed a game near you. here's the spot and time — tap below if you're in.", cta: "see it on the map", path: "/play" },
+  GAME_ON:        { subject: "game on — you're in", title: "your game is scheduled", intro: "enough players are in. here's your standing weekly game — check the spot, time, and who's coming.", cta: "see your game", path: "/my-games" },
+  STALLED_NOTICE: { subject: "not enough players this round", title: "not quite there yet", intro: "there wasn't enough interest to lock this one in — but you can always propose another, or jump on the next one nearby.", cta: "find a game", path: "/play" },
+  POLL_ASK:       { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
+  WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in — this week's game is on. check the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
+  WEEK_OFF:       { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week — and you can still rally folks.", cta: "see your games", path: "/my-games" },
 };
 
 function esc(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-type RsvpButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
+type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
+type Details = { place: string; when: string };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; rsvp?: RsvpButtons; declineUrl?: string }): string {
-  const rsvpHtml = p.rsvp
-    ? `<div style="margin:16px 0 0;">
-      <a href="${esc(p.rsvp.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.rsvp.inLabel)}</a>
-      <a href="${esc(p.rsvp.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.rsvp.outLabel)}</a>
-    </div>`
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details }): string {
+  // The proposal's spot + time, shown right in the email so the recipient can
+  // decide without clicking through.
+  const detailsHtml = p.details
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" style="background:#1a2c25; border-radius:10px; margin:0 0 18px; width:100%;"><tr><td style="padding:14px 16px;">
+        <p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">where</p>
+        <p style="margin:0 0 12px; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.place)}</p>
+        <p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">when</p>
+        <p style="margin:0; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.when)}</p>
+      </td></tr></table>`
     : "";
-  // One-click "stop emails about this forming site" — so courting can't spam.
-  const declineHtml = p.declineUrl
-    ? `<p style="color:#6f7891; font-size:12px; line-height:1.6; margin:16px 0 0;">not interested in this site? <a href="${esc(p.declineUrl)}" style="color:#5b9452; text-decoration:none;">stop emails about it</a>.</p>`
+  const buttonsHtml = p.buttons
+    ? `<div style="margin:16px 0 0;">
+      <a href="${esc(p.buttons.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.buttons.inLabel)}</a>
+      <a href="${esc(p.buttons.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.buttons.outLabel)}</a>
+    </div>`
     : "";
   const footerHtml = p.footer
     ? `<p style="color:#9fb39a; font-size:13px; line-height:1.55; margin:22px 0 0;">${esc(p.footer.text)} <a href="${esc(p.base + p.footer.donateUrl)}" style="color:#f4c430; text-decoration:none;">chip in</a>.</p>`
@@ -52,11 +53,11 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
     <tr><td style="background:#12211c; border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:28px 26px;">
       <h1 style="color:#ffffff; font-size:24px; font-weight:800; line-height:1.2; margin:0 0 14px;">${esc(p.title)}</h1>
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 8px;">${esc(p.greeting)}</p>
-      <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 22px;">${esc(p.intro)}</p>
+      <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 18px;">${esc(p.intro)}</p>
+      ${detailsHtml}
       <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
-      ${rsvpHtml}
+      ${buttonsHtml}
       ${footerHtml}
-      ${declineHtml}
     </td></tr>
     <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
       you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>.
@@ -86,10 +87,11 @@ export function buildNotificationEmail(
   kind: NotifKind,
   opts: {
     displayName: string | null; appBaseUrl: string; footer: DonationFooter | null;
-    // one-click RSVP links for the weekly poll emails (lib/rsvpLink.ts)
-    rsvp?: { inUrl: string; outUrl: string };
-    // one-click "stop emails about this forming site" (lib/declineLink.ts)
-    declineUrl?: string;
+    // one-click two-button row: RSVP (POLL_ASK/WEEK_ON, lib/rsvpLink) or
+    // Interested/Not-Interested (GAME_PROPOSED, lib/interestLink).
+    buttons?: { inUrl: string; outUrl: string };
+    // the proposed spot + time, shown in the GAME_PROPOSED email.
+    details?: Details;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -97,20 +99,21 @@ export function buildNotificationEmail(
   const ctaUrl = `${base}${c.path}`;
   const greeting = `hey ${opts.displayName ?? "there"},`;
 
-  // The RSVP request uses "in/out"; the status emails offer "play after all / bail".
   const labels = kind === "POLL_ASK"
     ? { inLabel: "i'm in", outLabel: "i'm out" }
+    : kind === "GAME_PROPOSED"
+    ? { inLabel: "i'm interested", outLabel: "not interested" }
     : { inLabel: "play after all", outLabel: "bail" };
-  const rsvp = opts.rsvp ? { inUrl: opts.rsvp.inUrl, outUrl: opts.rsvp.outUrl, ...labels } : undefined;
+  const buttons = opts.buttons ? { inUrl: opts.buttons.inUrl, outUrl: opts.buttons.outUrl, ...labels } : undefined;
 
   const footerLine = opts.footer ? `\n\n${opts.footer.text} ${base}${opts.footer.donateUrl}` : "";
-  const rsvpLine = rsvp ? `\n\n${rsvp.inLabel}: ${rsvp.inUrl}\n${rsvp.outLabel}: ${rsvp.outUrl}` : "";
-  const declineLine = opts.declineUrl ? `\n\nnot interested in this site? stop emails about it: ${opts.declineUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}\n\n${c.cta}: ${ctaUrl}${rsvpLine}${declineLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
+  const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}\nwhen: ${opts.details.when}` : "";
+  const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";
+  const textContent = `${greeting}\n\n${c.intro}${detailsLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, rsvp, declineUrl: opts.declineUrl }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details }),
     textContent,
   };
 }
