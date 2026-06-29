@@ -11,10 +11,8 @@ const WIPE = [
   "area_captains",
   "game_attendance",
   "game_roster",
-  "soft_promises",
-  "formation_options",
+  "attempt_interest",
   "formation_attempts",
-  "suggestions",
   "notifications_sent",
   "map_aggregates",
   "games",
@@ -148,22 +146,18 @@ export async function seedStandingGame(o: {
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, gameId: String(game.id), areaId: String(area.id) };
 }
 
-/** A forming (IN_FORMATION) site mid-attempt (SUGGESTING) with one suggestion
- *  already in — clicking its badge opens the proposed-site popup, and the
- *  returned attemptId lets the formation-FSM e2e expire its windows + add
- *  promises, then drive it with engine ticks. The "not interested" beat uses it
- *  too (it just ignores the attemptId). */
+/** A live proposal (OPEN attempt) by a stand-in proposer (not the test user) —
+ *  for flows that need a proposed site near the viewer without driving the propose
+ *  action. The proposer is auto-interested + captain. */
 export async function seedFormingAttempt(o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
 }): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
   const DAY = 86_400_000;
   const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
-  const { rows: [act] } = await pool.query(
-    "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
-  );
+  const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
   const { rows: [area] } = await pool.query(
     `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'IN_FORMATION') RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6, 'DORMANT') RETURNING id`,
     [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
   );
   const tag = String(area.id).slice(0, 8);
@@ -174,50 +168,39 @@ export async function seedFormingAttempt(o: {
   );
   const { rows: [attempt] } = await pool.query(
     `INSERT INTO formation_attempts
-       (activity_type_id, area_id, attempt_number, status, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, 1, 'SUGGESTING', now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
-    [act.id, area.id],
+       (activity_type_id, area_id, attempt_number, status, proposer_id, place_text, place_lat, place_lng,
+        proposed_start, recur_dow, recur_time, interest_closes_at)
+     VALUES ($1, $2, 1, 'OPEN', $3, $4, $5, $6, $7, 6, '10:00', now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id, proposer.id, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
   );
-  await pool.query(
-    `INSERT INTO suggestions
-       (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
-     VALUES ($1, $2, $3, $4, $5, $6, 6, '10:00')`,
-    [attempt.id, proposer.id, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
-  );
+  await pool.query("INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)", [attempt.id, proposer.id]);
+  await pool.query("INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [area.id, proposer.id]);
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
 }
 
-/** A confirmed player proposes a game at `site` — mirrors the proposeGame action's
- *  user-initiated spark: find-or-create the area, open a SUGGESTING attempt, record
- *  the proposer's own suggestion, and make them a captain of the site. Unlike
- *  seedFormingAttempt, the proposer IS the test user (so we can assert their view). */
+/** The test user proposes a game — mirrors the proposeGame action: find-or-create
+ *  the area, open an OPEN attempt with the proposal, seed a neighbour cohort + the
+ *  pending GAME_PROPOSED emails, make the proposer captain + auto-interested. */
 export async function proposeAsUser(email: string, o: {
   lat: number; lng: number; placeText: string; city: string; zip: string;
 }): Promise<{ lat: number; lng: number; placeText: string; areaId: string; attemptId: string }> {
   const DAY = 86_400_000;
   const userId = await getUserId(email);
   const h3Cell = BigInt("0x" + latLngToCell(o.lat, o.lng, 7)).toString();
-  const { rows: [act] } = await pool.query(
-    "SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1",
-  );
-  // Find-or-create the area for the venue's cell — registration may already own it
-  // when the proposer's home falls in the same H3 r7 cell. Either way → IN_FORMATION.
+  const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
+  // Find-or-create the area for the venue's cell (registration may already own it).
   let { rows: [area] } = await pool.query(
-    "SELECT id FROM areas WHERE activity_type_id = $1 AND h3_cell = $2 LIMIT 1",
-    [act.id, h3Cell],
+    "SELECT id FROM areas WHERE activity_type_id = $1 AND h3_cell = $2 LIMIT 1", [act.id, h3Cell],
   );
-  if (area) {
-    await pool.query("UPDATE areas SET status = 'IN_FORMATION' WHERE id = $1", [area.id]);
-  } else {
+  if (!area) {
     ({ rows: [area] } = await pool.query(
       `INSERT INTO areas (activity_type_id, h3_cell, display_city, display_zip, center_lat, center_lng, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'IN_FORMATION') RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'DORMANT') RETURNING id`,
       [act.id, h3Cell, o.city, o.zip, o.lat, o.lng],
     ));
   }
-  // Seed a few nearby "neighbors" as the courting cohort so the formation's emails
-  // (SPARK_ASK now, OPTIONS_AVAILABLE / STALLED_NOTICE on tick) have real
-  // recipients — mirrors the cohort the real proposeGame snapshots at spark time.
+  // A few nearby "neighbours" as the courting cohort, so GAME_PROPOSED / STALLED
+  // emails have real recipients — like the cohort the real proposeGame snapshots.
   const tag = String(area.id).slice(0, 8);
   const cohort: string[] = [];
   for (let i = 0; i < 3; i++) {
@@ -228,77 +211,52 @@ export async function proposeAsUser(email: string, o: {
     );
     cohort.push(String(nb.id));
   }
-  // Reused areas may already carry a prior attempt — derive the next number rather
-  // than hardcoding 1 (which would seed a bogus second "first attempt").
   const { rows: [next] } = await pool.query(
-    "SELECT COALESCE(MAX(attempt_number), 0) + 1 AS n FROM formation_attempts WHERE area_id = $1",
-    [area.id],
+    "SELECT COALESCE(MAX(attempt_number), 0) + 1 AS n FROM formation_attempts WHERE area_id = $1", [area.id],
   );
   const { rows: [attempt] } = await pool.query(
     `INSERT INTO formation_attempts
-       (activity_type_id, area_id, attempt_number, status, cohort_user_ids, suggestion_opened_at, suggestion_closes_at)
-     VALUES ($1, $2, $3, 'SUGGESTING', $4, now() - interval '1 hour', now() + interval '48 hours') RETURNING id`,
-    [act.id, area.id, next.n, cohort],
+       (activity_type_id, area_id, attempt_number, status, proposer_id, place_text, place_lat, place_lng,
+        proposed_start, recur_dow, recur_time, cohort_user_ids, interest_closes_at)
+     VALUES ($1, $2, $3, 'OPEN', $4, $5, $6, $7, $8, 6, '10:00', $9, now() + interval '48 hours') RETURNING id`,
+    [act.id, area.id, next.n, userId, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString(), cohort],
   );
-  await pool.query(
-    `INSERT INTO suggestions
-       (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
-     VALUES ($1, $2, $3, $4, $5, $6, 6, '10:00')`,
-    [attempt.id, userId, o.placeText, o.lat, o.lng, new Date(Date.now() + 5 * DAY).toISOString()],
-  );
-  // The proposer becomes a captain of the site (the proposeGame action does this).
-  await pool.query(
-    "INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-    [area.id, userId],
-  );
-  // SPARK_ASK to the cohort — pending (emailed_at NULL) until the first tick
-  // flushes it, exactly like the real proposeGame's user-initiated spark.
+  // Proposer is in by definition + becomes the captain.
+  await pool.query("INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true) ON CONFLICT DO NOTHING", [attempt.id, userId]);
+  await pool.query("INSERT INTO area_captains (area_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [area.id, userId]);
+  // GAME_PROPOSED to the cohort — pending until a tick flushes it.
   for (const u of cohort) {
     await pool.query(
       `INSERT INTO notifications_sent (user_id, attempt_id, kind, channel)
-       VALUES ($1, $2, 'SPARK_ASK', 'email') ON CONFLICT DO NOTHING`,
+       VALUES ($1, $2, 'GAME_PROPOSED', 'email') ON CONFLICT DO NOTHING`,
       [u, attempt.id],
     );
   }
   return { lat: o.lat, lng: o.lng, placeText: o.placeText, areaId: String(area.id), attemptId: String(attempt.id) };
 }
 
-/** Push the suggestion window into the past so the next tick closes it. */
-export async function expireSuggestionWindow(attemptId: string): Promise<void> {
-  await pool.query(
-    `UPDATE formation_attempts SET suggestion_closes_at = now() - interval '1 minute' WHERE id = $1`,
-    [attemptId],
-  );
+/** Push a proposal's interest window into the past so the next tick resolves it. */
+export async function expireInterestWindow(attemptId: string): Promise<void> {
+  await pool.query(`UPDATE formation_attempts SET interest_closes_at = now() - interval '1 minute' WHERE id = $1`, [attemptId]);
 }
 
-/** Push the availability window into the past so the next tick closes it. */
-export async function expireAvailabilityWindow(attemptId: string): Promise<void> {
-  await pool.query(
-    `UPDATE formation_attempts SET availability_closes_at = now() - interval '1 minute' WHERE id = $1`,
-    [attemptId],
-  );
-}
-
-/** Soft-promise the attempt's compiled top option with `n` distinct players —
- *  call AFTER a tick has closed the suggestion window (which compiles options). */
-export async function commitToTopOption(attemptId: string, n: number): Promise<void> {
-  const { rows: [opt] } = await pool.query(
-    `SELECT id FROM formation_options WHERE attempt_id = $1 ORDER BY first_suggested_at, id LIMIT 1`,
-    [attemptId],
-  );
-  if (!opt) throw new Error("no compiled option — tick after the suggestion window closes first");
+/** Seed `n` distinct interested players ("I'm in") for a proposal. */
+export async function seedInterested(attemptId: string, n: number): Promise<void> {
   const tag = String(attemptId).slice(0, 8);
   for (let i = 0; i < n; i++) {
     const { rows: [u] } = await pool.query(
       `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
        VALUES ($1, $2, 0, 0, '00000', now()) RETURNING id`,
-      [`seed-${tag}-promise${i}@example.com`, `Promiser ${i + 1}`],
+      [`seed-${tag}-in${i}@example.com`, `In ${i + 1}`],
     );
-    await pool.query(
-      `INSERT INTO soft_promises (attempt_id, option_id, user_id) VALUES ($1, $2, $3)`,
-      [attemptId, opt.id, u.id],
-    );
+    await pool.query("INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true) ON CONFLICT DO NOTHING", [attemptId, u.id]);
   }
+}
+
+/** A formation attempt's status (OPEN / CONFIRMED / FAILED / CANCELLED). */
+export async function getAttemptStatus(attemptId: string): Promise<string> {
+  const { rows: [a] } = await pool.query(`SELECT status FROM formation_attempts WHERE id = $1`, [attemptId]);
+  return a?.status ?? "";
 }
 
 /** Whether a game row exists for an area (the formation confirmed). */
