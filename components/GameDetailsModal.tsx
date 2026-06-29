@@ -130,6 +130,26 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     }
   }
 
+  // Each segment toggle persists immediately — no separate "save". joinWeeklyGame
+  // is idempotent: it joins a not-yet-member and updates the regular/occasional
+  // default + the next-game RSVP otherwise. Optimistic, reverting on failure.
+  async function persist(p: "regular" | "occasional", inVal: boolean) {
+    if (!game || busy) return;
+    const prevP = pref, prevIn = nextIn;
+    setPref(p); setNextIn(inVal);
+    setBusy(true); setActionErr("");
+    try {
+      const res = await joinWeeklyGame(game.gameId, p === "regular", inVal);
+      if (!res.ok) { setActionErr(res.error ?? "something went wrong"); setPref(prevP); setNextIn(prevIn); return; }
+      await load();
+      onChanged?.();
+    } catch {
+      setActionErr("something went wrong"); setPref(prevP); setNextIn(prevIn);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function askConfirm(req: ConfirmReq) {
     setTyped(""); setResumeDate(""); setPauseNote("");
     setConfirmReq(req);
@@ -190,24 +210,22 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 <>
                   {/* Players (and playing captains, who are on the roster) join / manage RSVP.
                       Members are already in — the heading + button say so, not "join". */}
+                  {/* Members are already in (toggles save on tap); a not-yet-member
+                      joins the moment they pick — the heading says which. */}
                   <p className="game-join-h">{game.onRoster ? "you've found your weekly game!" : "join weekly game"}</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
                     <button type="button" className={pref === "regular" ? "seg-on" : ""}
-                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => setPref("regular")}>regular player</button>
+                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => persist("regular", nextIn)}>regular player</button>
                     <button type="button" className={pref === "occasional" ? "seg-on" : ""}
-                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => setPref("occasional")}>occasional player</button>
+                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => persist("occasional", nextIn)}>occasional player</button>
                   </div>
                   <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
                   <div className="seg" role="group" aria-label="next game">
                     <button type="button" className={nextIn ? "seg-on" : ""}
-                      aria-pressed={nextIn} disabled={busy} onClick={() => setNextIn(true)}>i&apos;m in</button>
+                      aria-pressed={nextIn} disabled={busy} onClick={() => persist(pref, true)}>i&apos;m in</button>
                     <button type="button" className={!nextIn ? "seg-on seg-on-out" : ""}
-                      aria-pressed={!nextIn} disabled={busy} onClick={() => setNextIn(false)}>i&apos;m out</button>
+                      aria-pressed={!nextIn} disabled={busy} onClick={() => persist(pref, false)}>i&apos;m out</button>
                   </div>
-                  <button type="button" className="btn-green game-join" disabled={busy}
-                    onClick={() => run(() => joinWeeklyGame(game.gameId, pref === "regular", nextIn))}>
-                    {game.onRoster ? "save changes" : "join weekly game"}
-                  </button>
                   {game.onRoster && (
                     <button type="button" className="game-leave" disabled={busy}
                       onClick={() => run(() => setRosterMembership(game.gameId, false))}>leave this game</button>
