@@ -46,9 +46,104 @@ export async function waitForEmailTo(email: string, timeoutMs = 15000): Promise<
   throw new Error(`no email to ${email} within ${timeoutMs}ms`);
 }
 
+/** Every message currently in Mailpit (the whole outbox), newest first, with
+ *  recipient + subject + rendered HTML. For folding the flow's emails into the
+ *  story report. */
+export async function allEmails(): Promise<{ to: string; subject: string; html: string }[]> {
+  const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages?limit=200`);
+  if (!res.ok) throw new Error(`mailpit list failed: ${res.status} ${res.statusText}`);
+  const data = (await res.json()) as { messages?: MailpitListItem[] };
+  const out: { to: string; subject: string; html: string }[] = [];
+  for (const m of data.messages ?? []) {
+    // A slow/aborted detail fetch must degrade to empty HTML, not abort the whole
+    // outbox read (which would take down every email assertion).
+    let full: { HTML?: string } = { HTML: "" };
+    try {
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
+      if (detail.ok) full = (await detail.json()) as { HTML?: string };
+    } catch { /* leave full as empty HTML */ }
+    // One row per recipient so multi-recipient messages aren't undercounted.
+    const recipients = (m.To ?? []).map((t) => t.Address);
+    for (const to of recipients.length ? recipients : [""]) {
+      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
+    }
+  }
+  return out;
+}
+
+/** Messages not yet in `seen` (mutates it), as {to, subject, html} — lets the
+ *  AfterStep hook auto-capture the emails each step caused, across every flow,
+ *  without per-step wiring. */
+export async function freshEmails(seen: Set<string>): Promise<{ to: string; subject: string; html: string }[]> {
+  const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages?limit=200`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { messages?: MailpitListItem[] };
+  // Oldest-first so the report shows emails in the order they were sent.
+  const msgs = (data.messages ?? []).slice().reverse();
+  const out: { to: string; subject: string; html: string }[] = [];
+  for (const m of msgs) {
+    if (seen.has(m.ID)) continue;
+    seen.add(m.ID);
+    let full: { HTML?: string } = { HTML: "" };
+    try {
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
+      if (detail.ok) full = (await detail.json()) as { HTML?: string };
+    } catch { /* leave empty */ }
+    const recipients = (m.To ?? []).map((t) => t.Address);
+    for (const to of recipients.length ? recipients : [""]) {
+      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
+    }
+  }
+  return out;
+}
+
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+}
+
+/** Render the outbox as a self-contained HTML "inbox" page — one card per distinct
+ *  subject (with a recipient count), so a step's AfterStep screenshot becomes a
+ *  legible record of the emails the flow sent. */
+export function inboxHtml(emails: { to: string; subject: string; html: string }[], label: string): string {
+  const groups = new Map<string, { subject: string; html: string; to: string[] }>();
+  for (const e of emails) {
+    const g = groups.get(e.subject) ?? { subject: e.subject, html: e.html, to: [] };
+    g.to.push(e.to);
+    groups.set(e.subject, g);
+  }
+  const cards = [...groups.values()].map((g) => `
+    <div style="border:1px solid #d0d0d0;border-radius:10px;margin:0 0 16px;overflow:hidden;background:#fff">
+      <div style="background:#f4f5f7;padding:10px 14px;border-bottom:1px solid #e2e2e2;font:13px/1.4 system-ui,sans-serif;color:#333">
+        <strong>${esc(g.subject)}</strong><br>
+        <span style="color:#666">to ${g.to.length} recipient${g.to.length > 1 ? "s" : ""} · ${esc(g.to[0])}${g.to.length > 1 ? ` +${g.to.length - 1} more` : ""}</span>
+      </div>
+      <div style="padding:6px 14px">${g.html}</div>
+    </div>`).join("");
+  const body = emails.length
+    ? cards
+    : `<p style="font:14px system-ui,sans-serif;color:#888">(no emails in the outbox)</p>`;
+  return `<div style="background:#eceff3;padding:18px;min-height:100vh">
+    <h2 style="font:700 18px system-ui,sans-serif;margin:0 0 14px;color:#222">📬 ${esc(label)} — ${emails.length} email${emails.length === 1 ? "" : "s"}</h2>
+    ${body}
+  </div>`;
+}
+
 /** Pull the confirm-email link out of a verification message's HTML. */
 export function extractConfirmLink(html: string): string {
   const m = html.match(/https?:\/\/[^"'\s)]*\/verify-email\?token=[a-f0-9]+/i);
   if (!m) throw new Error("no /verify-email confirm link found in email HTML");
   return m[0];
+}
+
+/** Pull a one-click action link out of an email by its button's visible label
+ *  (e.g. "i'm in", "not interested") — so a test clicks the real link the
+ *  recipient would, not a reconstructed token. Works for any of the email's
+ *  two-button rows (Interested/Not-Interested, RSVP in/out). */
+export function extractButtonLink(html: string, label: string): string {
+  // Labels are HTML-escaped in the email (esc() turns & into &amp;, ' into &#39;).
+  const escaped = label.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`<a[^>]+href="([^"]+)"[^>]*>\\s*${escaped}\\s*</a>`, "i");
+  const m = html.match(re);
+  if (!m) throw new Error(`no "${label}" button link found in email HTML`);
+  return m[1];
 }

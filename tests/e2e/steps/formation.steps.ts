@@ -1,39 +1,25 @@
 import { expect } from "@playwright/test";
-import { Given, When, Then } from "./world";
+import { When, Then } from "./world";
 import { tickEngine } from "../support/tick";
-import {
-  seedFormingAttempt, expireSuggestionWindow, expireAvailabilityWindow,
-  commitToTopOption, areaHasGame, getAreaStatus,
-} from "../support/db";
+import { seedInterested, expireInterestWindow, areaHasGame, getAreaStatus, getAttemptStatus } from "../support/db";
 
-// Reuses "I am a confirmed player …" and "I open the game on the map".
-const SITE = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701" };
-
-Given("a site forming near me", async ({ world }) => {
-  const r = await seedFormingAttempt(SITE);
-  world.game = { lat: r.lat, lng: r.lng, placeText: r.placeText, areaId: r.areaId };
-  world.attemptId = r.attemptId;
-});
+// Shared formation steps for the isolated-proposal model (used by propose.feature).
+// Reuses "I am a confirmed player …", "I open the game on the map", "the engine ticks".
 
 Then("the proposed site shows", async ({ page }) => {
   await expect(page.locator(".game-card")).toContainText(/proposed game site/i, { timeout: 10000 });
 });
 
-When("the suggestion window closes and the engine ticks", async ({ page, world }) => {
-  await expireSuggestionWindow(world.attemptId!); // SUGGESTING → AVAILABILITY (compiles options)
-  await tickEngine(page);
+When("enough players are interested", async ({ world }) => {
+  await seedInterested(world.attemptId!, 6); // proposer + 6 ≥ p_min
 });
 
-When("enough players commit to a spot", async ({ world }) => {
-  await commitToTopOption(world.attemptId!, 6); // p_min
+When("too few players are interested", async ({ world }) => {
+  await seedInterested(world.attemptId!, 3); // proposer + 3 < p_min
 });
 
-When("too few players commit", async ({ world }) => {
-  await commitToTopOption(world.attemptId!, 3); // below p_min
-});
-
-When("the availability window closes and the engine ticks", async ({ page, world }) => {
-  await expireAvailabilityWindow(world.attemptId!); // AVAILABILITY → CONFIRMED or STALLED
+When("the interest window closes and the engine ticks", async ({ page, world }) => {
+  await expireInterestWindow(world.attemptId!); // window past → next tick resolves the proposal
   await tickEngine(page);
 });
 
@@ -47,11 +33,7 @@ When("I refresh the map", async ({ page }) => {
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
 });
 
-Then("the game is on", async ({ page }) => {
-  await expect(page.locator(".game-card")).toContainText(/standing game|game on/i, { timeout: 10000 });
-});
-
-Then("no game forms and the site stalls", async ({ world }) => {
+Then("no game forms and the proposal fails", async ({ world }) => {
   expect(await areaHasGame(world.game!.areaId!), "no game should exist").toBe(false);
-  expect(await getAreaStatus(world.game!.areaId!)).toBe("STALLED");
+  expect(await getAttemptStatus(world.attemptId!)).toBe("FAILED");
 });

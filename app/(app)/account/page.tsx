@@ -10,7 +10,7 @@ import { AccountForm } from "@/components/AccountForm";
 import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
-export const metadata = { title: "Account — MIME-FF" };
+export const metadata = { title: "Account - MIME-FF" };
 
 export default async function AccountPage() {
   const session = await auth();
@@ -73,7 +73,7 @@ export default async function AccountPage() {
           {supporting ? (
             <>
               <p className="reg-hint">
-                thank you for chipping in. your support keeps the servers on — and it&apos;s what lets
+                thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
                 people like you find games in brand-new areas.
               </p>
               {me.stripeSubscriptionId ? (
@@ -91,7 +91,7 @@ export default async function AccountPage() {
             <>
               <p className="reg-hint">
                 free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
-                helps more local games get off the ground — an ask, not a gate.
+                helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
               <label className="donate-opt">
@@ -141,7 +141,7 @@ export default async function AccountPage() {
               <input type="text" name="zip" placeholder="52241" inputMode="numeric"
                 autoComplete="postal-code" pattern="[0-9]{5}" required defaultValue={me.zip ?? ""} />
             </label>
-            <p className="reg-section">your address <span className="reg-optional">(optional — sharpens distance to games)</span></p>
+            <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
             <label>
               street address
               <input type="text" name="address_line1" placeholder="1806 Brown Deer Trail"
@@ -171,7 +171,7 @@ export default async function AccountPage() {
             </label>
             <p className="reg-hint">
               your address and travel distance are only used to measure how far games
-              are from you — never shown to anyone. <Link href="/privacy">privacy</Link>.
+              are from you - never shown to anyone. <Link href="/privacy">privacy</Link>.
             </p>
           </div>
         </section>

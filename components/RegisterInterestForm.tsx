@@ -53,9 +53,9 @@ export function RegisterInterestForm() {
       if (!reg.ok) { setError(reg.error); setBusy(false); return; }
       const res = await signIn("password", { email, password, redirect: false });
       // `ok` is HTTP success, not auth success — check `error` too (see AuthModal).
-      if (res?.error || !res?.ok) { setError("account created, but sign-in failed — try logging in"); setBusy(false); return; }
+      if (res?.error || !res?.ok) { setError("account created, but sign-in failed - try logging in"); setBusy(false); return; }
       window.location.href = dest;
-    } catch { setError("something went wrong — please try again"); setBusy(false); }
+    } catch { setError("something went wrong - please try again"); setBusy(false); }
   }
 
   return (
@@ -88,7 +88,7 @@ export function RegisterInterestForm() {
         <input type="text" name="zip" placeholder="52241" inputMode="numeric"
           autoComplete="postal-code" pattern="[0-9]{5}" required />
       </label>
-      <p className="reg-section">your address <span className="reg-optional">(optional — sharpens distance to games)</span></p>
+      <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
       <label>
         street address
         <input type="text" name="address_line1" placeholder="1806 Brown Deer Trail" autoComplete="address-line1" />
@@ -109,7 +109,7 @@ export function RegisterInterestForm() {
       </div>
       <p className="reg-hint">
         we only use your address to measure how far games are from you. we never
-        show it to anyone or sell it — see our <Link href="/privacy">privacy page</Link>.
+        show it to anyone or sell it - see our <Link href="/privacy">privacy page</Link>.
       </p>
       <button type="submit" className="btn-green" disabled={busy}>
         {busy ? "…" : "count me in"}

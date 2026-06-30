@@ -1,301 +1,133 @@
-import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import * as schema from "@/lib/db/schema";
 import {
-  areas, interestSignals, formationAttempts, suggestions,
-  formationOptions, softPromises, games, gameRoster, notificationsSent, users,
+  areas, interestSignals, formationAttempts, attemptInterest,
+  games, gameRoster, notificationsSent, users, areaOptouts,
 } from "@/lib/db/schema";
-import { diskCells } from "@/lib/geo/h3";
 import { gameColor } from "@/lib/brand";
 import { resolveTunables } from "./tunables";
-import { onInterest, onSuggestionClose, onAvailabilityClose } from "./fsm";
-import type { Decision, SuggestionInput, OptionTally } from "./types";
 
 /** The engine takes its db client by injection so the identical code runs on
  *  neon-http in prod and pglite in the sim. */
 export type EngineDb = PgDatabase<never, typeof schema>;
 
-type NotifKind =
-  | "SPARK_ASK" | "OPTIONS_AVAILABLE" | "GAME_ON"
-  | "SUGGEST_NUDGE" | "SUGGEST_LASTCALL" | "AVAIL_NUDGE" | "AVAIL_LASTCALL" | "STALLED_NOTICE";
+type NotifKind = "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE";
 
-type AreaOverrides = { nSparkOverride: number | null; pMinOverride: number | null };
-
-/** Effective tunables = activity_types row values (windows extracted to hours)
- *  layered with per-area overrides — never just code defaults. */
-export async function loadTunables(db: EngineDb, activityTypeId: string, area?: AreaOverrides) {
+/** Effective tunables = activity_types row values layered with per-area overrides.
+ *  Only p_min still drives the (now single-window) formation; the rest are loaded
+ *  for the occurrence engine / future use. */
+export async function loadTunables(db: EngineDb, activityTypeId: string, area?: { pMinOverride: number | null }) {
   const res = await db.execute(sql`
-    select n_spark, n_warm, p_min, s_min, options_cap,
-      extract(epoch from suggest_window) / 3600 as suggest_h,
-      extract(epoch from avail_window) / 3600 as avail_h,
-      restall_interest, restall_days, max_time_retries,
-      per_user_weekly_cap, ignore_decay_windows
+    select p_min, s_min,
+      extract(epoch from suggest_window) / 3600 as suggest_h
     from activity_types where id = ${activityTypeId} limit 1`);
   const r = ((res as { rows?: Record<string, unknown>[] }).rows ?? [])[0];
   const num = (v: unknown) => (v == null ? undefined : Number(v));
-  const base = r ? {
-    nSpark: num(r.n_spark), nWarm: num(r.n_warm), pMin: num(r.p_min), sMin: num(r.s_min),
-    optionsCap: num(r.options_cap),
-    suggestWindowH: num(r.suggest_h), availWindowH: num(r.avail_h),
-    restallInterest: num(r.restall_interest), restallDays: num(r.restall_days),
-    maxTimeRetries: num(r.max_time_retries), perUserWeeklyCap: num(r.per_user_weekly_cap),
-    ignoreDecayWindows: num(r.ignore_decay_windows),
-  } : {};
-  const overrides = {
-    ...(area?.nSparkOverride != null ? { nSpark: area.nSparkOverride } : {}),
-    ...(area?.pMinOverride != null ? { pMin: area.pMinOverride } : {}),
-  };
+  const base = r ? { pMin: num(r.p_min), sMin: num(r.s_min), suggestWindowH: num(r.suggest_h) } : {};
+  const overrides = area?.pMinOverride != null ? { pMin: area.pMinOverride } : {};
   return resolveTunables(base, overrides);
 }
 
-// ── evaluate: user-event entry point ─────────────────────────────────────────
-/** Called on interest change (registration / toggle / location move). Sparks a
- *  formation if the area crossed n_spark. Idempotent under the one-live-attempt
- *  index — a lost spark race becomes a NOOP. */
-export async function evaluate(
-  db: EngineDb, activityTypeId: string, areaId: string, now: Date
-): Promise<Decision> {
-  const [area] = await db.select().from(areas).where(eq(areas.id, areaId)).limit(1);
-  if (!area) return { kind: "NOOP", reason: "no area" };
-  const t = await loadTunables(db, activityTypeId, area);
-
-  const disk = diskCells(area.h3Cell, 1);
-  const interestCount = await catchmentCount(db, activityTypeId, area.id, area.centerLat, area.centerLng);
-
-  const decision = onInterest({
-    status: area.status,
-    interestCount,
-    nextTriggerAt: area.nextTriggerAt ?? null,
-    nextTriggerInterest: area.nextTriggerInterest ?? null,
-    now, t,
-  });
-  if (decision.kind !== "SPARK") return decision;
-
-  const cohort = await catchmentUsers(db, activityTypeId, area.id, area.centerLat, area.centerLng);
-  const attemptNumber = await nextAttemptNumber(db, areaId);
-
-  // Spark atomically: the attempt insert, the area → IN_FORMATION flip and the
-  // SPARK_ASK notifications commit together. Otherwise a failure after the
-  // insert could leave a live attempt occupying the one-live-attempt slot while
-  // the area still reads DORMANT/STALLED.
-  try {
-    await db.transaction(async (tx) => {
-      const [att] = await tx.insert(formationAttempts).values({
-        activityTypeId, areaId, attemptNumber, status: "SUGGESTING",
-        catchmentCells: disk, cohortUserIds: cohort,
-        suggestionOpenedAt: now, suggestionClosesAt: decision.suggestionClosesAt,
-      }).returning({ id: formationAttempts.id });
-      await tx.update(areas).set({ status: "IN_FORMATION", lastRoundAt: now }).where(eq(areas.id, areaId));
-      await enqueue(tx as unknown as EngineDb,
-        cohort.map((userId) => ({ userId, attemptId: att.id, kind: "SPARK_ASK" as NotifKind })), now);
-    });
-  } catch (e) {
-    // Only the one-live-attempt unique conflict is an expected NOOP (a spark
-    // race) — the whole transaction rolls back. Any other DB error must surface,
-    // not be hidden as success.
-    const pgCode = (e as { cause?: { code?: string } }).cause?.code;
-    const msg = e instanceof Error ? e.message : String(e);
-    if (pgCode !== "23505" && !/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
-    return { kind: "NOOP", reason: "already sparked (lost the one-live-attempt race)" };
-  }
-  return decision;
-}
-
-// ── tick: time-based entry point (Vercel Cron) ───────────────────────────────
-/** Closes due windows: suggestion → compile/stall, availability → schedule/stall.
- *  Idempotent — only acts on rows whose close time has passed. */
+// ── tick: time-based entry point (cron) ──────────────────────────────────────
+/** Resolve every proposal whose interest window has closed: enough people in →
+ *  schedule the game; short of the threshold → fail the attempt. Idempotent —
+ *  only acts on OPEN rows whose close time has passed, and the status flip is the
+ *  claim so a concurrent tick can't double-process. */
 export async function tick(db: EngineDb, now: Date): Promise<void> {
-  // Each window closer runs in its own transaction: the multi-step writes commit
-  // all-or-nothing, so a failure can't leave a half-scheduled game or an orphan
-  // area status. One bad attempt rolls back cleanly and is retried next tick
-  // without blocking the others — we surface the first error after the sweep.
   let firstErr: unknown;
-  const sweep = async (
-    rows: (typeof formationAttempts.$inferSelect)[],
-    close: (tx: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) => Promise<void>,
-  ) => {
-    for (const att of rows) {
-      try {
-        await db.transaction((tx) => close(tx as unknown as EngineDb, att, now));
-      } catch (e) {
-        firstErr ??= e;
-      }
+  const due = await db.select().from(formationAttempts)
+    .where(and(eq(formationAttempts.status, "OPEN"), lte(formationAttempts.interestClosesAt, now)));
+  for (const att of due) {
+    try {
+      await db.transaction((tx) => resolveAttempt(tx as unknown as EngineDb, att, now));
+    } catch (e) {
+      firstErr ??= e;
     }
-  };
-
-  const dueSuggest = await db.select().from(formationAttempts)
-    .where(and(eq(formationAttempts.status, "SUGGESTING"), lte(formationAttempts.suggestionClosesAt, now)));
-  await sweep(dueSuggest, closeSuggestion);
-
-  const dueAvail = await db.select().from(formationAttempts)
-    .where(and(eq(formationAttempts.status, "AVAILABILITY"), lte(formationAttempts.availabilityClosesAt, now)));
-  await sweep(dueAvail, closeAvailability);
-
+  }
   if (firstErr) throw firstErr;
 }
 
-// ── window closers ───────────────────────────────────────────────────────────
-/** Atomically claim a due attempt for processing: move it out of its open state
- *  `from` into the processing state `to`, only if it's still in `from`. Returns
- *  false when a concurrent tick already claimed it, so the loser bails before
- *  inserting any options/games/roster rows (prevents double-scheduling). The
- *  conditional UPDATE…WHERE status RETURNING is a single statement, so it's
- *  atomic even on the one-shot neon-http client. */
-async function claimAttempt(
-  db: EngineDb,
-  attemptId: string,
-  from: "SUGGESTING" | "AVAILABILITY",
-  to: "COMPILING" | "ADJUDICATING",
-): Promise<boolean> {
-  const claimed = await db.update(formationAttempts)
-    .set({ status: to })
-    .where(and(eq(formationAttempts.id, attemptId), eq(formationAttempts.status, from)))
-    .returning({ id: formationAttempts.id });
-  return claimed.length > 0;
-}
-
-async function closeSuggestion(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  // Runs inside a tick() transaction, so every write below is atomic: a failure
-  // rolls the whole thing back (claim included) and the attempt is retried next
-  // tick from a clean SUGGESTING state — no partial options, no wedge. The claim
-  // is the concurrency gate: a second tick that already grabbed this row loses
-  // the row-lock race and returns without double-processing.
-  if (!(await claimAttempt(db, att.id, "SUGGESTING", "COMPILING"))) return;
-  const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
-  const t = await loadTunables(db, att.activityTypeId, area);
-  const rows = await db.select().from(suggestions)
-    .where(eq(suggestions.attemptId, att.id)).orderBy(suggestions.createdAt);
-  const inputs: SuggestionInput[] = rows.map((s) => ({
-    id: s.id, placeText: s.placeText, placeLat: s.placeLat, placeLng: s.placeLng,
-    proposedStart: s.proposedStart, createdAt: s.createdAt,
-  }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, area.id, area.centerLat, area.centerLng);
-
-  const d = onSuggestionClose({ suggestions: inputs, stallCount: area.stallCount, interestCount, now, t });
-
-  if (d.kind === "STALL") {
-    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
-    return;
-  }
-
-  for (const opt of d.options) {
-    const [o] = await db.insert(formationOptions).values({
-      attemptId: att.id, placeText: opt.placeText, placeLat: opt.placeLat, placeLng: opt.placeLng,
-      proposedStart: opt.proposedStart, firstSuggestedAt: opt.firstSuggestedAt,
-    }).returning({ id: formationOptions.id });
-    if (opt.sourceIds.length)
-      await db.update(suggestions).set({ optionId: o.id })
-        .where(inArray(suggestions.id, opt.sourceIds));
-  }
-  await db.update(formationAttempts).set({
-    status: "AVAILABILITY", availabilityOpenedAt: now, availabilityClosesAt: d.availabilityClosesAt,
-  }).where(eq(formationAttempts.id, att.id));
-  // The cohort is the spark-time snapshot; drop anyone who's opted out of this
-  // area since, so a decline mid-attempt actually stops the availability ask.
-  const optedOut = await optedOutUserIds(db, att.areaId);
-  await enqueue(db, att.cohortUserIds
-    .filter((u) => !optedOut.has(u))
-    .map((userId) => ({ userId, attemptId: att.id, kind: "OPTIONS_AVAILABLE" as NotifKind })), now);
-}
-
-async function closeAvailability(db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date) {
-  // Runs inside a tick() transaction: the game insert, roster, attempt CONFIRMED,
-  // area SCHEDULED and notifications all commit together or not at all — so the
-  // area can't end up IN_FORMATION next to a committed game (which would let
-  // proposeGame open a fresh formation on the same spot). The claim is the
-  // concurrency gate against a second tick double-scheduling.
-  if (!(await claimAttempt(db, att.id, "AVAILABILITY", "ADJUDICATING"))) return;
+/** Resolve one proposal now. Safe to call from the cron tick OR event-driven the
+ *  moment someone responds (an early "I'm in" can clear the threshold before the
+ *  deadline). The OPEN→CONFIRMED/FAILED flip is conditional on still-OPEN, so a
+ *  race resolves exactly once. */
+export async function resolveAttempt(
+  db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date,
+): Promise<void> {
+  if (att.status !== "OPEN") return;
+  // Lock the attempt row so a cron tick and a concurrent event-driven resolve
+  // (an "I'm in" at the deadline) can't each decide on a stale interest count —
+  // whoever loses the lock re-reads the now-resolved status and bails. Runs inside
+  // a transaction in both paths (tick + resolveProposal), so the lock holds.
+  const [locked] = await db.select({ status: formationAttempts.status })
+    .from(formationAttempts).where(eq(formationAttempts.id, att.id)).for("update").limit(1);
+  if (!locked || locked.status !== "OPEN") return;
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
 
-  const optRows = await db.select({
-    id: formationOptions.id,
-    placeText: formationOptions.placeText,
-    placeLat: formationOptions.placeLat,
-    placeLng: formationOptions.placeLng,
-    proposedStart: formationOptions.proposedStart,
-    firstSuggestedAt: formationOptions.firstSuggestedAt,
-    promiseCount: sql<number>`count(${softPromises.id})::int`,
-  }).from(formationOptions)
-    // An opted-out promiser doesn't count toward p_min — they declined the site.
-    // Excluding them from the tally (not just the roster) keeps the schedule
-    // decision honest: the winner can't clear p_min on paper then roster too few.
-    .leftJoin(softPromises, and(
-      eq(softPromises.optionId, formationOptions.id),
-      sql`not exists (select 1 from area_optouts o where o.user_id = ${softPromises.userId} and o.area_id = ${att.areaId})`,
-    ))
-    .where(eq(formationOptions.attemptId, att.id))
-    .groupBy(formationOptions.id)
-    .orderBy(formationOptions.firstSuggestedAt, formationOptions.id); // deterministic input order
+  // The roster is everyone who said they're in, minus anyone who opted out of this
+  // area (consistent with catchmentUsers + the popup tally). The proposer is
+  // auto-interested at propose time and their opt-out is cleared then, so they
+  // appear here naturally — unless they later tapped "not interested", in which
+  // case they're correctly left off rather than force-rostered.
+  const inRows = await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
+    .where(and(eq(attemptInterest.attemptId, att.id), eq(attemptInterest.interested, true)));
+  const optedOut = new Set((await db.select({ userId: areaOptouts.userId }).from(areaOptouts)
+    .where(eq(areaOptouts.areaId, att.areaId))).map((r) => r.userId));
+  const roster = [...new Set(inRows.map((r) => r.userId))].filter((u) => !optedOut.has(u));
 
-  const tallies = optRows.map((o) => ({
-    optionId: o.id, placeText: o.placeText, placeLat: o.placeLat, placeLng: o.placeLng,
-    proposedStart: o.proposedStart, firstSuggestedAt: o.firstSuggestedAt, promiseCount: o.promiseCount,
-  }));
-  const interestCount = await catchmentCount(db, att.activityTypeId, area.id, area.centerLat, area.centerLng);
-
-  const d = onAvailabilityClose({ options: tallies as OptionTally[], stallCount: area.stallCount, interestCount, now, t });
-
-  if (d.kind === "STALL") {
-    await stall(db, att, area.stallCount, d.reason, d.nextTriggerAt, d.nextTriggerInterest);
+  if (roster.length < t.pMin) {
+    // Don't fail before the window actually closes — an early call could still
+    // gather more. Time-driven ticks only get here past interestClosesAt.
+    if (now < att.interestClosesAt) return;
+    const claimed = await claim(db, att.id, "FAILED", `only ${roster.length}/${t.pMin} interested`);
+    if (!claimed) return;
+    // Tell everyone we asked — plus the proposer, who isn't in the cohort (they're
+    // the one who asked) but most wants to know it didn't come together. Skip anyone
+    // who already tapped "not interested" on this proposal — they don't need the
+    // "not enough players" note.
+    const declined = new Set((await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
+      .where(and(eq(attemptInterest.attemptId, att.id), eq(attemptInterest.interested, false)))).map((r) => r.userId));
+    await enqueue(db, [...new Set([att.proposerId, ...(att.cohortUserIds ?? [])])]
+      .filter((u) => !declined.has(u))
+      .map((userId) => ({ userId, attemptId: att.id, kind: "STALLED_NOTICE" as NotifKind })), now);
     return;
   }
 
-  const winner = d.winner as OptionTally & { optionId: string };
-  const promisers = await db.select({ userId: softPromises.userId }).from(softPromises)
-    .where(eq(softPromises.optionId, winner.optionId));
-  // Drop anyone who opted out of this area after promising — they shouldn't land
-  // on the roster or get the GAME_ON email for a site they declined.
-  const optedOut = await optedOutUserIds(db, att.areaId);
-  const roster = promisers.map((p) => p.userId).filter((u) => !optedOut.has(u));
-
-  // Promote to a standing weekly slot if the winning suggestion carried a
-  // recurring day/time (proposals from the map do). All suggestions grouped into
-  // one option share the same place + time, so any source row's recurrence holds.
-  const [recur] = await db.select({ dow: suggestions.recurDow, time: suggestions.recurTime })
-    .from(suggestions)
-    .where(and(eq(suggestions.optionId, winner.optionId), isNotNull(suggestions.recurDow)))
-    .limit(1);
-
+  // Enough are in → schedule the game. The status flip is the claim.
+  const claimed = await claim(db, att.id, "CONFIRMED", null);
+  if (!claimed) return;
+  const recur = att.recurDow != null ? { dow: att.recurDow, time: att.recurTime } : null;
   const [game] = await db.insert(games).values({
-    activityTypeId: att.activityTypeId, areaId: att.areaId,
-    originAttemptId: att.id, winningOptionId: winner.optionId,
-    placeText: winner.placeText, placeLat: winner.placeLat, placeLng: winner.placeLng,
-    scheduledStart: winner.proposedStart,
-    status: "active", confirmedCount: roster.length,
-    // Color is keyed off the AREA, so this week's instance and every future
-    // recurring instance of the same standing game share one color.
+    activityTypeId: att.activityTypeId, areaId: att.areaId, originAttemptId: att.id,
+    placeText: att.placeText, placeLat: att.placeLat, placeLng: att.placeLng,
+    scheduledStart: att.proposedStart, status: "active", confirmedCount: roster.length,
+    // Color is keyed off the AREA so every recurring instance shares one color.
     color: gameColor(att.areaId),
     ...(recur ? { isStanding: true, recurDow: recur.dow, recurTime: recur.time } : {}),
   }).returning({ id: games.id });
-
-  if (roster.length)
-    await db.insert(gameRoster).values(roster.map((userId) => ({ gameId: game.id, userId })));
-
-  await db.update(formationAttempts).set({ status: "CONFIRMED", scheduledGameId: game.id })
-    .where(eq(formationAttempts.id, att.id));
+  await db.insert(gameRoster).values(roster.map((userId) => ({ gameId: game.id, userId })));
+  await db.update(formationAttempts).set({ scheduledGameId: game.id }).where(eq(formationAttempts.id, att.id));
   await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, att.areaId));
+  // GAME_ON goes to the people who are actually in (the roster) — "you're in".
   await enqueue(db, roster.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
 }
 
-async function stall(
-  db: EngineDb, att: typeof formationAttempts.$inferSelect, stallCount: number,
-  reason: string, nextTriggerAt: Date | null, nextTriggerInterest: number
-) {
-  await db.update(formationAttempts).set({ status: "FAILED", failureReason: reason })
-    .where(eq(formationAttempts.id, att.id));
-  await db.update(areas).set({
-    status: "STALLED", stallCount: stallCount + 1, nextTriggerAt, nextTriggerInterest,
-  }).where(eq(areas.id, att.areaId));
+/** Flip an attempt OPEN → `to`, only if it's still OPEN (the concurrency claim).
+ *  Returns false when a concurrent resolve already took it. */
+async function claim(db: EngineDb, attemptId: string, to: "CONFIRMED" | "FAILED", failureReason: string | null): Promise<boolean> {
+  const done = await db.update(formationAttempts)
+    .set({ status: to, failureReason })
+    .where(and(eq(formationAttempts.id, attemptId), eq(formationAttempts.status, "OPEN")))
+    .returning({ id: formationAttempts.id });
+  return done.length > 0;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 /** SQL predicate: the joined user's home is within their OWN travel radius of a
- *  fixed point (an area centroid). Inline haversine in km (R=6371, matching
- *  lib/geo/distance.ts); runs identically on neon-http and the pglite sim. This
- *  is the automatic-proximity model — interest reaches everywhere a user said
- *  they'd travel, not just their home cell. */
+ *  fixed point (a proposed venue / area centroid). Inline haversine in km. */
 function withinTravelRadius(lat: number, lng: number) {
   return sql`${users.homeLat} is not null and ${users.homeLng} is not null
     and 6371 * 2 * asin(least(1, sqrt(
@@ -305,65 +137,35 @@ function withinTravelRadius(lat: number, lng: number) {
     ))) <= ${users.maxTravelKm}`;
 }
 
-/** Excludes users who said "not interested" in this forming area (area_optouts).
- *  They keep their interest signals — they just don't count toward, or get asked
- *  by, THIS area's formation. */
-function notOptedOut(areaId: string) {
-  return sql`not exists (select 1 from area_optouts o where o.user_id = ${interestSignals.userId} and o.area_id = ${areaId})`;
-}
-
-async function catchmentCount(db: EngineDb, activityTypeId: string, areaId: string, lat: number, lng: number): Promise<number> {
-  const [{ c }] = await db.select({ c: sql<number>`count(distinct ${interestSignals.userId})::int` })
-    .from(interestSignals)
-    .innerJoin(users, eq(users.id, interestSignals.userId))
-    .where(and(
-      eq(interestSignals.activityTypeId, activityTypeId),
-      eq(interestSignals.active, true),
-      withinTravelRadius(lat, lng),
-      notOptedOut(areaId),
-    ));
-  return c;
-}
-
-/** The set of users an area's formation should notify/freeze: active for the
- *  activity, within their travel radius of the area centroid, and not opted out
- *  of this area. Exported for the manual map-propose spark, which must use the
- *  identical rule. */
-export async function catchmentUsers(db: EngineDb, activityTypeId: string, areaId: string, lat: number, lng: number): Promise<string[]> {
+/** The set of users a proposal should email: active for the activity and within
+ *  their travel radius of the proposed venue. Used by proposeGame to freeze the
+ *  cohort it courts. */
+export async function catchmentUsers(
+  db: EngineDb, activityTypeId: string, lat: number, lng: number, areaId?: string,
+): Promise<string[]> {
   const rows = await db.selectDistinct({ userId: interestSignals.userId })
     .from(interestSignals)
     .innerJoin(users, eq(users.id, interestSignals.userId))
     .where(and(
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
+      // Never court a globally-opted-out user, nor anyone who opted out of THIS
+      // area's proposals (the in-app / decline-link area opt-out is still live).
+      eq(users.emailOptIn, true),
+      ...(areaId
+        ? [sql`not exists (select 1 from area_optouts ao where ao.area_id = ${areaId}::uuid and ao.user_id = ${interestSignals.userId})`]
+        : []),
       withinTravelRadius(lat, lng),
-      notOptedOut(areaId),
     ));
   return rows.map((r) => r.userId);
 }
 
-/** Users who've opted out of this area — used to drop them from in-flight sends
- *  and the confirmed roster that rely on the spark-time cohort snapshot (which
- *  predates any later opt-out). */
-async function optedOutUserIds(db: EngineDb, areaId: string): Promise<Set<string>> {
-  const rows = await db.select({ userId: schema.areaOptouts.userId }).from(schema.areaOptouts)
-    .where(eq(schema.areaOptouts.areaId, areaId));
-  return new Set(rows.map((r) => r.userId));
-}
-
-async function nextAttemptNumber(db: EngineDb, areaId: string): Promise<number> {
-  const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}), 0)::int` })
-    .from(formationAttempts).where(eq(formationAttempts.areaId, areaId));
-  return n + 1;
-}
-
 /** Claim-before-send ledger write. The unique index (user, attempt, kind,
- *  channel) makes this exactly-once; Phase 6 swaps the insert for a real
- *  Resend/web-push send gated on the claim. Single-channel (email) for now. */
-async function enqueue(
+ *  channel) makes it exactly-once; the cron flush turns these into real emails. */
+export async function enqueue(
   db: EngineDb,
   items: Array<{ userId: string; attemptId: string; gameId?: string; kind: NotifKind }>,
-  now: Date
+  now: Date,
 ) {
   if (!items.length) return;
   await db.insert(notificationsSent).values(items.map((i) => ({

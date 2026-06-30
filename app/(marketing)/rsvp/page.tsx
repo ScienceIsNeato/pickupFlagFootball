@@ -5,7 +5,7 @@ import { gameOccurrences } from "@/lib/db/schema";
 import { verifyRsvpToken } from "@/lib/rsvpLink";
 import { applyRsvp } from "./actions";
 
-export const metadata = { title: "rsvp — MIME-FF" };
+export const metadata = { title: "rsvp - MIME-FF" };
 export const dynamic = "force-dynamic";
 
 const fmtDate = (ymd: string) =>
@@ -25,8 +25,8 @@ export default async function RsvpPage({
   // After the POST: a confirmation message.
   if (done) {
     const copy: Record<string, { title: string; body: string }> = {
-      in: { title: "you're in", body: "great — we've marked you in for this week's game." },
-      out: { title: "you're out", body: "thanks for letting us know — it helps the others plan." },
+      in: { title: "you're in", body: "great - we've marked you in for this week's game." },
+      out: { title: "you're out", body: "thanks for letting us know - it helps the others plan." },
       cancelled: { title: "game called off", body: "this week's game was called off, so there's nothing to rsvp to." },
       closed: { title: "rsvp closed", body: "this week is already settled (or the game is paused), so rsvp is closed." },
       invalid: { title: "this rsvp link didn't work", body: "it may have expired or been altered." },
@@ -67,7 +67,7 @@ export default async function RsvpPage({
       <p>tap confirm to mark yourself <strong>{verb}</strong> for this week&apos;s game.</p>
       <form action={applyRsvp}>
         <input type="hidden" name="t" value={t} />
-        <button type="submit" className="btn-green">confirm — i&apos;m {verb}</button>
+        <button type="submit" className="btn-green">confirm - i&apos;m {verb}</button>
       </form>
     </main>
   );

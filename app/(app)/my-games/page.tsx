@@ -9,7 +9,7 @@ import { gameColor } from "@/lib/brand";
 import { occurrenceDatesInRange, kickoffAtFor, toYMD } from "@/lib/datetime";
 import { setOccurrenceRsvp, setSiteDefault } from "./actions";
 
-export const metadata = { title: "Upcoming Games — MIME-FF" };
+export const metadata = { title: "Upcoming Games - MIME-FF" };
 
 const DAY = 86_400_000;
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];

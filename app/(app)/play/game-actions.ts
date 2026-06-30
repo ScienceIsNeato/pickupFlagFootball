@@ -41,6 +41,10 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   // their pref/RSVP or save even if they've since moved or narrowed their radius.
   const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
     .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
+  // A non-member tapping "i'm out" is declining, not joining — don't roster them
+  // (which would otherwise sign them up for this game's weekly poll emails). An
+  // existing member's explicit "out" still persists so a regular can skip a week.
+  if (!member && !nextIn) return { ok: true };
   // New joins require a confirmed email; existing members can still tweak prefs.
   if (!member && !(await isEmailVerified(me))) return { ok: false, error: UNVERIFIED_MSG };
   const g = member ? await activeGame(gameId) : await reachableActiveGame(me, gameId);

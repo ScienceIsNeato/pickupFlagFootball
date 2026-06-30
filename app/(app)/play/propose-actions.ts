@@ -1,20 +1,20 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
 import { cellToLatLng, latLngToCell } from "h3-js";
 import {
-  activityTypes, areas, formationAttempts, notificationsSent, areaCaptains, users,
+  activityTypes, areas, formationAttempts, attemptInterest, notificationsSent, areaCaptains, users, areaOptouts,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { haversineKm } from "@/lib/geo/distance";
-import { shouldRetrigger } from "@/lib/mime";
 import { loadTunables, catchmentUsers } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
+import { resolveProposal } from "@/lib/mime/trigger";
 import { isEmailVerified } from "@/lib/auth/verified";
 
 const edb = () => db as unknown as EngineDb;
@@ -26,15 +26,17 @@ function coord(raw: string, lo: number, hi: number): number | null {
 export type ProposeResult = { ok: true } | { ok: false; reason: string };
 
 /**
- * "Propose new game here" from the map. Records a suggestion against the area's
- * live suggestion window — seeding one (a user-initiated spark) if the area
- * doesn't have an open attempt yet. Returns a result (no redirect) so the modal
- * can show a thank-you and the map can drop the proposed badge in place.
+ * "Propose new game here" from the map. Each proposal is its OWN independent
+ * attempt: it carries the full day/time/place, opens an interest window, and
+ * emails nearby players a GAME_PROPOSED ask (Interested / Not-Interested). The
+ * proposer is in by definition and becomes the site captain. Returns a result
+ * (no redirect) so the modal can show its fanfare and the map can drop a badge.
  */
 export async function proposeGame(_prev: ProposeResult | null, formData: FormData): Promise<ProposeResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/?signin=1&next=/play");
-  if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
+  const uid = session.user.id;
+  if (!(await isEmailVerified(uid))) return { ok: false, reason: "unverified" };
 
   const h3 = String(formData.get("h3") ?? "").trim();
   const start = String(formData.get("start") ?? "").trim();
@@ -80,7 +82,7 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
   // You can propose anywhere within your own travel radius of home — that's your
   // "area of interest" (the radius drawn on the map). Mirrors the client preview.
   const [me] = await db.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
-    .from(users).where(eq(users.id, session.user.id)).limit(1);
+    .from(users).where(eq(users.id, uid)).limit(1);
   if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
   const [tLat, tLng] = placeLat != null && placeLng != null ? [placeLat, placeLng] : cellToLatLng(h3);
   if (haversineKm(me.lat, me.lng, tLat, tLng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
@@ -97,91 +99,95 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
   }
   if (!area) return { ok: false, reason: "retry" };
 
-  // A game is already scheduled here — don't undo it by spawning a new attempt.
-  if (area.status === "SCHEDULED") return { ok: false, reason: "scheduled" };
+  const now = new Date();
+  const t = await loadTunables(edb(), act.id, area);
+  // Everyone active whose travel radius reaches this venue — minus the proposer
+  // (they're already in, no need to email them the ask).
+  const [cohortLat, cohortLng] = placeLat != null && placeLng != null
+    ? [placeLat, placeLng]
+    : [area.centerLat, area.centerLng];
+  const cohort = (await catchmentUsers(edb(), act.id, cohortLat, cohortLng, area.id)).filter((u) => u !== uid);
 
-  // Find any LIVE attempt (not just SUGGESTING) so we don't collide with the
-  // one-live-attempt index or demote an in-flight formation.
-  const [live] = await db.select().from(formationAttempts)
-    .where(and(
-      eq(formationAttempts.areaId, area.id),
-      inArray(formationAttempts.status, ["SUGGESTING", "COMPILING", "AVAILABILITY", "ADJUDICATING"]),
-    )).limit(1);
-
-  // Suggestions are only accepted during the suggestion window.
-  if (live && live.status !== "SUGGESTING") return { ok: false, reason: "closed" };
-
-  let attempt = live;
-  if (!attempt) {
-    const t = await loadTunables(edb(), act.id, area);
-    // Same radius rule the engine uses: everyone active whose travel radius
-    // reaches this site. Measure to the proposed venue (the address the user
-    // picked) when known, falling back to the area centroid — as an all-or-
-    // nothing pair, so a half-set venue can't mix a venue lat with a centroid lng.
-    const [cohortLat, cohortLng] = placeLat != null && placeLng != null
-      ? [placeLat, placeLng]
-      : [area.centerLat, area.centerLng];
-    const cohort = await catchmentUsers(edb(), act.id, area.id, cohortLat, cohortLng);
-    const now = new Date();
-    // A stalled area is in cooldown — respect the backoff like the engine does,
-    // don't let a manual propose re-open it early.
-    if (area.status === "STALLED" &&
-        !shouldRetrigger(now, area.nextTriggerAt ?? null, area.nextTriggerInterest ?? null, cohort.length)) {
-      return { ok: false, reason: "cooldown" };
-    }
-    const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}),0)::int` })
+  // One isolated attempt: the proposal, the proposer's "in", their captaincy, and
+  // the GAME_PROPOSED asks all commit together (pooled client).
+  await txnDb.transaction(async (tx) => {
+    // Allocate attempt_number under an area-row lock so two concurrent proposals
+    // in the same area can't read the same max and collide on the unique
+    // (area_id, attempt_number) index.
+    await tx.execute(sql`select 1 from areas where id = ${area.id} for update`);
+    const [{ n }] = await tx.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}), 0)::int` })
       .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
-    try {
-      // Manual spark, same atomicity as the engine's: the attempt insert, the
-      // area → IN_FORMATION flip and the SPARK_ASK rows commit together (pooled
-      // client) so we can't leave a live attempt next to a DORMANT/STALLED area.
-      attempt = await txnDb.transaction(async (tx) => {
-        const [a] = await tx.insert(formationAttempts).values({
-          activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "SUGGESTING",
-          catchmentCells: disk, cohortUserIds: cohort,
-          suggestionOpenedAt: now, suggestionClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
-        }).returning();
-        await tx.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
-        if (cohort.length) {
-          await tx.insert(notificationsSent).values(cohort.map((u) => ({
-            userId: u, attemptId: a.id, kind: "SPARK_ASK" as const, channel: "email" as const, sentAt: now,
-          }))).onConflictDoNothing();
-        }
-        return a;
-      });
-    } catch (e) {
-      // Only the one-live-attempt conflict is expected (a concurrent propose).
-      const pgCode = (e as { cause?: { code?: string } }).cause?.code;
-      const msg = e instanceof Error ? e.message : String(e);
-      if (pgCode !== "23505" && !/uq_one_live_attempt|unique|duplicate|23505/i.test(msg)) throw e;
-      // attach to the window the winner just opened
-      [attempt] = await db.select().from(formationAttempts)
-        .where(and(eq(formationAttempts.areaId, area.id), eq(formationAttempts.status, "SUGGESTING")))
-        .limit(1);
+    const [a] = await tx.insert(formationAttempts).values({
+      activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "OPEN",
+      proposerId: uid, placeText: place, placeLat, placeLng, proposedStart: when,
+      recurDow, recurTime, catchmentCells: disk, cohortUserIds: cohort,
+      interestClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
+    }).returning({ id: formationAttempts.id });
+    await tx.insert(attemptInterest).values({ attemptId: a.id, userId: uid, interested: true }).onConflictDoNothing();
+    // Proposing here clears any prior "not interested in this area" opt-out — you're
+    // obviously interested now, so you count toward and appear on the roster.
+    await tx.delete(areaOptouts).where(and(eq(areaOptouts.areaId, area.id), eq(areaOptouts.userId, uid)));
+    await tx.insert(areaCaptains).values({ areaId: area.id, userId: uid }).onConflictDoNothing();
+    if (cohort.length) {
+      await tx.insert(notificationsSent).values(cohort.map((u) => ({
+        userId: u, attemptId: a.id, kind: "GAME_PROPOSED" as const, channel: "email" as const, sentAt: now,
+      }))).onConflictDoNothing();
     }
+  });
+
+  return { ok: true };
+}
+
+/** In-app Interested / Not-Interested on a proposal (the map popup buttons).
+ *  Mirrors the email one-click flow; an "I'm in" can form the game on the spot. */
+export async function respondInterest(attemptId: string, interested: boolean): Promise<ProposeResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, reason: "unauth" };
+  if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
+  const [att] = await db.select({
+    status: formationAttempts.status, areaId: formationAttempts.areaId,
+    lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
+    areaLat: areas.centerLat, areaLng: areas.centerLng,
+  }).from(formationAttempts)
+    .leftJoin(areas, eq(areas.id, formationAttempts.areaId))
+    .where(eq(formationAttempts.id, attemptId)).limit(1);
+  if (!att) return { ok: false, reason: "missing" };
+  if (att.status !== "OPEN") return { ok: false, reason: "closed" };
+  // Eligibility: you can only weigh in on a game your travel radius could reach —
+  // the same rule proposeGame applies to the proposer and the emailed cohort. Stops
+  // a verified user from counting themselves into a far-off proposal by id. Uses the
+  // venue, or the area centroid when the proposal has no exact coords (matching
+  // cohort selection at propose time).
+  const vLat = att.lat ?? att.areaLat;
+  const vLng = att.lng ?? att.areaLng;
+  if (vLat != null && vLng != null) {
+    const [me] = await db.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
+      .from(users).where(eq(users.id, session.user.id)).limit(1);
+    if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
+    if (haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
   }
-  if (!attempt) return { ok: false, reason: "retry" };
-
-  // The SUGGESTING check above is a read; a concurrent tick (or the window
-  // closing right after the unique-conflict reload) could move the attempt to
-  // AVAILABILITY before this insert lands. Gate the insert on the attempt still
-  // being SUGGESTING in the same statement so we never record a suggestion
-  // against a closed window. neon-http is one-shot (no txn), so this conditional
-  // INSERT…SELECT is the atomic unit.
-  const inserted = await db.execute(sql`
-    insert into suggestions (attempt_id, user_id, place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time)
-    select ${attempt.id}, ${session.user.id}, ${place}, ${placeLat}, ${placeLng}, ${when.toISOString()}, ${recurDow}, ${recurTime}
-    where exists (
-      select 1 from formation_attempts where id = ${attempt.id} and status = 'SUGGESTING'
-    )
-    returning id
-  `);
-  if (inserted.rows.length === 0) return { ok: false, reason: "closed" };
-
-  // Proposer becomes a captain of this site automatically.
-  await db.insert(areaCaptains)
-    .values({ areaId: area.id, userId: session.user.id })
-    .onConflictDoNothing();
-
+  // Lock the attempt, re-check OPEN, and write in one transaction (same as the
+  // email-link applyInterest), so a concurrent tick / resolve can't settle the
+  // attempt between the check and the write and leave the click recorded on a
+  // closed proposal (or off the formed roster).
+  const uid = session.user.id;
+  const outcome = await txnDb.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: formationAttempts.status })
+      .from(formationAttempts).where(eq(formationAttempts.id, attemptId)).for("update").limit(1);
+    if (!locked) return "missing";
+    if (locked.status !== "OPEN") return "closed";
+    await tx.insert(attemptInterest)
+      .values({ attemptId, userId: uid, interested })
+      .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });
+    // Tapping "interested" re-engages you with this area: clear any prior opt-out
+    // so you actually count toward + appear on the roster (same as proposing here).
+    // A per-proposal "not interested" leaves the area opt-out untouched.
+    if (interested) {
+      await tx.delete(areaOptouts).where(and(eq(areaOptouts.areaId, att.areaId), eq(areaOptouts.userId, uid)));
+    }
+    return "ok";
+  });
+  if (outcome !== "ok") return { ok: false, reason: outcome };
+  if (interested) await resolveProposal(attemptId);
   return { ok: true };
 }

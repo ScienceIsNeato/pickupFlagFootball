@@ -5,7 +5,7 @@ import { areas } from "@/lib/db/schema";
 import { verifyDeclineToken } from "@/lib/declineLink";
 import { applyDecline } from "./actions";
 
-export const metadata = { title: "not interested — MIME-FF" };
+export const metadata = { title: "not interested - MIME-FF" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -52,7 +52,7 @@ export default async function DeclinePage({
     <main className="prose">
       <h1>not interested in this site?</h1>
       <p>
-        we&apos;ll stop counting you toward — and stop emailing you about — games forming at{" "}
+        we&apos;ll stop counting you toward - and stop emailing you about - games forming at{" "}
         <strong>{where}</strong>. you&apos;ll still hear about other games near you, and you can
         change your mind from the site&apos;s popup on the map.
       </p>

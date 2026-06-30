@@ -1,37 +1,78 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users, formationAttempts } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster } from "@/lib/db/schema";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
 import { rsvpLink } from "@/lib/rsvpLink";
-import { declineLink } from "@/lib/declineLink";
+import { interestLink } from "@/lib/interestLink";
 
-// Only emails whose occurrence is still RSVP-able get the one-click links.
-// WEEK_OFF is a skipped week (settled) — its links would be dead, so it gets none.
+// Weekly poll emails carry one-click RSVP links. WEEK_OFF is settled (no links).
 const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
-
-// Formation courting asks carry a one-click "not interested in this site" link
-// so a recipient can stop the emails for that area. GAME_ON / STALLED_NOTICE are
-// one-off notices, not repeated courting, so they don't.
-const DECLINE_LINK_KINDS = new Set<NotifKind>([
-  "SPARK_ASK", "SUGGEST_NUDGE", "SUGGEST_LASTCALL",
-  "OPTIONS_AVAILABLE", "AVAIL_NUDGE", "AVAIL_LASTCALL",
-]);
+// Weekly emails that show the game's spot + time (a "game's off" email doesn't —
+// there's no game to detail).
+const OCCURRENCE_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
+// The donation block lives ONLY on the weekly "game on" email — an ask for
+// never-decided players, a thank-you for supporters. Every other email (the
+// proposal ask, the formation "you're in", the poll request, and the bad-news
+// emails) stays clean.
+const DONATION_BLOCK_KIND: NotifKind = "WEEK_ON";
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
+const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+/** Human "when" for a proposal: recurring slot + first-game date, or a one-off. */
+function whenText(start: Date, recurDow: number | null, recurTime: string | null): string {
+  const d = new Date(start);
+  let h: number, m: number;
+  if (recurTime) { const [hh, mm] = recurTime.split(":").map(Number); h = hh; m = mm; }
+  else { h = d.getHours(); m = d.getMinutes(); }
+  const time = `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return recurDow != null && recurDow >= 0 && recurDow < 7
+    ? `${DOW[recurDow]} at ${time} · first game ${date}`
+    : `${date} at ${time}`;
+}
+
+/** Human "when" for a weekly occurrence: its date + kickoff time. */
+function whenOccurrence(date: string, kickoff: Date): string {
+  const d = new Date(`${date}T00:00:00`);
+  const k = new Date(kickoff);
+  const time = `${((k.getHours() + 11) % 12) + 1}:${String(k.getMinutes()).padStart(2, "0")} ${k.getHours() < 12 ? "am" : "pm"}`;
+  return `${d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
+}
+
+/** The players who are effectively "in" for an occurrence, by display name —
+ *  same rule as the tally (override ?? site default), for the "game on" roster. */
+async function occurrenceRoster(gameId: string, date: string): Promise<{ count: number; names: string[] }> {
+  const res = await db.execute(sql`
+    select coalesce(u.display_name, 'someone') as name from (
+      select r.user_id from game_roster r
+        left join game_attendance a on a.game_id = r.game_id and a.user_id = r.user_id and a.occurrence_date = ${date}::date
+        where r.game_id = ${gameId} and coalesce(a.status, r.default_status) = 'in'
+      union
+      select a.user_id from game_attendance a
+        where a.game_id = ${gameId} and a.occurrence_date = ${date}::date and a.status = 'in'
+          and not exists (select 1 from game_roster r where r.game_id = a.game_id and r.user_id = a.user_id)
+    ) eff join users u on u.id = eff.user_id order by u.display_name`);
+  const names = ((res as unknown as { rows?: { name: string }[] }).rows ?? []).map((r) => r.name);
+  return { count: names.length, names };
+}
+
+/** The founding roster of a game, by display name — for the "you're in" email
+ *  sent the moment a game forms, when no occurrence exists yet to tally. */
+async function gameRosterNames(gameId: string): Promise<{ count: number; names: string[] }> {
+  const rows = await db.select({ name: users.displayName })
+    .from(gameRoster).innerJoin(users, eq(users.id, gameRoster.userId))
+    .where(eq(gameRoster.gameId, gameId)).orderBy(users.displayName);
+  const names = rows.map((r) => r.name ?? "someone");
+  return { count: names.length, names };
+}
+
 /**
- * Send the backlog of claimed-but-unsent email notifications via Brevo. Runs
- * from the tick cron, OUTSIDE any DB transaction.
- *
- * Safety:
- *  - no API key → no-op (don't mark anything sent, so the backlog survives until
- *    email is configured).
- *  - each row is claimed atomically (set emailed_at WHERE emailed_at IS NULL,
- *    RETURNING) *before* sending — so overlapping ticks can't both grab it and a
- *    successful send can't be re-sent later. On send failure we clear the claim
- *    so it retries next tick.
+ * Send the backlog of claimed-but-unsent email notifications. Runs from the tick
+ * cron, OUTSIDE any DB transaction. Each row is claimed atomically before send,
+ * so overlapping ticks can't double-send; a send failure releases the claim.
  */
 export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ sent: number; skipped: number; failed: number }> {
   let sent = 0, skipped = 0, failed = 0;
@@ -42,54 +83,75 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     kind: notificationsSent.kind,
     userId: notificationsSent.userId,
     occurrenceId: notificationsSent.occurrenceId,
-    areaId: formationAttempts.areaId,
+    attemptId: notificationsSent.attemptId,
+    gameId: notificationsSent.gameId,
+    placeText: formationAttempts.placeText,
+    attemptStatus: formationAttempts.status,
+    proposedStart: formationAttempts.proposedStart,
+    recurDow: formationAttempts.recurDow,
+    recurTime: formationAttempts.recurTime,
+    occDate: gameOccurrences.occurrenceDate,
+    kickoffAt: gameOccurrences.kickoffAt,
+    gamePlace: games.placeText,
     email: users.email,
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
     donationStatus: users.donationStatus,
   }).from(notificationsSent)
     .innerJoin(users, eq(users.id, notificationsSent.userId))
-    // Formation emails carry an attempt → its area, for the "not interested" link.
+    // GAME_PROPOSED carries an attempt → its proposal details + interest links.
     .leftJoin(formationAttempts, eq(formationAttempts.id, notificationsSent.attemptId))
+    // Weekly emails carry an occurrence + game → the date/time/location + roster.
+    .leftJoin(gameOccurrences, eq(gameOccurrences.id, notificationsSent.occurrenceId))
+    .leftJoin(games, eq(games.id, notificationsSent.gameId))
     .where(and(eq(notificationsSent.channel, "email"), isNull(notificationsSent.emailedAt)))
     .orderBy(notificationsSent.sentAt)
     .limit(limit);
 
   for (const r of rows) {
-    // Claim atomically: only the worker whose UPDATE returns the row sends it.
     const claimed = await db.update(notificationsSent).set({ emailedAt: now })
       .where(and(eq(notificationsSent.id, r.id), isNull(notificationsSent.emailedAt)))
       .returning({ id: notificationsSent.id });
     if (!claimed.length) continue; // another worker already took it
 
-    // Opted out / no address: stays claimed so it leaves the backlog, no send.
     if (!r.emailOptIn || !r.email) { skipped++; continue; }
+    // A proposal that already formed (or failed) shouldn't still send "want in?" —
+    // early in-app / link interest can resolve it before this flush runs. The row
+    // is already claimed (emailedAt set), so it's simply dropped, never retried.
+    if (r.kind === "GAME_PROPOSED" && r.attemptStatus !== "OPEN") { skipped++; continue; }
 
     try {
-      const footer = donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn });
-      // Weekly poll emails carry one-click RSVP links (signed, no login).
-      const rsvp = RSVP_LINK_KINDS.has(r.kind as NotifKind) && r.occurrenceId
-        ? {
-            inUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "in"),
-            outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out"),
-          }
+      const kind = r.kind as NotifKind;
+      // Donation block only on the weekly "game on" email (ask vs thank-you by status).
+      const footer = kind === DONATION_BLOCK_KIND ? donationFooterFor({ donationStatus: r.donationStatus, emailOptIn: r.emailOptIn }) : null;
+      // Weekly poll emails → RSVP links; proposal emails → Interested/Not-Interested.
+      const buttons = RSVP_LINK_KINDS.has(kind) && r.occurrenceId
+        ? { inUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "in"), outUrl: rsvpLink(APP_BASE_URL, r.userId, r.occurrenceId, "out") }
+        : kind === "GAME_PROPOSED" && r.attemptId
+        ? { inUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "in"), outUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "out") }
         : undefined;
-      // Courting asks get a one-click "stop emails about this site" link.
-      const declineUrl = DECLINE_LINK_KINDS.has(r.kind as NotifKind) && r.areaId
-        ? declineLink(APP_BASE_URL, r.userId, r.areaId)
+      // Spot + time: GAME_PROPOSED / GAME_ON from the attempt (the formed game
+      // inherits its venue + slot); weekly emails from the occurrence.
+      const details = (kind === "GAME_PROPOSED" || kind === "GAME_ON") && r.placeText && r.proposedStart
+        ? { place: r.placeText, when: whenText(r.proposedStart, r.recurDow, r.recurTime) }
+        : OCCURRENCE_KINDS.has(kind) && r.gamePlace && r.occDate && r.kickoffAt
+        ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) }
         : undefined;
-      const mail = buildNotificationEmail(r.kind as NotifKind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, rsvp, declineUrl });
+      // Who's in: GAME_ON lists the founding roster; WEEK_ON lists this week's ins.
+      const roster = kind === "GAME_ON" && r.gameId
+        ? await gameRosterNames(r.gameId)
+        : kind === "WEEK_ON" && r.gameId && r.occDate
+        ? await occurrenceRoster(r.gameId, r.occDate)
+        : undefined;
+      const mail = buildNotificationEmail(kind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster });
       const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
       if (delivered) {
         sent++;
       } else {
-        // Transport declined without throwing (e.g. not actually configured) —
-        // nothing was sent, so release the claim rather than lose the row.
         await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));
         failed++;
       }
     } catch (e) {
-      // Release the claim so it retries next tick (no duplicate, no permanent loss).
       await db.update(notificationsSent).set({ emailedAt: null }).where(eq(notificationsSent.id, r.id));
       console.error("[email] flush failed for notification", r.id, e);
       failed++;
