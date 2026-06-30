@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Wrapped up the big change to how games come together (each proposed game is now its own thing - neighbors get the details by email and tap Interested or Not). Now polishing the wording: the weekly game-on email spells out where, when, and who's coming, called-off weeks don't ask for money, and I cleaned up punctuation across the app's copy.",
-    "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-29T20:24:55Z"
+    "status": "Found and fixed why deploys have been silently failing: the app was trying to open a database connection while it was still being built, which the build environment can't do. Now it waits until it's actually running. This was blocking both the dev site and the upcoming launch.",
+    "direction": "Get this fix reviewed and merged so dev comes back to life and the path to launch is clear again.",
+    "last_update": "2026-06-30T07:27:25Z"
   }
 }
