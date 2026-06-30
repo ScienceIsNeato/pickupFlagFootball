@@ -41,13 +41,14 @@ Then("the proposal email goes out", async () => {
   ).toBe(true);
 });
 
-// On confirm: the proposer (now rostered) gets "game on — you're in".
+// On confirm: the proposer (now rostered) gets "game on — you're in", carrying
+// the spot, time, and the founding roster — the same details as the weekly email.
 Then("I get the game-on email", async ({ world }) => {
   const me = world.email!.toLowerCase();
-  await expect.poll(
-    async () => (await allEmails()).some((e) => e.to.toLowerCase() === me && /game on/i.test(e.subject)),
-    { timeout: 10000 },
-  ).toBe(true);
+  await expect.poll(async () => {
+    const won = (await allEmails()).find((e) => e.to.toLowerCase() === me && /game on/i.test(e.subject));
+    return won ? /Republic Square/.test(won.html) && /planning to play/i.test(won.html) : false;
+  }, { timeout: 10000 }).toBe(true);
 });
 
 // On fail: the cohort gets the "not enough players this round" notice.

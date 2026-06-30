@@ -18,6 +18,18 @@ test("proposal email carries the details + Interested/Not-Interested buttons", (
   assert.ok(mail.textContent.includes(inUrl), "text carries the interested link");
 });
 
+test("game-on email carries the spot, time, and roster", () => {
+  const mail = buildNotificationEmail("GAME_ON", {
+    displayName: "Sam", appBaseUrl: "https://app.test", footer: null,
+    details: { place: "Republic Square, Austin 78701", when: "Saturdays at 10:00 am · first game Sat, Jul 4" },
+    roster: { count: 3, names: ["Ana", "Bo", "Sam"] },
+  });
+  assert.match(mail.htmlContent, /Republic Square/, "shows the spot");
+  assert.match(mail.htmlContent, /Saturdays at 10:00 am/, "shows the time");
+  assert.match(mail.htmlContent, /3 planning to play/i, "shows the headcount");
+  assert.match(mail.htmlContent, /Ana, Bo, Sam/, "lists the roster");
+});
+
 test("a plain notice omits the two-button row", () => {
   const mail = buildNotificationEmail("STALLED_NOTICE", {
     displayName: "Sam", appBaseUrl: "https://app.test", footer: null,

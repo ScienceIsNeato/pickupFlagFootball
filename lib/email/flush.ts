@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users, formationAttempts, gameOccurrences, games } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster } from "@/lib/db/schema";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -56,6 +56,16 @@ async function occurrenceRoster(gameId: string, date: string): Promise<{ count: 
           and not exists (select 1 from game_roster r where r.game_id = a.game_id and r.user_id = a.user_id)
     ) eff join users u on u.id = eff.user_id order by u.display_name`);
   const names = ((res as unknown as { rows?: { name: string }[] }).rows ?? []).map((r) => r.name);
+  return { count: names.length, names };
+}
+
+/** The founding roster of a game, by display name — for the "you're in" email
+ *  sent the moment a game forms, when no occurrence exists yet to tally. */
+async function gameRosterNames(gameId: string): Promise<{ count: number; names: string[] }> {
+  const rows = await db.select({ name: users.displayName })
+    .from(gameRoster).innerJoin(users, eq(users.id, gameRoster.userId))
+    .where(eq(gameRoster.gameId, gameId)).orderBy(users.displayName);
+  const names = rows.map((r) => r.name ?? "someone");
   return { count: names.length, names };
 }
 
@@ -115,14 +125,17 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
         : kind === "GAME_PROPOSED" && r.attemptId
         ? { inUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "in"), outUrl: interestLink(APP_BASE_URL, r.userId, r.attemptId, "out") }
         : undefined;
-      // Spot + time: GAME_PROPOSED from the attempt; weekly emails from the occurrence.
-      const details = kind === "GAME_PROPOSED" && r.placeText && r.proposedStart
+      // Spot + time: GAME_PROPOSED / GAME_ON from the attempt (the formed game
+      // inherits its venue + slot); weekly emails from the occurrence.
+      const details = (kind === "GAME_PROPOSED" || kind === "GAME_ON") && r.placeText && r.proposedStart
         ? { place: r.placeText, when: whenText(r.proposedStart, r.recurDow, r.recurTime) }
         : OCCURRENCE_KINDS.has(kind) && r.gamePlace && r.occDate && r.kickoffAt
         ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) }
         : undefined;
-      // The "game on" email lists who said they're in.
-      const roster = kind === "WEEK_ON" && r.gameId && r.occDate
+      // Who's in: GAME_ON lists the founding roster; WEEK_ON lists this week's ins.
+      const roster = kind === "GAME_ON" && r.gameId
+        ? await gameRosterNames(r.gameId)
+        : kind === "WEEK_ON" && r.gameId && r.occDate
         ? await occurrenceRoster(r.gameId, r.occDate)
         : undefined;
       const mail = buildNotificationEmail(kind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster });
