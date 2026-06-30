@@ -66,16 +66,16 @@ export async function resolveAttempt(
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
 
-  // The roster is everyone who said they're in, plus the proposer (in by
-  // definition — they proposed it). Deduped, and minus anyone who opted out of
-  // this area (consistent with catchmentUsers, which won't court them) — except
-  // the proposer, who is always kept.
+  // The roster is everyone who said they're in, minus anyone who opted out of this
+  // area (consistent with catchmentUsers + the popup tally). The proposer is
+  // auto-interested at propose time and their opt-out is cleared then, so they
+  // appear here naturally — unless they later tapped "not interested", in which
+  // case they're correctly left off rather than force-rostered.
   const inRows = await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
     .where(and(eq(attemptInterest.attemptId, att.id), eq(attemptInterest.interested, true)));
   const optedOut = new Set((await db.select({ userId: areaOptouts.userId }).from(areaOptouts)
     .where(eq(areaOptouts.areaId, att.areaId))).map((r) => r.userId));
-  const roster = [...new Set([att.proposerId, ...inRows.map((r) => r.userId)])]
-    .filter((u) => u === att.proposerId || !optedOut.has(u));
+  const roster = [...new Set(inRows.map((r) => r.userId))].filter((u) => !optedOut.has(u));
 
   if (roster.length < t.pMin) {
     // Don't fail before the window actually closes — an early call could still

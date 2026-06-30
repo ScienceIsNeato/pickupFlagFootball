@@ -24,6 +24,7 @@ export default async function InterestedPage({
       in: { title: "you're in", body: "nice - we've counted you in. if enough people are in by the deadline, the game's on and you'll get a heads-up." },
       out: { title: "no worries", body: "we won't count you toward this one. you'll still hear about other games proposed near you." },
       closed: { title: "this one's settled", body: "the interest window for this proposal has already closed." },
+      outofrange: { title: "out of your area", body: "this game's spot is outside your travel area, so we can't count you in for it. find games closer to home on the map." },
       invalid: { title: "this link didn't work", body: "it may have expired or been altered." },
     };
     const c = copy[done] ?? copy.invalid;

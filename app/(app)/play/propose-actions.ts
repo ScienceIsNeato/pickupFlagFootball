@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
 import { cellToLatLng, latLngToCell } from "h3-js";
 import {
-  activityTypes, areas, formationAttempts, attemptInterest, notificationsSent, areaCaptains, users,
+  activityTypes, areas, formationAttempts, attemptInterest, notificationsSent, areaCaptains, users, areaOptouts,
 } from "@/lib/db/schema";
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
@@ -124,6 +124,9 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
       interestClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
     }).returning({ id: formationAttempts.id });
     await tx.insert(attemptInterest).values({ attemptId: a.id, userId: uid, interested: true }).onConflictDoNothing();
+    // Proposing here clears any prior "not interested in this area" opt-out — you're
+    // obviously interested now, so you count toward and appear on the roster.
+    await tx.delete(areaOptouts).where(and(eq(areaOptouts.areaId, area.id), eq(areaOptouts.userId, uid)));
     await tx.insert(areaCaptains).values({ areaId: area.id, userId: uid }).onConflictDoNothing();
     if (cohort.length) {
       await tx.insert(notificationsSent).values(cohort.map((u) => ({
