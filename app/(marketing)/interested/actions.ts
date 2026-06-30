@@ -1,9 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { txnDb } from "@/lib/db/pool";
-import { formationAttempts, attemptInterest, areas, users } from "@/lib/db/schema";
+import { formationAttempts, attemptInterest, areas, areaOptouts, users } from "@/lib/db/schema";
 import { verifyInterestToken } from "@/lib/interestLink";
 import { resolveProposal } from "@/lib/mime/trigger";
 import { haversineKm } from "@/lib/geo/distance";
@@ -43,7 +43,7 @@ export async function applyInterest(formData: FormData) {
   // a concurrent resolve can't close it between the check and the upsert (which
   // would record a late response on an already-settled proposal).
   const outcome = await txnDb.transaction(async (tx) => {
-    const [att] = await tx.select({ status: formationAttempts.status })
+    const [att] = await tx.select({ status: formationAttempts.status, areaId: formationAttempts.areaId })
       .from(formationAttempts).where(eq(formationAttempts.id, parsed.attemptId)).for("update").limit(1);
     if (!att) return "invalid";
     if (att.status !== "OPEN") return "closed";
@@ -53,6 +53,11 @@ export async function applyInterest(formData: FormData) {
         target: [attemptInterest.attemptId, attemptInterest.userId],
         set: { interested },
       });
+    // "Interested" re-engages you with the area — clear any opt-out so you count,
+    // matching the in-app respondInterest. A per-proposal "not interested" doesn't.
+    if (interested) {
+      await tx.delete(areaOptouts).where(and(eq(areaOptouts.areaId, att.areaId), eq(areaOptouts.userId, parsed.userId)));
+    }
     return "ok";
   });
   if (outcome !== "ok") redirect(`/interested?done=${outcome}`);
