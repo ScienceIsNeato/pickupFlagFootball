@@ -155,9 +155,22 @@ export async function respondInterest(attemptId: string, interested: boolean): P
     if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
     if (haversineKm(me.lat, me.lng, att.lat, att.lng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
   }
-  await db.insert(attemptInterest)
-    .values({ attemptId, userId: session.user.id, interested })
-    .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });
+  // Lock the attempt, re-check OPEN, and write in one transaction (same as the
+  // email-link applyInterest), so a concurrent tick / resolve can't settle the
+  // attempt between the check and the write and leave the click recorded on a
+  // closed proposal (or off the formed roster).
+  const uid = session.user.id;
+  const outcome = await txnDb.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: formationAttempts.status })
+      .from(formationAttempts).where(eq(formationAttempts.id, attemptId)).for("update").limit(1);
+    if (!locked) return "missing";
+    if (locked.status !== "OPEN") return "closed";
+    await tx.insert(attemptInterest)
+      .values({ attemptId, userId: uid, interested })
+      .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });
+    return "ok";
+  });
+  if (outcome !== "ok") return { ok: false, reason: outcome };
   if (interested) await resolveProposal(attemptId);
   return { ok: true };
 }
