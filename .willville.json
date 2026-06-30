@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Wrapped up the big change to how games come together (each proposed game is now its own thing - neighbors get the details by email and tap Interested or Not). Now polishing the wording: the weekly game-on email spells out where, when, and who's coming, called-off weeks don't ask for money, and I cleaned up punctuation across the app's copy.",
-    "direction": "Get this reviewed and merged to dev, then keep filling coverage gaps.",
-    "last_update": "2026-06-29T20:24:55Z"
+    "status": "The big game-formation change is merged. Now wiring up Slack so the team gets a live feed of what's happening - new players, proposed games, and games that come together or fizzle - plus an alert if the background scheduler ever stops running.",
+    "direction": "Land the Slack feed, then set up the channels and the down-detector and start watching it before the public launch.",
+    "last_update": "2026-06-30T04:45:37Z"
   }
 }

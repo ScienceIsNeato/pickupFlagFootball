@@ -102,3 +102,41 @@ gcloud beta run domain-mappings create --service=pickupflagfootball-prod \
 
 Once 1–4 are done, **merge to `main`** and the workflow builds, migrates, and
 deploys. Steps 5–7 are first-time only.
+
+## 8. Slack notifications
+
+Two surfaces (same split ganglia/firstinq use). Both are optional and off until
+wired — nothing here blocks a normal deploy.
+
+**Activity feed → `#mime-activity`** — the app posts product events (new player,
+site proposed, proposal formed, proposal stalled) to an incoming webhook,
+best-effort and non-blocking. Unset `SLACK_WEBHOOK_URL` = silent no-op.
+
+```bash
+# 1. In Slack: create #mime-activity (+ a dev channel) and add an Incoming Webhook
+#    to each → copy the URLs. Store as secrets:
+printf '%s' 'https://hooks.slack.com/services/PROD/...' | \
+  gcloud secrets create pff-slack-webhook-url     --replication-policy=automatic --data-file=- --project=$PROJECT
+printf '%s' 'https://hooks.slack.com/services/DEV/...'  | \
+  gcloud secrets create pff-dev-slack-webhook-url --replication-policy=automatic --data-file=- --project=$PROJECT
+```
+
+```yaml
+# 2. Turn it on by passing the secret name (the pipeline binds it additively;
+#    leaving it out = Slack off, deploy unaffected):
+#   .github/workflows/deploy-prod.yml  with:  slack_webhook_secret: pff-slack-webhook-url
+#   .github/workflows/deploy-dev.yml   with:  slack_webhook_secret: pff-dev-slack-webhook-url
+```
+
+**Tick alerts → `#mime-alerts`** — a dead server can't report itself, so "tick is
+down" is a Cloud Monitoring alert, not an app event.
+
+1. Authorize the **Google Cloud Monitoring** Slack app in the workspace, then add a
+   Slack **notification channel** pointing at `#mime-alerts`
+   (Console → Monitoring → Alerting → Edit notification channels → Slack).
+2. Create two alert policies on that channel:
+   - **Missed tick** — 0 successful (2xx) requests to `/api/mime/tick` in 30 min
+     (covers scheduler-paused / route-down).
+   - **Tick errors** — any `severity>=ERROR` log from the `pickupflagfootball-prod`
+     Cloud Run service (covers the engine throwing *and* the email-flush failures,
+     which log an error but still return 200).
