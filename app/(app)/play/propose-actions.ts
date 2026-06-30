@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
@@ -12,7 +12,7 @@ import {
 import { h3ToBigInt, diskCells } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
 import { haversineKm } from "@/lib/geo/distance";
-import { loadTunables, catchmentUsers, nextAttemptNumber } from "@/lib/mime/engine";
+import { loadTunables, catchmentUsers } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { resolveProposal } from "@/lib/mime/trigger";
 import { isEmailVerified } from "@/lib/auth/verified";
@@ -106,14 +106,19 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
   const [cohortLat, cohortLng] = placeLat != null && placeLng != null
     ? [placeLat, placeLng]
     : [area.centerLat, area.centerLng];
-  const cohort = (await catchmentUsers(edb(), act.id, cohortLat, cohortLng)).filter((u) => u !== uid);
-  const attemptNumber = await nextAttemptNumber(edb(), area.id);
+  const cohort = (await catchmentUsers(edb(), act.id, cohortLat, cohortLng, area.id)).filter((u) => u !== uid);
 
   // One isolated attempt: the proposal, the proposer's "in", their captaincy, and
   // the GAME_PROPOSED asks all commit together (pooled client).
   await txnDb.transaction(async (tx) => {
+    // Allocate attempt_number under an area-row lock so two concurrent proposals
+    // in the same area can't read the same max and collide on the unique
+    // (area_id, attempt_number) index.
+    await tx.execute(sql`select 1 from areas where id = ${area.id} for update`);
+    const [{ n }] = await tx.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}), 0)::int` })
+      .from(formationAttempts).where(eq(formationAttempts.areaId, area.id));
     const [a] = await tx.insert(formationAttempts).values({
-      activityTypeId: act.id, areaId: area.id, attemptNumber, status: "OPEN",
+      activityTypeId: act.id, areaId: area.id, attemptNumber: n + 1, status: "OPEN",
       proposerId: uid, placeText: place, placeLat, placeLng, proposedStart: when,
       recurDow, recurTime, catchmentCells: disk, cohortUserIds: cohort,
       interestClosesAt: new Date(now.getTime() + t.suggestWindowH * 3_600_000),
@@ -136,10 +141,20 @@ export async function respondInterest(attemptId: string, interested: boolean): P
   const session = await auth();
   if (!session?.user?.id) return { ok: false, reason: "unauth" };
   if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
-  const [att] = await db.select({ status: formationAttempts.status })
-    .from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
+  const [att] = await db.select({
+    status: formationAttempts.status, lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
+  }).from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
   if (!att) return { ok: false, reason: "missing" };
   if (att.status !== "OPEN") return { ok: false, reason: "closed" };
+  // Eligibility: you can only weigh in on a game your travel radius could reach —
+  // the same rule proposeGame applies to the proposer and the emailed cohort. Stops
+  // a verified user from counting themselves into a far-off proposal by id.
+  if (att.lat != null && att.lng != null) {
+    const [me] = await db.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
+      .from(users).where(eq(users.id, session.user.id)).limit(1);
+    if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
+    if (haversineKm(me.lat, me.lng, att.lat, att.lng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
+  }
   await db.insert(attemptInterest)
     .values({ attemptId, userId: session.user.id, interested })
     .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });

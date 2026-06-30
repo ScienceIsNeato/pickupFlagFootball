@@ -123,7 +123,10 @@ export async function GET(req: Request) {
       lat: formationAttempts.placeLat, lng: formationAttempts.placeLng, h3Cell: areas.h3Cell,
     }).from(formationAttempts)
       .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
-      .where(eq(formationAttempts.status, "OPEN"));
+      .where(eq(formationAttempts.status, "OPEN"))
+      // Oldest→newest so "last proposal in a cell wins the point" is deterministic
+      // (the newest overwrites), not query-plan dependent.
+      .orderBy(asc(formationAttempts.createdAt));
     for (const a of openAttempts) {
       const parent = cellToParent(bigIntToH3(a.h3Cell), res);
       formingCells.add(parent);

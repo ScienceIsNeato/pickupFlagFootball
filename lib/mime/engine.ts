@@ -56,6 +56,13 @@ export async function resolveAttempt(
   db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date,
 ): Promise<void> {
   if (att.status !== "OPEN") return;
+  // Lock the attempt row so a cron tick and a concurrent event-driven resolve
+  // (an "I'm in" at the deadline) can't each decide on a stale interest count —
+  // whoever loses the lock re-reads the now-resolved status and bails. Runs inside
+  // a transaction in both paths (tick + resolveProposal), so the lock holds.
+  const [locked] = await db.select({ status: formationAttempts.status })
+    .from(formationAttempts).where(eq(formationAttempts.id, att.id)).for("update").limit(1);
+  if (!locked || locked.status !== "OPEN") return;
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
 
@@ -71,8 +78,9 @@ export async function resolveAttempt(
     if (now < att.interestClosesAt) return;
     const claimed = await claim(db, att.id, "FAILED", `only ${roster.length}/${t.pMin} interested`);
     if (!claimed) return;
-    // Tell everyone we asked that it didn't come together this round.
-    await enqueue(db, (att.cohortUserIds ?? [])
+    // Tell everyone we asked — plus the proposer, who isn't in the cohort (they're
+    // the one who asked) but most wants to know it didn't come together.
+    await enqueue(db, [...new Set([att.proposerId, ...(att.cohortUserIds ?? [])])]
       .map((userId) => ({ userId, attemptId: att.id, kind: "STALLED_NOTICE" as NotifKind })), now);
     return;
   }
@@ -122,23 +130,24 @@ function withinTravelRadius(lat: number, lng: number) {
 /** The set of users a proposal should email: active for the activity and within
  *  their travel radius of the proposed venue. Used by proposeGame to freeze the
  *  cohort it courts. */
-export async function catchmentUsers(db: EngineDb, activityTypeId: string, lat: number, lng: number): Promise<string[]> {
+export async function catchmentUsers(
+  db: EngineDb, activityTypeId: string, lat: number, lng: number, areaId?: string,
+): Promise<string[]> {
   const rows = await db.selectDistinct({ userId: interestSignals.userId })
     .from(interestSignals)
     .innerJoin(users, eq(users.id, interestSignals.userId))
     .where(and(
       eq(interestSignals.activityTypeId, activityTypeId),
       eq(interestSignals.active, true),
+      // Never court a globally-opted-out user, nor anyone who opted out of THIS
+      // area's proposals (the in-app / decline-link area opt-out is still live).
+      eq(users.emailOptIn, true),
+      ...(areaId
+        ? [sql`not exists (select 1 from area_optouts ao where ao.area_id = ${areaId}::uuid and ao.user_id = ${interestSignals.userId})`]
+        : []),
       withinTravelRadius(lat, lng),
     ));
   return rows.map((r) => r.userId);
-}
-
-/** The next attempt_number for an area (areas can host many proposals over time). */
-export async function nextAttemptNumber(db: EngineDb, areaId: string): Promise<number> {
-  const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${formationAttempts.attemptNumber}), 0)::int` })
-    .from(formationAttempts).where(eq(formationAttempts.areaId, areaId));
-  return n + 1;
 }
 
 /** Claim-before-send ledger write. The unique index (user, attempt, kind,

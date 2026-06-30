@@ -18,9 +18,15 @@ import type { EngineDb } from "./engine";
  *  clears the threshold can form the game before the deadline. */
 export async function resolveProposal(attemptId: string): Promise<void> {
   try {
-    const db = txnDb as unknown as EngineDb;
-    const [att] = await db.select().from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
-    if (att) await resolveAttempt(db, att, new Date());
+    // Wrap in a transaction like the cron path (tick): the OPEN→CONFIRMED claim,
+    // the game/roster inserts, and the notifications are all-or-nothing, so a
+    // mid-flight error rolls the claim back instead of leaving a confirmed attempt
+    // with no game that the cron will never retry.
+    await txnDb.transaction(async (tx) => {
+      const db = tx as unknown as EngineDb;
+      const [att] = await db.select().from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
+      if (att) await resolveAttempt(db, att, new Date());
+    });
   } catch (e) {
     console.error("[mime] resolveProposal failed (cron will retry)", {
       attemptId,

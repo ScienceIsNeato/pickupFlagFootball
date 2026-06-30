@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import { formationAttempts, attemptInterest } from "@/lib/db/schema";
 import { verifyInterestToken } from "@/lib/interestLink";
 import { resolveProposal } from "@/lib/mime/trigger";
@@ -18,18 +18,24 @@ export async function applyInterest(formData: FormData) {
   const parsed = verifyInterestToken(t);
   if (!parsed) redirect("/interested?done=invalid");
 
-  const [att] = await db.select({ status: formationAttempts.status })
-    .from(formationAttempts).where(eq(formationAttempts.id, parsed.attemptId)).limit(1);
-  if (!att) redirect("/interested?done=invalid");
-  if (att.status !== "OPEN") redirect("/interested?done=closed");
-
   const interested = parsed.action === "in";
-  await db.insert(attemptInterest)
-    .values({ attemptId: parsed.attemptId, userId: parsed.userId, interested })
-    .onConflictDoUpdate({
-      target: [attemptInterest.attemptId, attemptInterest.userId],
-      set: { interested },
-    });
+  // Lock the attempt, re-check OPEN, and write the response in one transaction so
+  // a concurrent resolve can't close it between the check and the upsert (which
+  // would record a late response on an already-settled proposal).
+  const outcome = await txnDb.transaction(async (tx) => {
+    const [att] = await tx.select({ status: formationAttempts.status })
+      .from(formationAttempts).where(eq(formationAttempts.id, parsed.attemptId)).for("update").limit(1);
+    if (!att) return "invalid";
+    if (att.status !== "OPEN") return "closed";
+    await tx.insert(attemptInterest)
+      .values({ attemptId: parsed.attemptId, userId: parsed.userId, interested })
+      .onConflictDoUpdate({
+        target: [attemptInterest.attemptId, attemptInterest.userId],
+        set: { interested },
+      });
+    return "ok";
+  });
+  if (outcome !== "ok") redirect(`/interested?done=${outcome}`);
 
   // An "I'm in" can tip it over the threshold before the deadline — resolve now.
   if (interested) await resolveProposal(parsed.attemptId);

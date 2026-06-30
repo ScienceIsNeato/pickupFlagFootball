@@ -86,6 +86,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     attemptId: notificationsSent.attemptId,
     gameId: notificationsSent.gameId,
     placeText: formationAttempts.placeText,
+    attemptStatus: formationAttempts.status,
     proposedStart: formationAttempts.proposedStart,
     recurDow: formationAttempts.recurDow,
     recurTime: formationAttempts.recurTime,
@@ -114,6 +115,10 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     if (!claimed.length) continue; // another worker already took it
 
     if (!r.emailOptIn || !r.email) { skipped++; continue; }
+    // A proposal that already formed (or failed) shouldn't still send "want in?" —
+    // early in-app / link interest can resolve it before this flush runs. The row
+    // is already claimed (emailedAt set), so it's simply dropped, never retried.
+    if (r.kind === "GAME_PROPOSED" && r.attemptStatus !== "OPEN") { skipped++; continue; }
 
     try {
       const kind = r.kind as NotifKind;
