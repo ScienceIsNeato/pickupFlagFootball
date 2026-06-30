@@ -143,17 +143,24 @@ export async function respondInterest(attemptId: string, interested: boolean): P
   if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
   const [att] = await db.select({
     status: formationAttempts.status, lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
-  }).from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
+    areaLat: areas.centerLat, areaLng: areas.centerLng,
+  }).from(formationAttempts)
+    .leftJoin(areas, eq(areas.id, formationAttempts.areaId))
+    .where(eq(formationAttempts.id, attemptId)).limit(1);
   if (!att) return { ok: false, reason: "missing" };
   if (att.status !== "OPEN") return { ok: false, reason: "closed" };
   // Eligibility: you can only weigh in on a game your travel radius could reach —
   // the same rule proposeGame applies to the proposer and the emailed cohort. Stops
-  // a verified user from counting themselves into a far-off proposal by id.
-  if (att.lat != null && att.lng != null) {
+  // a verified user from counting themselves into a far-off proposal by id. Uses the
+  // venue, or the area centroid when the proposal has no exact coords (matching
+  // cohort selection at propose time).
+  const vLat = att.lat ?? att.areaLat;
+  const vLng = att.lng ?? att.areaLng;
+  if (vLat != null && vLng != null) {
     const [me] = await db.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
       .from(users).where(eq(users.id, session.user.id)).limit(1);
     if (me?.lat == null || me?.lng == null) return { ok: false, reason: "nolocation" };
-    if (haversineKm(me.lat, me.lng, att.lat, att.lng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
+    if (haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) return { ok: false, reason: "outofrange" };
   }
   // Lock the attempt, re-check OPEN, and write in one transaction (same as the
   // email-link applyInterest), so a concurrent tick / resolve can't settle the

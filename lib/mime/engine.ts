@@ -3,7 +3,7 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 import * as schema from "@/lib/db/schema";
 import {
   areas, interestSignals, formationAttempts, attemptInterest,
-  games, gameRoster, notificationsSent, users,
+  games, gameRoster, notificationsSent, users, areaOptouts,
 } from "@/lib/db/schema";
 import { gameColor } from "@/lib/brand";
 import { resolveTunables } from "./tunables";
@@ -67,10 +67,15 @@ export async function resolveAttempt(
   const t = await loadTunables(db, att.activityTypeId, area);
 
   // The roster is everyone who said they're in, plus the proposer (in by
-  // definition — they proposed it). Deduped.
+  // definition — they proposed it). Deduped, and minus anyone who opted out of
+  // this area (consistent with catchmentUsers, which won't court them) — except
+  // the proposer, who is always kept.
   const inRows = await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
     .where(and(eq(attemptInterest.attemptId, att.id), eq(attemptInterest.interested, true)));
-  const roster = [...new Set([att.proposerId, ...inRows.map((r) => r.userId)])];
+  const optedOut = new Set((await db.select({ userId: areaOptouts.userId }).from(areaOptouts)
+    .where(eq(areaOptouts.areaId, att.areaId))).map((r) => r.userId));
+  const roster = [...new Set([att.proposerId, ...inRows.map((r) => r.userId)])]
+    .filter((u) => u === att.proposerId || !optedOut.has(u));
 
   if (roster.length < t.pMin) {
     // Don't fail before the window actually closes — an early call could still
