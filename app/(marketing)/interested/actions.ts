@@ -33,7 +33,11 @@ export async function applyInterest(formData: FormData) {
   if (vLat != null && vLng != null) {
     const [me] = await txnDb.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
       .from(users).where(eq(users.id, parsed.userId)).limit(1);
-    if (me?.lat != null && me?.lng != null && haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) {
+    // No home on file → ineligible, same as the in-app respondInterest gate: a user
+    // we can't range-check against the venue must not count toward formation via the
+    // one-click link.
+    if (me?.lat == null || me?.lng == null) redirect("/interested?done=outofrange");
+    if (haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) {
       redirect("/interested?done=outofrange");
     }
   }

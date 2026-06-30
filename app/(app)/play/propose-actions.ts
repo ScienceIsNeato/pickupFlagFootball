@@ -111,7 +111,7 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
 
   // One isolated attempt: the proposal, the proposer's "in", their captaincy, and
   // the GAME_PROPOSED asks all commit together (pooled client).
-  await txnDb.transaction(async (tx) => {
+  const attemptId = await txnDb.transaction(async (tx) => {
     // Allocate attempt_number under an area-row lock so two concurrent proposals
     // in the same area can't read the same max and collide on the unique
     // (area_id, attempt_number) index.
@@ -134,6 +134,7 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
         userId: u, attemptId: a.id, kind: "GAME_PROPOSED" as const, channel: "email" as const, sentAt: now,
       }))).onConflictDoNothing();
     }
+    return a.id;
   });
 
   // Activity feed: a new site was proposed (the attempt committed above).
@@ -142,6 +143,11 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
     ? `${DOW[recurDow]}${recurTime ? ` ${recurTime.slice(0, 5)}` : ""}`
     : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   slackProposed({ place, when: whenStr, closesInH: Math.round(t.suggestWindowH) });
+
+  // The proposer is auto-interested; if the area's pMin is already satisfied (e.g. an
+  // override of 1), form the game now instead of waiting for the window/cron — the
+  // same early-resolve that interest responses trigger. Non-fatal (cron is backstop).
+  await resolveProposal(attemptId);
 
   return { ok: true };
 }
