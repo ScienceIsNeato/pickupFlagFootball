@@ -145,7 +145,8 @@ export async function respondInterest(attemptId: string, interested: boolean): P
   if (!session?.user?.id) return { ok: false, reason: "unauth" };
   if (!(await isEmailVerified(session.user.id))) return { ok: false, reason: "unverified" };
   const [att] = await db.select({
-    status: formationAttempts.status, lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
+    status: formationAttempts.status, areaId: formationAttempts.areaId,
+    lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
     areaLat: areas.centerLat, areaLng: areas.centerLng,
   }).from(formationAttempts)
     .leftJoin(areas, eq(areas.id, formationAttempts.areaId))
@@ -178,6 +179,12 @@ export async function respondInterest(attemptId: string, interested: boolean): P
     await tx.insert(attemptInterest)
       .values({ attemptId, userId: uid, interested })
       .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });
+    // Tapping "interested" re-engages you with this area: clear any prior opt-out
+    // so you actually count toward + appear on the roster (same as proposing here).
+    // A per-proposal "not interested" leaves the area opt-out untouched.
+    if (interested) {
+      await tx.delete(areaOptouts).where(and(eq(areaOptouts.areaId, att.areaId), eq(areaOptouts.userId, uid)));
+    }
     return "ok";
   });
   if (outcome !== "ok") return { ok: false, reason: outcome };

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formationAttempts, attemptInterest, areaCaptains, users } from "@/lib/db/schema";
+import { formationAttempts, attemptInterest, areaCaptains, areas, users } from "@/lib/db/schema";
 import { haversineKm } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
@@ -24,21 +24,27 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad coords" }, { status: 400 });
   }
 
-  // Every live proposal + its proposer; pick the nearest by venue within 6km.
+  // Every live proposal + its proposer; pick the nearest within 6km. Match on the
+  // venue, or the area centroid when the proposal has no exact coords — the map
+  // badges those at the centroid too, so a click there must still find them.
   const open = await db.select({
     id: formationAttempts.id, areaId: formationAttempts.areaId,
     placeText: formationAttempts.placeText, placeLat: formationAttempts.placeLat, placeLng: formationAttempts.placeLng,
+    areaLat: areas.centerLat, areaLng: areas.centerLng,
     proposedStart: formationAttempts.proposedStart, recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
     interestClosesAt: formationAttempts.interestClosesAt, proposerName: users.displayName,
   }).from(formationAttempts)
     .innerJoin(users, eq(users.id, formationAttempts.proposerId))
+    .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
     .where(eq(formationAttempts.status, "OPEN"));
 
   let best: (typeof open)[number] | null = null;
   let bestKm = 6;
   for (const a of open) {
-    if (a.placeLat == null || a.placeLng == null) continue;
-    const d = haversineKm(lat, lng, a.placeLat, a.placeLng);
+    const aLat = a.placeLat ?? a.areaLat;
+    const aLng = a.placeLng ?? a.areaLng;
+    if (aLat == null || aLng == null) continue;
+    const d = haversineKm(lat, lng, aLat, aLng);
     if (d < bestKm) { bestKm = d; best = a; }
   }
   if (!best) return NextResponse.json({ proposal: null });
