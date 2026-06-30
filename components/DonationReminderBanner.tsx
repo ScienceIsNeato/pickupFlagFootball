@@ -22,9 +22,16 @@ export function DonationReminderBanner() {
       <button
         type="button"
         className="donate-banner-stop"
-        onClick={() => {
+        onClick={async () => {
           setHidden(true); // optimistic — the write persists "declined" server-side
-          void dismissDonationReminder();
+          // If the write fails, un-hide so the banner doesn't vanish for the session
+          // while donation_status is still "unset" (it's mounted from the app layout,
+          // so the optimistic hide would survive client-side route changes).
+          try {
+            await dismissDonationReminder();
+          } catch {
+            setHidden(false);
+          }
         }}
       >
         stop asking for contributions

@@ -39,8 +39,8 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
         Game proposed!
       </h2>
       <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 10px", lineHeight: 1.55 }}>
-        We&apos;ll see if any other games have been proposed in the area and spend the next 48 hours
-        gathering interest. At the end of that time, we&apos;ll let you know if a game has formed or not.
+        We&apos;ll see if any other games have been proposed in the area and spend the interest window
+        gathering interest. At the end of that window, we&apos;ll let you know if a game has formed or not.
       </p>
       <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px", lineHeight: 1.55 }}>
         That&apos;s all you have to do for now - thank you for supporting community sports!

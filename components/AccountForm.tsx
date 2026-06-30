@@ -15,7 +15,9 @@ export function AccountForm({ children }: { children: React.ReactNode }) {
     <>
       <form className="account-form" action={formAction}>
         <div className="acct-save-bar">
-          {state && !state.ok && <span className="acct-save-err">{state.error}</span>}
+          {state && !state.ok && (
+            <span className="acct-save-err" role="alert" aria-live="polite">{state.error}</span>
+          )}
           <button type="submit" className="acct-save" disabled={pending}>
             {pending ? "saving…" : "Save Changes"}
           </button>

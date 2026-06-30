@@ -1,6 +1,12 @@
 import { and, eq, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { db } from "./index";
 import { interestSignals } from "./schema";
+
+/** Minimal "can run raw SQL" client — satisfied by both the one-shot neon-http `db`
+ *  and a pooled transaction (`tx`), so callers can run setActiveInterest inside a
+ *  transaction with the rest of their writes. */
+export type SqlExecutor = { execute(query: SQL): Promise<unknown> };
 
 /** True if the user has any active interest signal — i.e. they've been through
  *  the location/interest step. Gates the "my games" nav link: it stays hidden
@@ -31,8 +37,9 @@ export async function setActiveInterest(
   userId: string,
   areaId: string,
   h3Base: bigint,
+  client: SqlExecutor = db,
 ): Promise<void> {
-  await db.execute(sql`
+  await client.execute(sql`
     with up as (
       insert into interest_signals (activity_type_id, user_id, area_id, h3_base, active)
       values (${activityTypeId}, ${userId}, ${areaId}, ${h3Base.toString()}, true)

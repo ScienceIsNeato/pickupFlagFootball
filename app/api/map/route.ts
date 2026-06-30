@@ -120,7 +120,8 @@ export async function GET(req: Request) {
   const formingPoint = new Map<string, { lat: number; lng: number }>();
   if (!mineOnly) {
     const openAttempts = await db.select({
-      lat: formationAttempts.placeLat, lng: formationAttempts.placeLng, h3Cell: areas.h3Cell,
+      lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
+      areaLat: areas.centerLat, areaLng: areas.centerLng, h3Cell: areas.h3Cell,
     }).from(formationAttempts)
       .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
       .where(eq(formationAttempts.status, "OPEN"))
@@ -130,7 +131,11 @@ export async function GET(req: Request) {
     for (const a of openAttempts) {
       const parent = cellToParent(bigIntToH3(a.h3Cell), res);
       formingCells.add(parent);
-      if (a.lat != null && a.lng != null) formingPoint.set(parent, { lat: a.lat, lng: a.lng });
+      // Fall back to the area centroid when the proposal has no exact venue coords:
+      // /api/proposed matches at placeLat/Lng ?? area.centerLat/Lng, so the badge has
+      // to sit there too or clicking it can't find the proposal.
+      const pLat = a.lat ?? a.areaLat, pLng = a.lng ?? a.areaLng;
+      if (pLat != null && pLng != null) formingPoint.set(parent, { lat: pLat, lng: pLng });
     }
   }
 

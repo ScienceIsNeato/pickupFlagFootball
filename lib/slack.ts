@@ -37,15 +37,26 @@ function placeLine(placeText: string): string {
   return placeText.split(" — ")[0];
 }
 
+/** Escape Slack mrkdwn control chars before interpolating user-controlled text
+ *  (names, places, times). Slack parses `&`, `<`, `>` as link/mention syntax, so a
+ *  raw `<http…>` or `&` in a display name could forge a link or break the payload.
+ *  Per Slack's rules: &→&amp;, <→&lt;, >→&gt;. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // ── product-event messages (mrkdwn; the activity feed) ───────────────────────
 
-export function slackNewPlayer(p: { displayName: string; email: string; city?: string | null; zip: string }): void {
-  const where = p.city ? `${p.city} (${p.zip})` : p.zip;
-  notifySlack(`🙋 New player: *${p.displayName}* (${p.email}) — ${where}`);
+// No email here: the activity feed is visible to everyone with channel access (and
+// retained), so a signup's email address would be needless PII exposure. Name +
+// city/zip is enough to recognize a new player.
+export function slackNewPlayer(p: { displayName: string; city?: string | null; zip: string }): void {
+  const where = p.city ? `${esc(p.city)} (${esc(p.zip)})` : esc(p.zip);
+  notifySlack(`🙋 New player: *${esc(p.displayName)}* — ${where}`);
 }
 
 export function slackProposed(p: { place: string; when: string; closesInH: number }): void {
-  notifySlack(`📍 New game proposed: *${placeLine(p.place)}* — ${p.when}. Interest window closes in ~${p.closesInH}h.`);
+  notifySlack(`📍 New game proposed: *${esc(placeLine(p.place))}* — ${esc(p.when)}. Interest window closes in ~${p.closesInH}h.`);
 }
 
 /** The outcome of resolving one proposal — returned by resolveAttempt so the
@@ -58,8 +69,8 @@ export type ResolveOutcome =
 /** Post a formed/stalled outcome to the activity feed. Call AFTER commit. */
 export function notifyResolve(o: ResolveOutcome): void {
   if (o.kind === "formed") {
-    notifySlack(`🏈 Game formed: *${placeLine(o.place)}* — ${o.count} player${o.count === 1 ? "" : "s"} in.`);
+    notifySlack(`🏈 Game formed: *${esc(placeLine(o.place))}* — ${o.count} player${o.count === 1 ? "" : "s"} in.`);
   } else {
-    notifySlack(`🥀 Proposal stalled: *${placeLine(o.place)}* — only ${o.count}/${o.pMin} interested.`);
+    notifySlack(`🥀 Proposal stalled: *${esc(placeLine(o.place))}* — only ${o.count}/${o.pMin} interested.`);
   }
 }

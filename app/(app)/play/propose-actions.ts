@@ -180,10 +180,14 @@ export async function respondInterest(attemptId: string, interested: boolean): P
   // closed proposal (or off the formed roster).
   const uid = session.user.id;
   const outcome = await txnDb.transaction(async (tx) => {
-    const [locked] = await tx.select({ status: formationAttempts.status })
+    const [locked] = await tx.select({
+      status: formationAttempts.status, interestClosesAt: formationAttempts.interestClosesAt,
+    })
       .from(formationAttempts).where(eq(formationAttempts.id, attemptId)).for("update").limit(1);
     if (!locked) return "missing";
-    if (locked.status !== "OPEN") return "closed";
+    // Reject by the deadline too, not just status: an expired proposal stays OPEN
+    // until the tick/resolve runs, so a late tap shouldn't still record interest.
+    if (locked.status !== "OPEN" || locked.interestClosesAt.getTime() <= Date.now()) return "closed";
     await tx.insert(attemptInterest)
       .values({ attemptId, userId: uid, interested })
       .onConflictDoUpdate({ target: [attemptInterest.attemptId, attemptInterest.userId], set: { interested } });

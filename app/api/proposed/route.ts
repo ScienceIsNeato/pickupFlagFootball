@@ -32,7 +32,8 @@ export async function GET(req: Request) {
     placeText: formationAttempts.placeText, placeLat: formationAttempts.placeLat, placeLng: formationAttempts.placeLng,
     areaLat: areas.centerLat, areaLng: areas.centerLng,
     proposedStart: formationAttempts.proposedStart, recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
-    interestClosesAt: formationAttempts.interestClosesAt, proposerName: users.displayName,
+    interestClosesAt: formationAttempts.interestClosesAt, createdAt: formationAttempts.createdAt,
+    proposerName: users.displayName,
   }).from(formationAttempts)
     .innerJoin(users, eq(users.id, formationAttempts.proposerId))
     .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
@@ -45,7 +46,11 @@ export async function GET(req: Request) {
     const aLng = a.placeLng ?? a.areaLng;
     if (aLat == null || aLng == null) continue;
     const d = haversineKm(lat, lng, aLat, aLng);
-    if (d < bestKm) { bestKm = d; best = a; }
+    // Tie-break exactly like the map badge: when two proposals share a venue or both
+    // fall back to the same area centroid, the newest wins — so the modal resolves to
+    // the same attempt the clicked badge represents, not whichever row the DB returned
+    // first.
+    if (d < bestKm || (best && d === bestKm && a.createdAt.getTime() > best.createdAt.getTime())) { bestKm = d; best = a; }
   }
   if (!best) return NextResponse.json({ proposal: null });
 

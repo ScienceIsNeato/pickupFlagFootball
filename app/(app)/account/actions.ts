@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import { users, activityTypes } from "@/lib/db/schema";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
 import { str } from "@/lib/forms";
@@ -47,14 +48,16 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
   const miles = Number(str(formData.get("max_travel_miles")));
   if (Number.isFinite(miles) && miles >= 1 && miles <= 100) update.maxTravelKm = milesToKm(miles);
 
-  // Re-geocode + re-point interest only when the address actually changed — a
-  // name-only save shouldn't hit the geocoder or move the interest signal.
-  const locChanged = !!zip && /^\d{5}$/.test(zip) && (
+  // Did the user edit any location field? Keep this separate from "is the ZIP
+  // valid": a malformed ZIP edit must surface an error, not silently fall through
+  // to a name-only save that reports success while quietly dropping the move.
+  const locEdited = (
     zip !== (cur?.zip ?? "") || line1 !== (cur?.addressLine1 ?? "") ||
     line2 !== (cur?.addressLine2 ?? "") || city !== (cur?.city ?? "") || state !== (cur?.state ?? "")
   );
+  if (locEdited && !/^\d{5}$/.test(zip)) return { ok: false, error: "Enter a valid 5-digit ZIP code." };
 
-  if (locChanged) {
+  if (locEdited) {
     const home = await resolveHome({ zip, line1, line2, city, state });
     if (!home) return { ok: false, error: "We couldn't find that ZIP code." };
     const [activity] = await db.select({ id: activityTypes.id }).from(activityTypes)
@@ -70,12 +73,14 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
     const areaId = await ensureArea(activity.id, home.r7, {
       city: home.displayCity, zip, centerLat: home.snapLat, centerLng: home.snapLng,
     });
-    // Save the profile (home/ZIP/center) first, then move interest. neon-http has
-    // no transaction, so order matters: writing the home before pointing interest
-    // at the new area means a failure can't strand interest at the new spot while
-    // the profile still shows the old one.
-    await db.update(users).set(update).where(eq(users.id, uid));
-    await setActiveInterest(activity.id, uid, areaId, home.r7);
+    // The profile move and the interest move are one unit — "home IS the interest
+    // signal" (lib/db/schema.ts) — so commit them together on the pooled client. A
+    // half-write (profile moved, interest stranded at the old area) breaks that
+    // invariant; the transaction rolls both back on any failure.
+    await txnDb.transaction(async (tx) => {
+      await tx.update(users).set(update).where(eq(users.id, uid));
+      await setActiveInterest(activity.id, uid, areaId, home.r7, tx);
+    });
   } else {
     await db.update(users).set(update).where(eq(users.id, uid));
   }
@@ -121,13 +126,19 @@ export async function updateDonationPref(formData: FormData) {
 }
 
 // Shared write for the reminder preference: checked → remind ("unset"),
-// unchecked / dismissed → "declined". Never clobbers an active subscription
-// (that status is webhook-managed).
+// unchecked / dismissed → "declined". Never clobbers an active subscription: guard
+// on BOTH the status and the Stripe subscription id, so a subscriber whose
+// donationStatus is momentarily stale (webhook-lagged) can't have "declined"
+// written over their Stripe-managed state by a banner dismissal.
 async function setReminder(userId: string, remind: boolean) {
   await db
     .update(users)
     .set({ donationStatus: remind ? "unset" : "declined", updatedAt: new Date() })
-    .where(and(eq(users.id, userId), ne(users.donationStatus, "subscribed")));
+    .where(and(
+      eq(users.id, userId),
+      ne(users.donationStatus, "subscribed"),
+      isNull(users.stripeSubscriptionId),
+    ));
 }
 
 /** Banner "stop asking for contributions" — turns the reminder off and refreshes

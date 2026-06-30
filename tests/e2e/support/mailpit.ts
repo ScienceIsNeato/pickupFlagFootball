@@ -46,6 +46,26 @@ export async function waitForEmailTo(email: string, timeoutMs = 15000): Promise<
   throw new Error(`no email to ${email} within ${timeoutMs}ms`);
 }
 
+/** Fetch each message's HTML — degrading to empty on a slow/aborted detail fetch so
+ *  one bad message can't abort the whole outbox read — and expand to one
+ *  {to, subject, html} row per recipient (so multi-recipient messages aren't
+ *  undercounted). Shared by allEmails + freshEmails. */
+async function expandMessages(msgs: MailpitListItem[]): Promise<{ to: string; subject: string; html: string }[]> {
+  const out: { to: string; subject: string; html: string }[] = [];
+  for (const m of msgs) {
+    let full: { HTML?: string } = { HTML: "" };
+    try {
+      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
+      if (detail.ok) full = (await detail.json()) as { HTML?: string };
+    } catch { /* leave full as empty HTML */ }
+    const recipients = (m.To ?? []).map((t) => t.Address);
+    for (const to of recipients.length ? recipients : [""]) {
+      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
+    }
+  }
+  return out;
+}
+
 /** Every message currently in Mailpit (the whole outbox), newest first, with
  *  recipient + subject + rendered HTML. For folding the flow's emails into the
  *  story report. */
@@ -53,22 +73,7 @@ export async function allEmails(): Promise<{ to: string; subject: string; html: 
   const res = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/messages?limit=200`);
   if (!res.ok) throw new Error(`mailpit list failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { messages?: MailpitListItem[] };
-  const out: { to: string; subject: string; html: string }[] = [];
-  for (const m of data.messages ?? []) {
-    // A slow/aborted detail fetch must degrade to empty HTML, not abort the whole
-    // outbox read (which would take down every email assertion).
-    let full: { HTML?: string } = { HTML: "" };
-    try {
-      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
-      if (detail.ok) full = (await detail.json()) as { HTML?: string };
-    } catch { /* leave full as empty HTML */ }
-    // One row per recipient so multi-recipient messages aren't undercounted.
-    const recipients = (m.To ?? []).map((t) => t.Address);
-    for (const to of recipients.length ? recipients : [""]) {
-      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
-    }
-  }
-  return out;
+  return expandMessages(data.messages ?? []);
 }
 
 /** Messages not yet in `seen` (mutates it), as {to, subject, html} — lets the
@@ -79,22 +84,12 @@ export async function freshEmails(seen: Set<string>): Promise<{ to: string; subj
   if (!res.ok) return [];
   const data = (await res.json()) as { messages?: MailpitListItem[] };
   // Oldest-first so the report shows emails in the order they were sent.
-  const msgs = (data.messages ?? []).slice().reverse();
-  const out: { to: string; subject: string; html: string }[] = [];
-  for (const m of msgs) {
-    if (seen.has(m.ID)) continue;
+  const fresh = (data.messages ?? []).slice().reverse().filter((m) => {
+    if (seen.has(m.ID)) return false;
     seen.add(m.ID);
-    let full: { HTML?: string } = { HTML: "" };
-    try {
-      const detail = await fetchWithTimeout(`${E2E.mailpitApi}/api/v1/message/${m.ID}`);
-      if (detail.ok) full = (await detail.json()) as { HTML?: string };
-    } catch { /* leave empty */ }
-    const recipients = (m.To ?? []).map((t) => t.Address);
-    for (const to of recipients.length ? recipients : [""]) {
-      out.push({ to, subject: m.Subject, html: full.HTML ?? "" });
-    }
-  }
-  return out;
+    return true;
+  });
+  return expandMessages(fresh);
 }
 
 function esc(s: string): string {

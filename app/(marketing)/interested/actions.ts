@@ -43,10 +43,16 @@ export async function applyInterest(formData: FormData) {
   // a concurrent resolve can't close it between the check and the upsert (which
   // would record a late response on an already-settled proposal).
   const outcome = await txnDb.transaction(async (tx) => {
-    const [att] = await tx.select({ status: formationAttempts.status, areaId: formationAttempts.areaId })
+    const [att] = await tx.select({
+      status: formationAttempts.status, areaId: formationAttempts.areaId,
+      interestClosesAt: formationAttempts.interestClosesAt,
+    })
       .from(formationAttempts).where(eq(formationAttempts.id, parsed.attemptId)).for("update").limit(1);
     if (!att) return "invalid";
-    if (att.status !== "OPEN") return "closed";
+    // Reject by the deadline too, not just status: an expired proposal stays OPEN
+    // until the tick/resolve runs, so without this a late click could still record
+    // interest past interestClosesAt and sway the outcome.
+    if (att.status !== "OPEN" || att.interestClosesAt.getTime() <= Date.now()) return "closed";
     await tx.insert(attemptInterest)
       .values({ attemptId: parsed.attemptId, userId: parsed.userId, interested })
       .onConflictDoUpdate({

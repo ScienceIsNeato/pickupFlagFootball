@@ -3,15 +3,19 @@ import { Before, AfterStep } from "./world";
 import { resetData } from "../support/db";
 import { clearMailpit, freshEmails, inboxHtml } from "../support/mailpit";
 
-// Independent, deterministic scenarios: reset DB + inbox before each.
-Before(async () => {
-  await resetData();
-  await clearMailpit();
-});
-
 // Per-test state (keyed by testId).
 const lastShotHash = new Map<string, string>(); // dedupe identical back-to-back shots
 const seenEmailIds = new Map<string, Set<string>>(); // emails already captured
+
+// Independent, deterministic scenarios: reset DB + inbox before each. Also clear the
+// module-scoped capture caches — a reused worker carries them across scenarios, so
+// stale dedupe state would suppress a legit beat and the maps would grow all run.
+Before(async () => {
+  await resetData();
+  await clearMailpit();
+  lastShotHash.clear();
+  seenEmailIds.clear();
+});
 
 function stepTitle($step: unknown): string {
   return typeof $step === "string" ? $step : (($step as { title?: string })?.title ?? "step");

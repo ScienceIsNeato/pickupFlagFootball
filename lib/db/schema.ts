@@ -186,6 +186,10 @@ export const formationAttempts = pgTable("formation_attempts", {
   failureReason:    text("failure_reason"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  // proposeGame allocates attempt_number under an area-row lock; this unique index
+  // is the backstop that makes a duplicate (area, number) impossible even if that
+  // lock path is ever bypassed.
+  uniqueIndex("uq_attempt_area_number").on(t.areaId, t.attemptNumber),
   index("idx_attempt_open_close").on(t.status, t.interestClosesAt),
 ]);
 

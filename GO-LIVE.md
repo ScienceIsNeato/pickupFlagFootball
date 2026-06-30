@@ -4,7 +4,8 @@ Everything you do in a browser, in order. Tailored to: **new GCP project**,
 **custom domain**, **new Neon prod branch**, **Stripe test mode**.
 
 > Wherever you see **`YOURDOMAIN.com`**, use your real domain. Tell Claude the
-> domain and it'll bake it into `deploy.yml` for you.
+> domain and it'll bake it into the deploy workflows (`deploy-prod.yml` /
+> `deploy-dev.yml`) for you.
 >
 > Steps marked 🤖 are ones Claude can run for you (DB prep, the file edits).
 > Everything else is you, in a browser.
@@ -118,9 +119,16 @@ paste the matching value, leave everything else default, **Create Secret**.
 ## 6 · 🤖 Fill the workflow + finalize
 
 Tell Claude your **domain** and your **GCP project ID** (and your **Brevo sender
-email** + the **support email**). Claude fills the `env:` block at the top of
-`.github/workflows/deploy.yml` and confirms the project/region names match what
-you created.
+email** + the **support email**). Claude fills the `env:` / `with:` blocks in the
+deploy workflows — `.github/workflows/deploy-prod.yml` and `deploy-dev.yml`, which
+both call the shared `_pipeline.yml` — and confirms the project/region names match
+what you created.
+
+- **`STRIPE_PRICE_ID`** is set here too, as the `stripe_price_id` workflow input
+  (it's a build-time env value, not a Secret Manager secret).
+- **Slack activity feed (optional):** create a `pff-slack-webhook-url` secret (same
+  as §4) and it's wired in via the `slack_webhook_secret` input — leave that input
+  empty to keep Slack off. Prod and dev point at their own webhook secrets.
 
 ## 7 · Verify domain ownership (needed for the custom domain)
 

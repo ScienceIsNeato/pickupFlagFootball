@@ -549,10 +549,13 @@ section h2::after {
 /* Support nudge — same shape as the unverified banner, green "supporter" tone. */
 .donate-banner {
   position: fixed; top: 72px; left: 12px; z-index: 20; max-width: calc(100% - 24px);
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
   font-size: 13px; color: #eafff0; background: #2f7a39;
   box-shadow: 0 6px 18px rgba(0,0,0,.28);
 }
+/* The message takes the row; the dot/cta/stop wrap below on narrow screens so the
+   dismiss control can never get pushed off-screen (it's the only way to dismiss). */
+.donate-banner > span:not(.donate-banner-dot) { flex: 1 1 200px; min-width: 0; }
 .donate-banner-dot { flex: none; font-size: 13px; line-height: 1; }
 .donate-banner-cta {
   flex: none; font-weight: 700; color: #1a1407; background: var(--yellow);

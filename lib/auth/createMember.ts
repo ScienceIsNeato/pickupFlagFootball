@@ -83,7 +83,7 @@ export async function createMember(input: CreateMemberInput): Promise<CreateMemb
       return u.id;
     });
     // Activity feed: a new player joined (the account + interest both committed).
-    slackNewPlayer({ displayName, email, city: home.displayCity, zip: input.zip });
+    slackNewPlayer({ displayName, city: home.displayCity, zip: input.zip });
     return { ok: true, userId };
   } catch (e) {
     const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;

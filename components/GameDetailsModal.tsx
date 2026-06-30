@@ -135,6 +135,14 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
   // default + the next-game RSVP otherwise. Optimistic, reverting on failure.
   async function persist(p: "regular" | "occasional", inVal: boolean) {
     if (!game || busy) return;
+    // A not-yet-member tapping "i'm out" hits joinWeeklyGame's decline no-op (we
+    // don't roster someone opting out — that would sign them up for weekly poll
+    // emails), so nothing persists and the next reload snaps the toggle back. Nudge
+    // them to join first rather than show a misleading success.
+    if (!game.onRoster && !inVal) {
+      setActionErr("tap “i'm in” (or pick a player type) to join — you can set yourself out afterward");
+      return;
+    }
     const prevP = pref, prevIn = nextIn;
     setPref(p); setNextIn(inVal);
     setBusy(true); setActionErr("");
