@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The big game-formation change is merged. Now wiring up Slack so the team gets a live feed of what's happening - new players, proposed games, and games that come together or fizzle - plus an alert if the background scheduler ever stops running.",
-    "direction": "Land the Slack feed, then set up the channels and the down-detector and start watching it before the public launch.",
-    "last_update": "2026-06-30T04:45:37Z"
+    "status": "Slack notifications for the whole game lifecycle are wired up, and I folded in the fix for the bug that was quietly breaking deploys. Getting that combined work merged.",
+    "direction": "Push to the dev site to watch it come back to life, then open the PR that ships everything to the live launch site.",
+    "last_update": "2026-06-30T07:46:23Z"
   }
 }
