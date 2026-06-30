@@ -43,8 +43,13 @@ export async function GET(req: Request) {
   }
   if (!best) return NextResponse.json({ proposal: null });
 
+  // Match resolveAttempt's roster: count "in" responses, minus anyone who opted out
+  // of this area (they won't be counted toward a game forming here).
   const [{ c }] = await db.select({ c: sql<number>`count(*)::int` }).from(attemptInterest)
-    .where(and(eq(attemptInterest.attemptId, best.id), eq(attemptInterest.interested, true)));
+    .where(and(
+      eq(attemptInterest.attemptId, best.id), eq(attemptInterest.interested, true),
+      sql`not exists (select 1 from area_optouts ao where ao.area_id = ${best.areaId}::uuid and ao.user_id = ${attemptInterest.userId})`,
+    ));
   const [mine] = await db.select({ interested: attemptInterest.interested }).from(attemptInterest)
     .where(and(eq(attemptInterest.attemptId, best.id), eq(attemptInterest.userId, session.user.id))).limit(1);
   const capRows = await db.select({ name: users.displayName }).from(areaCaptains)

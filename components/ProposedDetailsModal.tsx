@@ -21,6 +21,19 @@ function firstLine(placeText: string): string {
   return placeText.split(" — ")[0];
 }
 
+/** Friendly text for a respondInterest failure reason, so a rejected tap (window
+ *  closed, unverified, out of range, …) shows up instead of silently reloading. */
+function respondReason(reason: string): string {
+  return ({
+    closed: "this proposal already closed.",
+    unverified: "confirm your email before joining in.",
+    outofrange: "this game is outside your travel area.",
+    nolocation: "set your home location to join in.",
+    missing: "this proposal is no longer available.",
+    unauth: "sign in to respond.",
+  } as Record<string, string>)[reason] ?? "couldn't save that - try again.";
+}
+
 /** "2 days left" / "11h left" / "47m left" / "closing now" — time left in the
  *  proposal's interest window. */
 function timeLeft(iso: string): string {
@@ -66,6 +79,7 @@ export function ProposedDetailsModal({
 }) {
   const [state, setState] = useState<Data | "loading" | "error">("loading");
   const [busy, setBusy] = useState(false);
+  const [respondErr, setRespondErr] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -109,10 +123,13 @@ export function ProposedDetailsModal({
 
   async function respond(interested: boolean) {
     if (!proposal || busy) return;
-    setBusy(true);
+    setBusy(true); setRespondErr("");
     try {
-      await respondInterest(proposal.attemptId, interested);
+      const res = await respondInterest(proposal.attemptId, interested);
+      if (!res.ok) { setRespondErr(respondReason(res.reason)); return; }
       await load();
+    } catch {
+      setRespondErr("something went wrong - try again.");
     } finally {
       setBusy(false);
     }
@@ -173,6 +190,7 @@ export function ProposedDetailsModal({
               <button type="button" className={proposal.viewerInterested === false ? "seg-on seg-on-out" : ""}
                 aria-pressed={proposal.viewerInterested === false} disabled={busy} onClick={() => respond(false)}>not interested</button>
             </div>
+            {respondErr && <p className="game-muted" role="alert">{respondErr}</p>}
           </>
         )}
       </div>

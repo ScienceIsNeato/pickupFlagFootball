@@ -84,8 +84,13 @@ export async function resolveAttempt(
     const claimed = await claim(db, att.id, "FAILED", `only ${roster.length}/${t.pMin} interested`);
     if (!claimed) return;
     // Tell everyone we asked — plus the proposer, who isn't in the cohort (they're
-    // the one who asked) but most wants to know it didn't come together.
+    // the one who asked) but most wants to know it didn't come together. Skip anyone
+    // who already tapped "not interested" on this proposal — they don't need the
+    // "not enough players" note.
+    const declined = new Set((await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
+      .where(and(eq(attemptInterest.attemptId, att.id), eq(attemptInterest.interested, false)))).map((r) => r.userId));
     await enqueue(db, [...new Set([att.proposerId, ...(att.cohortUserIds ?? [])])]
+      .filter((u) => !declined.has(u))
       .map((userId) => ({ userId, attemptId: att.id, kind: "STALLED_NOTICE" as NotifKind })), now);
     return;
   }
