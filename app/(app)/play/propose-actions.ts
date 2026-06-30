@@ -16,6 +16,7 @@ import { loadTunables, catchmentUsers } from "@/lib/mime/engine";
 import type { EngineDb } from "@/lib/mime/engine";
 import { resolveProposal } from "@/lib/mime/trigger";
 import { isEmailVerified } from "@/lib/auth/verified";
+import { slackProposed } from "@/lib/slack";
 
 const edb = () => db as unknown as EngineDb;
 function coord(raw: string, lo: number, hi: number): number | null {
@@ -134,6 +135,13 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
       }))).onConflictDoNothing();
     }
   });
+
+  // Activity feed: a new site was proposed (the attempt committed above).
+  const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+  const whenStr = recurDow != null
+    ? `${DOW[recurDow]}${recurTime ? ` ${recurTime.slice(0, 5)}` : ""}`
+    : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  slackProposed({ place, when: whenStr, closesInH: Math.round(t.suggestWindowH) });
 
   return { ok: true };
 }

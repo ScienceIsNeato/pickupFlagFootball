@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Found and fixed why deploys have been silently failing: the app was trying to open a database connection while it was still being built, which the build environment can't do. Now it waits until it's actually running. This was blocking both the dev site and the upcoming launch.",
-    "direction": "Get this fix reviewed and merged so dev comes back to life and the path to launch is clear again.",
-    "last_update": "2026-06-30T07:27:25Z"
+    "status": "Slack notifications for the whole game lifecycle are wired up, and I folded in the fix for the bug that was quietly breaking deploys. Getting that combined work merged.",
+    "direction": "Push to the dev site to watch it come back to life, then open the PR that ships everything to the live launch site.",
+    "last_update": "2026-06-30T07:46:23Z"
   }
 }

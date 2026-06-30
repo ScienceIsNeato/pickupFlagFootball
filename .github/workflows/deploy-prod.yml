@@ -25,6 +25,7 @@ jobs:
       stripe_secret_key_secret: pff-stripe-secret-key
       stripe_webhook_secret_secret: pff-stripe-webhook-secret
       stripe_price_id: price_1Tmqd97dX3bjywYI5k8NaeTU     # live-mode price
+      slack_webhook_secret: pff-slack-webhook-url         # → #mime-ff-activity-feed-prod
       run_e2e: true             # full Playwright gate before prod
       min_instances: "1"
     secrets: inherit

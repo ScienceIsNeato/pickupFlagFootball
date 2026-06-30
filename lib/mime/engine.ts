@@ -7,6 +7,7 @@ import {
 } from "@/lib/db/schema";
 import { gameColor } from "@/lib/brand";
 import { resolveTunables } from "./tunables";
+import { notifyResolve, type ResolveOutcome } from "@/lib/slack";
 
 /** The engine takes its db client by injection so the identical code runs on
  *  neon-http in prod and pglite in the sim. */
@@ -40,7 +41,8 @@ export async function tick(db: EngineDb, now: Date): Promise<void> {
     .where(and(eq(formationAttempts.status, "OPEN"), lte(formationAttempts.interestClosesAt, now)));
   for (const att of due) {
     try {
-      await db.transaction((tx) => resolveAttempt(tx as unknown as EngineDb, att, now));
+      const outcome = await db.transaction((tx) => resolveAttempt(tx as unknown as EngineDb, att, now));
+      if (outcome) notifyResolve(outcome); // activity feed — after the txn commits
     } catch (e) {
       firstErr ??= e;
     }
@@ -54,15 +56,15 @@ export async function tick(db: EngineDb, now: Date): Promise<void> {
  *  race resolves exactly once. */
 export async function resolveAttempt(
   db: EngineDb, att: typeof formationAttempts.$inferSelect, now: Date,
-): Promise<void> {
-  if (att.status !== "OPEN") return;
+): Promise<ResolveOutcome | null> {
+  if (att.status !== "OPEN") return null;
   // Lock the attempt row so a cron tick and a concurrent event-driven resolve
   // (an "I'm in" at the deadline) can't each decide on a stale interest count —
   // whoever loses the lock re-reads the now-resolved status and bails. Runs inside
   // a transaction in both paths (tick + resolveProposal), so the lock holds.
   const [locked] = await db.select({ status: formationAttempts.status })
     .from(formationAttempts).where(eq(formationAttempts.id, att.id)).for("update").limit(1);
-  if (!locked || locked.status !== "OPEN") return;
+  if (!locked || locked.status !== "OPEN") return null;
   const [area] = await db.select().from(areas).where(eq(areas.id, att.areaId)).limit(1);
   const t = await loadTunables(db, att.activityTypeId, area);
 
@@ -80,9 +82,9 @@ export async function resolveAttempt(
   if (roster.length < t.pMin) {
     // Don't fail before the window actually closes — an early call could still
     // gather more. Time-driven ticks only get here past interestClosesAt.
-    if (now < att.interestClosesAt) return;
+    if (now < att.interestClosesAt) return null;
     const claimed = await claim(db, att.id, "FAILED", `only ${roster.length}/${t.pMin} interested`);
-    if (!claimed) return;
+    if (!claimed) return null;
     // Tell everyone we asked — plus the proposer, who isn't in the cohort (they're
     // the one who asked) but most wants to know it didn't come together. Skip anyone
     // who already tapped "not interested" on this proposal — they don't need the
@@ -92,12 +94,12 @@ export async function resolveAttempt(
     await enqueue(db, [...new Set([att.proposerId, ...(att.cohortUserIds ?? [])])]
       .filter((u) => !declined.has(u))
       .map((userId) => ({ userId, attemptId: att.id, kind: "STALLED_NOTICE" as NotifKind })), now);
-    return;
+    return { kind: "stalled", place: att.placeText, count: roster.length, pMin: t.pMin };
   }
 
   // Enough are in → schedule the game. The status flip is the claim.
   const claimed = await claim(db, att.id, "CONFIRMED", null);
-  if (!claimed) return;
+  if (!claimed) return null;
   const recur = att.recurDow != null ? { dow: att.recurDow, time: att.recurTime } : null;
   const [game] = await db.insert(games).values({
     activityTypeId: att.activityTypeId, areaId: att.areaId, originAttemptId: att.id,
@@ -112,6 +114,7 @@ export async function resolveAttempt(
   await db.update(areas).set({ status: "SCHEDULED" }).where(eq(areas.id, att.areaId));
   // GAME_ON goes to the people who are actually in (the roster) — "you're in".
   await enqueue(db, roster.map((userId) => ({ userId, attemptId: att.id, gameId: game.id, kind: "GAME_ON" as NotifKind })), now);
+  return { kind: "formed", place: att.placeText, count: roster.length };
 }
 
 /** Flip an attempt OPEN → `to`, only if it's still OPEN (the concurrency claim).

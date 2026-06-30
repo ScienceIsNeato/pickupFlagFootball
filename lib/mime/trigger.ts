@@ -4,6 +4,7 @@ import { formationAttempts } from "@/lib/db/schema";
 import { resolveAttempt } from "./engine";
 import { evaluateOccurrence } from "./occurrences";
 import type { EngineDb } from "./engine";
+import { notifyResolve } from "@/lib/slack";
 
 /**
  * Event-driven entry to the MIME engine, fired the moment a user action changes
@@ -22,11 +23,12 @@ export async function resolveProposal(attemptId: string): Promise<void> {
     // the game/roster inserts, and the notifications are all-or-nothing, so a
     // mid-flight error rolls the claim back instead of leaving a confirmed attempt
     // with no game that the cron will never retry.
-    await txnDb.transaction(async (tx) => {
+    const outcome = await txnDb.transaction(async (tx) => {
       const db = tx as unknown as EngineDb;
       const [att] = await db.select().from(formationAttempts).where(eq(formationAttempts.id, attemptId)).limit(1);
-      if (att) await resolveAttempt(db, att, new Date());
+      return att ? await resolveAttempt(db, att, new Date()) : null;
     });
+    if (outcome) notifyResolve(outcome); // activity feed — after the txn commits
   } catch (e) {
     console.error("[mime] resolveProposal failed (cron will retry)", {
       attemptId,
