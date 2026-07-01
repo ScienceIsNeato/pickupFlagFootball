@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { skin } from "@/lib/skin";
 
-const SUPPORT_EMAIL =
-  process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+const SUPPORT_EMAIL = (
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com"
+);
 
 export const metadata: Metadata = {
   title: skin.privacy.seoTitle,
@@ -97,8 +98,9 @@ export default function PrivacyPage() {
 
       <h2>cookies and sign-in</h2>
       <p>
-        we use a session cookie to keep you signed in between visits. that&apos;s it - no
-        ad cookies, no analytics cookies.
+        we use authentication cookies to keep you signed in and to protect sign-in
+        requests (session plus short-lived security cookies from our auth provider).
+        that&apos;s it - no ad cookies, no analytics cookies.
       </p>
 
       <h2>who helps us run the site</h2>
