@@ -1,7 +1,7 @@
 name: Deploy prod
 
 # Every push to main → build → unit + full e2e gate → deploy to prod.
-# Protected: COMING_SOON=1 shows the splash until we flip it; clean prod DB.
+# Full app live on prod (COMING_SOON="" — empty string, not "1"/"true").
 on:
   push:
     branches: [main]
@@ -18,7 +18,7 @@ jobs:
       environment: production
       service_name: pickupflagfootball-prod
       app_base_url: https://pickupflagfootball.com
-      coming_soon: "1"          # splash gate ON
+      coming_soon: ""           # full app visible
       db_secret: pff-database-url
       db_unpooled_secret: pff-database-url-unpooled
       # Stripe LIVE mode on prod:
