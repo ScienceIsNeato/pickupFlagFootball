@@ -16,6 +16,7 @@ on:
       stripe_secret_key_secret:     { type: string, required: true }   # …for STRIPE_SECRET_KEY
       stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
+      slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -130,6 +131,11 @@ jobs:
             gcloud secrets versions access latest --secret="$s" --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 \
               || { echo "::error::Missing/inaccessible secret: $s"; fail=1; }
           done
+          # Slack is optional: only require its secret when the input is set.
+          if [ -n "${{ inputs.slack_webhook_secret }}" ]; then
+            gcloud secrets versions access latest --secret="${{ inputs.slack_webhook_secret }}" --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 \
+              || { echo "::error::Missing/inaccessible secret: ${{ inputs.slack_webhook_secret }}"; fail=1; }
+          fi
           exit $fail
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
@@ -148,6 +154,14 @@ jobs:
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
+      # Optional, additive: bind the Slack activity-feed webhook when configured.
+      # Leaves the deploy above untouched; --update-secrets only adds this one.
+      - name: Bind Slack webhook (optional)
+        if: inputs.slack_webhook_secret != ''
+        run: |
+          gcloud run services update ${{ inputs.service_name }} \
+            --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
+            --update-secrets="SLACK_WEBHOOK_URL=${{ inputs.slack_webhook_secret }}:latest"
       - name: Verify deployment
         run: |
           URL=$(gcloud run services describe ${{ inputs.service_name }} \

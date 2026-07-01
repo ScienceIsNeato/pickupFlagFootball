@@ -68,8 +68,8 @@ export class World {
    *  scenario without paying schema reload cost. */
   async reset() {
     await this.pg.exec(`
-      TRUNCATE notifications_sent, game_roster, games, soft_promises,
-        formation_options, suggestions, formation_attempts, interest_signals,
+      TRUNCATE notifications_sent, game_roster, games, attempt_interest,
+        formation_attempts, interest_signals,
         map_aggregates, areas, users RESTART IDENTITY CASCADE;
     `);
   }

@@ -17,12 +17,12 @@ const TIME_OPTS = gameTimeOptions();
 const ERRORS: Record<string, string> = {
   missing: "Please fill in the address and a day, time, and date.",
   scheduled: "There's already a game scheduled at this spot.",
-  closed: "This area's suggestion window just closed — try again soon.",
-  cooldown: "This area is cooling down after a recent attempt — try again later.",
+  closed: "This area's suggestion window just closed - try again soon.",
+  cooldown: "This area is cooling down after a recent attempt - try again later.",
   nolocation: "Set your home address on your account before proposing.",
-  outofrange: "This spot is outside your travel radius — raise it from /account to propose here.",
-  unverified: "Confirm your email before proposing a game — check your inbox.",
-  retry: "Something hiccuped — please try again.",
+  outofrange: "This spot is outside your travel radius - raise it from /account to propose here.",
+  unverified: "Confirm your email before proposing a game - check your inbox.",
+  retry: "Something hiccuped - please try again.",
 };
 
 type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
@@ -36,10 +36,14 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
       style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
         border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
       <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
-        thanks for proposing a game!
+        Game proposed!
       </h2>
-      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 6px", lineHeight: 1.55 }}>
-        our matching engine will take care of the rest — you should be receiving an official invite shortly.
+      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 10px", lineHeight: 1.55 }}>
+        We&apos;ll see if any other games have been proposed in the area and spend the interest window
+        gathering interest. At the end of that window, we&apos;ll let you know if a game has formed or not.
+      </p>
+      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px", lineHeight: 1.55 }}>
+        That&apos;s all you have to do for now - thank you for supporting community sports!
       </p>
       <button type="button" className="btn-green" onClick={onClose}>got it</button>
     </div>
@@ -145,7 +149,7 @@ export function ProposeModal({
         {/* Top-of-dialog: out-of-range (lead with the actionable message) */}
         {outOfRange && home && distKm != null && (
           <div className="auth-error">
-            this spot is about {kmToMi(distKm)} mi from your home — outside your {kmToMi(home.maxTravelKm)}-mile area of interest.{" "}
+            this spot is about {kmToMi(distKm)} mi from your home - outside your {kmToMi(home.maxTravelKm)}-mile area of interest.{" "}
             <Link href="/account">increase your radius</Link> to propose a game here.
           </div>
         )}
@@ -181,9 +185,9 @@ export function ProposeModal({
           </label>
         </div>
         <label>
-          notes <span className="reg-optional">(optional — where to meet, parking, gate code…)</span>
+          notes <span className="reg-optional">(optional - where to meet, parking, gate code…)</span>
           <textarea name="place_notes" value={notes} onChange={(e) => setNotes(e.target.value)}
-            rows={2} placeholder="park in the east lot — gate code 1234" />
+            rows={2} placeholder="park in the east lot - gate code 1234" />
         </label>
 
         <label>

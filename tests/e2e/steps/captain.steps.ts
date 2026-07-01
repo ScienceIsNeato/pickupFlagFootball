@@ -24,7 +24,7 @@ When("I pause the series", async ({ page }) => {
   await page.getByRole("button", { name: "pause series" }).click(); // opens the pause dialog
   const dlg = page.getByRole("alertdialog");
   await dlg.getByLabel("back by").fill("2099-09-01"); // a pause needs a future resume date
-  await dlg.getByLabel("why").fill("summer break — back in september");
+  await dlg.getByLabel("why").fill("summer break - back in september");
   await dlg.getByRole("button", { name: "pause series" }).click();
 });
 

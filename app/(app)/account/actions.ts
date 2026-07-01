@@ -4,115 +4,99 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { txnDb } from "@/lib/db/pool";
 import { users, activityTypes } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { ensureArea, milesToKm, resolveHome } from "@/lib/geo";
 import { setActiveInterest } from "@/lib/db/interest";
 import { str } from "@/lib/forms";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
-/** Save just the display name (the middle "username" card). Kept separate from
- *  the location save so neither overwrites the other's fields. */
-export async function updateUsername(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
+/**
+ * The one "Save Changes" action for the account page — saves the display name,
+ * location (ZIP/address/travel radius), and the donation-reminder preference in a
+ * single submit. Validate-then-write: the only thing that can fail is the geocode,
+ * so we resolve the home BEFORE any write and bail with an error if it can't be
+ * found — nothing is half-saved.
+ */
+export async function saveAccount(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
   const session = await auth();
   if (!session?.user?.id) redirect("/api/auth/signin");
-  await db.update(users)
-    .set({ displayName: str(formData.get("displayName")) || null, updatedAt: new Date() })
-    .where(eq(users.id, session.user.id));
-  revalidatePath("/account");
-  return { ok: true };
-}
+  const uid = session.user.id;
 
-/** Save the location card (ZIP / address / travel radius) and re-point interest
- *  to the resolved area. Does not touch the display name. */
-export async function updateLocation(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/api/auth/signin");
+  // Current values — to skip a needless re-geocode on a name-only save, and to
+  // know whether the reminder pref is ours to touch (subscribers are webhook-managed).
+  const [cur] = await db.select({
+    zip: users.zip, addressLine1: users.addressLine1, addressLine2: users.addressLine2,
+    city: users.city, state: users.state,
+    donationStatus: users.donationStatus, subId: users.stripeSubscriptionId,
+  }).from(users).where(eq(users.id, uid)).limit(1);
 
-  const city = str(formData.get("city"));
   const zip = str(formData.get("zip"));
   const line1 = str(formData.get("address_line1"));
   const line2 = str(formData.get("address_line2"));
+  const city = str(formData.get("city"));
   const state = str(formData.get("state"));
 
   const update: Record<string, unknown> = {
+    displayName: str(formData.get("displayName")) || null,
     updatedAt: new Date(),
   };
-
-  // Travel radius — entered in miles, stored in km. Updatable on its own.
-  // Bound it server-side (the form caps at 100; a raw POST could send anything).
+  // Travel radius — entered in miles, stored in km. Bound it server-side (the form
+  // caps at 100; a raw POST could send anything).
   const miles = Number(str(formData.get("max_travel_miles")));
   if (Number.isFinite(miles) && miles >= 1 && miles <= 100) update.maxTravelKm = milesToKm(miles);
 
-  if (zip && /^\d{5}$/.test(zip)) {
+  // Did the user edit any location field? Keep this separate from "is the ZIP
+  // valid": a malformed ZIP edit must surface an error, not silently fall through
+  // to a name-only save that reports success while quietly dropping the move.
+  const locEdited = (
+    zip !== (cur?.zip ?? "") || line1 !== (cur?.addressLine1 ?? "") ||
+    line2 !== (cur?.addressLine2 ?? "") || city !== (cur?.city ?? "") || state !== (cur?.state ?? "")
+  );
+  if (locEdited && !/^\d{5}$/.test(zip)) return { ok: false, error: "Enter a valid 5-digit ZIP code." };
+
+  if (locEdited) {
     const home = await resolveHome({ zip, line1, line2, city, state });
     if (!home) return { ok: false, error: "We couldn't find that ZIP code." };
-    {
-      const { displayCity, homeLat, homeLng, snapLat, snapLng, r5, r6, r7, r8, r9 } = home;
+    const [activity] = await db.select({ id: activityTypes.id }).from(activityTypes)
+      .where(eq(activityTypes.slug, "flag-football")).limit(1);
+    if (!activity) return { ok: false, error: "Flag football isn't configured yet." };
 
-      Object.assign(update, {
-        addressLine1: line1 || null,
-        addressLine2: line2 || null,
-        city: displayCity,
-        state: state || null,
-        zip,
-        homeLat,
-        homeLng,
-        h3R5: r5,
-        h3R6: r6,
-        h3R7: r7,
-        h3R8: r8,
-        h3R9: r9,
-      });
-
-      // Ensure area + update existing interest signal's area reference
-      const activity = await db
-        .select({ id: activityTypes.id })
-        .from(activityTypes)
-        .where(eq(activityTypes.slug, "flag-football"))
-        .limit(1);
-
-      if (activity.length) {
-        const activityTypeId = activity[0].id;
-        const areaId = await ensureArea(activityTypeId, r7, {
-          city: displayCity,
-          zip,
-          centerLat: snapLat,
-          centerLng: snapLng,
-        });
-        // Save the profile (home/ZIP/center) first, then move interest. neon-http
-        // has no transaction, so order matters: writing the home before pointing
-        // interest at the new area means a failure can't leave interest at the new
-        // spot while the profile still shows the old one. The interest move itself
-        // is a single atomic statement, so it can't strand the user with zero
-        // active interest either.
-        await db.update(users).set(update).where(eq(users.id, session.user.id!));
-        await setActiveInterest(activityTypeId, session.user.id!, areaId, r7);
-        revalidatePath("/account");
-        return { ok: true };
-      } else {
-        // A valid ZIP was given but the activity isn't configured. Don't write
-        // the new home while leaving interest_signals pointed at the old area —
-        // that desyncs the profile from the map. Fail the whole save instead.
-        return { ok: false, error: "Flag football isn't configured yet." };
-      }
-    }
-  } else if (city) {
-    update.city = city;
+    Object.assign(update, {
+      addressLine1: line1 || null, addressLine2: line2 || null,
+      city: home.displayCity, state: state || null, zip,
+      homeLat: home.homeLat, homeLng: home.homeLng,
+      h3R5: home.r5, h3R6: home.r6, h3R7: home.r7, h3R8: home.r8, h3R9: home.r9,
+    });
+    const areaId = await ensureArea(activity.id, home.r7, {
+      city: home.displayCity, zip, centerLat: home.snapLat, centerLng: home.snapLng,
+    });
+    // The profile move and the interest move are one unit — "home IS the interest
+    // signal" (lib/db/schema.ts) — so commit them together on the pooled client. A
+    // half-write (profile moved, interest stranded at the old area) breaks that
+    // invariant; the transaction rolls both back on any failure.
+    await txnDb.transaction(async (tx) => {
+      await tx.update(users).set(update).where(eq(users.id, uid));
+      await setActiveInterest(activity.id, uid, areaId, home.r7, tx);
+    });
+  } else {
+    await db.update(users).set(update).where(eq(users.id, uid));
   }
 
-  await db
-    .update(users)
-    .set(update)
-    .where(eq(users.id, session.user.id!));
+  // Donation reminder — only ours to set when they're not an active subscriber
+  // (that status is webhook-managed). Checkbox present+checked → remind; else stop.
+  if (cur?.donationStatus !== "subscribed" && !cur?.subId) {
+    await setReminder(uid, formData.get("remind") != null);
+  }
 
-  revalidatePath("/account");
+  // Refresh the account AND the app-wide donation banner (it keys off this pref).
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
-// Donation preference is self-declared and independent of location, so it has
-// its own action — it must NOT re-run the ZIP/geocode path in updateLocation.
+// Donation preference is self-declared and independent of location.
 const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
 type DonationStatus = (typeof DONATION_STATUSES)[number];
 
@@ -121,15 +105,14 @@ export async function updateDonationPref(formData: FormData) {
   if (!session?.user?.id) redirect("/api/auth/signin");
 
   // An active Stripe subscriber's status is webhook-managed — ignore a direct
-  // POST (the UI hides the radio for them) so they can't desync to unset/declined
+  // POST (the UI hides the control for them) so they can't desync to unset/declined
   // and lose the billing-portal link.
   const [u] = await db.select({ subId: users.stripeSubscriptionId })
     .from(users).where(eq(users.id, session.user.id)).limit(1);
   if (u?.subId) redirect("/account");
 
   const value = str(formData.get("donation_status"));
-  // "subscribed" is Stripe-managed (set by the webhook), never self-declared —
-  // the form only sets the reminder preference (remind-me / declined).
+  // "subscribed" is Stripe-managed (set by the webhook), never self-declared.
   if (value !== "unset" && value !== "declined") {
     throw new Error("invalid donation status");
   }
@@ -140,4 +123,29 @@ export async function updateDonationPref(formData: FormData) {
     .where(eq(users.id, session.user.id));
 
   redirect("/account");
+}
+
+// Shared write for the reminder preference: checked → remind ("unset"),
+// unchecked / dismissed → "declined". Never clobbers an active subscription: guard
+// on BOTH the status and the Stripe subscription id, so a subscriber whose
+// donationStatus is momentarily stale (webhook-lagged) can't have "declined"
+// written over their Stripe-managed state by a banner dismissal.
+async function setReminder(userId: string, remind: boolean) {
+  await db
+    .update(users)
+    .set({ donationStatus: remind ? "unset" : "declined", updatedAt: new Date() })
+    .where(and(
+      eq(users.id, userId),
+      ne(users.donationStatus, "subscribed"),
+      isNull(users.stripeSubscriptionId),
+    ));
+}
+
+/** Banner "stop asking for contributions" — turns the reminder off and refreshes
+ *  the layout so the banner disappears app-wide. Stays put (no navigation). */
+export async function dismissDonationReminder() {
+  const session = await auth();
+  if (!session?.user?.id) return;
+  await setReminder(session.user.id, false);
+  revalidatePath("/", "layout");
 }

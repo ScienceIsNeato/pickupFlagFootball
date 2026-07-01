@@ -19,7 +19,7 @@ import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   users, areas, interestSignals, games, gameRoster, gameAttendance, gameOccurrences, activityTypes, areaCaptains,
-  formationAttempts, suggestions, formationOptions,
+  formationAttempts, attemptInterest,
 } from "@/lib/db/schema";
 import { cellsForPoint } from "@/lib/geo/h3";
 import { ensureArea } from "@/lib/geo/ensureArea";
@@ -220,29 +220,29 @@ async function seedLiveAttempt(
   now: number,
 ) {
   const DAY = 86_400_000;
-  const openedAt = new Date(now - 4 * DAY);
   const closesAt = new Date(now + fc.live.closesInDays * DAY);
-  const liveCohort = cityUsers.slice(0, fc.live.cohort).map((u) => u.id);
+  const cohort = cityUsers.slice(0, fc.live.cohort).map((u) => u.id);
+  const proposer = cityUsers[0];
+
+  // The first suggestion becomes THE proposal (each proposal is its own attempt).
+  const s = fc.live.suggs[0];
+  const proposed = new Date(now);
+  const skip = ((s.dow - new Date(now).getDay() + 7) % 7) || 7;
+  proposed.setDate(proposed.getDate() + skip + 7);
+  const [h, m] = s.time.split(":").map(Number);
+  proposed.setHours(h, m, 0, 0);
 
   const [live] = await db.insert(formationAttempts).values({
-    activityTypeId: activityId, areaId, attemptNumber: attemptNum, status: "SUGGESTING",
-    catchmentCells: [], cohortUserIds: liveCohort,
-    suggestionOpenedAt: openedAt, suggestionClosesAt: closesAt,
+    activityTypeId: activityId, areaId, attemptNumber: attemptNum, status: "OPEN",
+    proposerId: proposer.id, placeText: s.text, placeLat: fc.lat, placeLng: fc.lng,
+    proposedStart: proposed, recurDow: s.dow, recurTime: `${s.time}:00`,
+    catchmentCells: [], cohortUserIds: cohort, interestClosesAt: closesAt,
   }).returning({ id: formationAttempts.id });
 
-  for (let si = 0; si < fc.live.suggs.length; si++) {
-    const s = fc.live.suggs[si];
-    const suggestor = cityUsers[si % cityUsers.length];
-    const proposed = new Date(now);
-    const skip = ((s.dow - new Date(now).getDay() + 7) % 7) || 7;
-    proposed.setDate(proposed.getDate() + skip + 7);
-    const [h, m] = s.time.split(":").map(Number);
-    proposed.setHours(h, m, 0, 0);
-    await db.insert(suggestions).values({
-      attemptId: live.id, userId: suggestor.id,
-      placeText: s.text, placeLat: fc.lat, placeLng: fc.lng,
-      proposedStart: proposed, recurDow: s.dow, recurTime: `${s.time}:00`,
-    });
+  // The proposer + a few neighbours are already in.
+  const interested = [...new Set([proposer.id, ...cohort.slice(1, 4)])];
+  for (const uid of interested) {
+    await db.insert(attemptInterest).values({ attemptId: live.id, userId: uid, interested: true }).onConflictDoNothing();
   }
 }
 
@@ -309,33 +309,29 @@ async function seedFormingHistory(activityId: string) {
       const closedAt  = new Date(createdAt.getTime() + 2 * DAY);
       const cohort    = cityUsers.slice(0, p.cohort).map((u) => u.id);
 
+      // Each past attempt was one proposal that fell short. Use its first option
+      // as the proposal's spot/day; the others are gone with the options layer.
+      const opt = p.opts[0];
+      const proposed = new Date(createdAt.getTime() + 10 * DAY);
+      const skip = ((opt.dow - proposed.getDay() + 7) % 7) || 7;
+      proposed.setDate(proposed.getDate() + skip);
+      proposed.setHours(19, 0, 0, 0);
+
       const [att] = await db.insert(formationAttempts).values({
         activityTypeId: activityId, areaId: area.id,
         attemptNumber: attemptNum++, status: "FAILED", failureReason: p.reason,
-        catchmentCells: [], cohortUserIds: cohort,
-        suggestionOpenedAt: createdAt, suggestionClosesAt: closedAt, createdAt,
+        proposerId: cityUsers[0].id, placeText: opt.text, placeLat: fc.lat, placeLng: fc.lng,
+        proposedStart: proposed, recurDow: opt.dow, recurTime: null,
+        catchmentCells: [], cohortUserIds: cohort, interestClosesAt: closedAt, createdAt,
       }).returning({ id: formationAttempts.id });
-
-      // Seed the options that were voted on but couldn't hit quorum.
-      const optBase = new Date(createdAt.getTime() + 10 * DAY);
-      for (const opt of p.opts) {
-        const proposed = new Date(optBase);
-        const skip = ((opt.dow - optBase.getDay() + 7) % 7) || 7;
-        proposed.setDate(proposed.getDate() + skip);
-        proposed.setHours(19, 0, 0, 0);
-        await db.insert(formationOptions).values({
-          attemptId: att.id, placeText: opt.text,
-          placeLat: fc.lat, placeLng: fc.lng,
-          proposedStart: proposed, firstSuggestedAt: createdAt,
-          promiseCount: opt.votes,
-        });
+      // A handful were interested but it didn't reach the threshold.
+      for (const uid of cohort.slice(0, Math.min(opt.votes, cohort.length))) {
+        await db.insert(attemptInterest).values({ attemptId: att.id, userId: uid, interested: true }).onConflictDoNothing();
       }
     }
 
-    // Live SUGGESTING attempt — window still open.
+    // The live proposal — interest window still open.
     await seedLiveAttempt(activityId, area.id, attemptNum, cityUsers, fc, now);
-
-    await db.update(areas).set({ status: "IN_FORMATION" }).where(eq(areas.id, area.id));
     console.log(`  forming site in ${fc.city}: ${fc.past.length} past attempts + live (cohort ${fc.live.cohort})`);
   }
 }

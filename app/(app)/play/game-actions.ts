@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
 import { activeGame, reachableActiveGame, nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
+import { runOccurrence } from "@/lib/mime/trigger";
 
 export type JoinResult = { ok: true } | { ok: false; error: string };
 
@@ -41,6 +42,10 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   // their pref/RSVP or save even if they've since moved or narrowed their radius.
   const [member] = await db.select({ g: gameRoster.gameId }).from(gameRoster)
     .where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me))).limit(1);
+  // A non-member tapping "i'm out" is declining, not joining — don't roster them
+  // (which would otherwise sign them up for this game's weekly poll emails). An
+  // existing member's explicit "out" still persists so a regular can skip a week.
+  if (!member && !nextIn) return { ok: true };
   // New joins require a confirmed email; existing members can still tweak prefs.
   if (!member && !(await isEmailVerified(me))) return { ok: false, error: UNVERIFIED_MSG };
   const g = member ? await activeGame(gameId) : await reachableActiveGame(me, gameId);
@@ -52,6 +57,9 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
 
   await upsertAttendance(gameId, me, await nextPlayableOccurrence(g, new Date()), nextIn ? "in" : "out");
   await syncRosterCount(gameId);
+  // Reconcile the occurrence now (poll tally, week-on/off) instead of waiting for
+  // the cron tick — the map popup joins through here, same as my-games/captain do.
+  await runOccurrence(gameId);
   revalidatePath("/my-games");
   return { ok: true };
 }
@@ -77,6 +85,7 @@ export async function setRosterMembership(gameId: string, on: boolean): Promise<
     await db.delete(gameRoster).where(and(eq(gameRoster.gameId, gameId), eq(gameRoster.userId, me)));
   }
   await syncRosterCount(gameId);
+  await runOccurrence(gameId);
   revalidatePath("/my-games");
   return { ok: true };
 }
@@ -92,6 +101,7 @@ export async function setNextGameRsvp(gameId: string, on: boolean): Promise<Join
   const g = on ? await reachableActiveGame(me, gameId) : await activeGame(gameId);
   if (!g) return { ok: false, error: on ? "this game is outside your travel area" : "game unavailable" };
   await upsertAttendance(gameId, me, await nextPlayableOccurrence(g, new Date()), on ? "in" : "out");
+  await runOccurrence(gameId);
   revalidatePath("/my-games");
   return { ok: true };
 }

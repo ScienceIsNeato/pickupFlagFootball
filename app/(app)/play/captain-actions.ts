@@ -8,6 +8,7 @@ import { txnDb } from "@/lib/db/pool";
 import { games, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { retireEligibility } from "@/lib/games/retireEligibility";
+import { runOccurrence } from "@/lib/mime/trigger";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
@@ -88,7 +89,10 @@ async function setSeriesStatus(
     }
     return false;
   });
-  if (raced) return { ok: false, error: "the series state just changed — try again" };
+  if (raced) return { ok: false, error: "the series state just changed - try again" };
+  // Event-driven: a resume can re-open a due poll immediately; pause/retire just
+  // NOOP through the (now-inactive) series. Either way, reconcile this game now.
+  await runOccurrence(gameId);
   revalidatePath("/play");
   revalidatePath("/my-games");
   return { ok: true };
@@ -101,7 +105,7 @@ export async function pauseSeries(gameId: string, resumeDate: string, note: stri
   const trimmed = (note ?? "").trim();
   if (!trimmed) return { ok: false, error: "add a note so players know why the game's paused" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(resumeDate ?? "")) {
-    return { ok: false, error: "pick an expected resume date — or retire the series instead" };
+    return { ok: false, error: "pick an expected resume date - or retire the series instead" };
   }
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (new Date(`${resumeDate}T00:00:00`) <= today) return { ok: false, error: "the resume date must be in the future" };

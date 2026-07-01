@@ -25,6 +25,7 @@ jobs:
       stripe_secret_key_secret: pff-dev-stripe-secret-key
       stripe_webhook_secret_secret: pff-dev-stripe-webhook-secret
       stripe_price_id: price_1Tm8ah5dNONyK4ZWXwfedPnn      # test-mode price
+      slack_webhook_secret: pff-dev-slack-webhook-url      # → #mime-ff-activity-feed-dev
       run_e2e: false
       min_instances: "0"
     secrets: inherit

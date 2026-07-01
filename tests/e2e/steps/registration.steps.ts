@@ -24,11 +24,10 @@ When(
   },
 );
 
-Then("I receive a confirmation email", async ({ page, world }) => {
+Then("I receive a confirmation email", async ({ world }) => {
   const mail = await waitForEmailTo(world.email!);
   world.confirmLink = extractConfirmLink(mail.html);
-  // Render the email into the page so this beat's screenshot shows the email.
-  await page.setContent(mail.html);
+  // The AfterStep hook captures the email itself into the report.
 });
 
 When("I click the confirm link in my email", async ({ page, world }) => {

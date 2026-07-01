@@ -6,13 +6,13 @@
   "event": "game",
   "participant": "player",
   "seo": {
-    "title": "MIME-FF · pickup flag football that forms itself",
-    "description": "a free, open source platform that connects people with the same interest. when enough gather in one area, a game is born."
+    "title": "MIME-FF · pickup flag football that comes together",
+    "description": "a free, open source platform for local pickup flag football. propose a game near you, and when enough neighbors are in, it's on."
   },
   "hero": {
     "heading": "find your local flag football game, or help it find you",
     "body": "while there may not be a standing local game in your area at the moment, don't you think there should be? this site makes that happen.",
-    "body2": "just let us know your general area, name and email and we'll take care of the rest. when enough people in your area show interest, MIME-FF coordinates and facilitates organic community organized games with little to no effort on your part.",
+    "body2": "tell us your general area, name and email, and you're on the map. propose a game - a spot, a day, a time - or wait for a neighbor to. either way, everyone nearby gets asked if they're in, and once enough say yes, it's on. no organizing on your part.",
     "gate": "",
     "cta": "show interest near you",
     "note": ""
@@ -20,29 +20,29 @@
   "how": [
     {
       "n": "1",
-      "title": "say you're in",
-      "body": "pick your area. one tap."
+      "title": "someone proposes a game",
+      "body": "a spot, a day, a weekly time. could be you."
     },
     {
       "n": "2",
-      "title": "others do too",
-      "body": "the app counts people nearby."
+      "title": "neighbors get asked",
+      "body": "everyone nearby hears about it."
     },
     {
       "n": "3",
-      "title": "someone names a spot",
-      "body": "a local suggests place and time."
+      "title": "tap in or out",
+      "body": "interested? one tap, no login."
     },
     {
       "n": "4",
       "title": "enough say yes",
-      "body": "the game gets scheduled."
+      "body": "it's on - a standing weekly game."
     }
   ],
   "faq": [
     {
       "q": "how are game sites determined? who picks them?",
-      "a": "you or someone else nearby suggests a place, day of week, and time for a regular game. from there the matching engine takes over and does the hard work of figuring out whether a game can come together."
+      "a": "you or someone else nearby proposes a place, day of week, and time for a regular game. we email everyone in range to ask if they're in, and if enough say yes by the deadline, the game's on. each proposal stands on its own."
     },
     {
       "q": "who runs the games? who's in charge?",
@@ -50,7 +50,7 @@
     },
     {
       "q": "what are captains?",
-      "a": "captains have no extra duties, just extra abilities - messaging the players, marking a site as \"off season.\" the first captain is whoever suggested the original game. they can make other players captains too."
+      "a": "captains have no extra duties, just extra abilities - messaging the players, marking a site as \"off season.\" the first captain is whoever proposed the original game. they can make other players captains too."
     },
     {
       "q": "who brings the gear?",
@@ -62,11 +62,11 @@
     },
     {
       "q": "what if there aren't enough players near me yet?",
-      "a": "then there's no game yet, and we won't fake one. you'll see the interest count for your area. once enough people nearby are interested, anyone can propose a spot and weekly time — and the game forms from there."
+      "a": "then there's no game yet, and we won't fake one. you'll see the interest count for your area. anyone can propose a spot and weekly time whenever - we'll ask everyone nearby, and if enough are in, it's on. no game yet just means nobody's proposed one that stuck."
     },
     {
       "q": "will a game actually happen, or will everyone flake?",
-      "a": "you don't just rsvp - you make a soft promise ('if it's on, i'm there'). the game only locks once enough people commit, and the night before everyone gets the roster of who's in."
+      "a": "you don't just rsvp - you say you're interested ('if it's on, i'm there'). the game only locks once enough people are in, and the night before everyone gets the roster of who's coming."
     },
     {
       "q": "why a weekly standing game instead of one-off events?",

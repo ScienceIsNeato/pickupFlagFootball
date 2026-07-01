@@ -45,7 +45,7 @@ export default function ComingSoon() {
         </h1>
         <p style={{ color: "var(--muted)", fontSize: 17, lineHeight: 1.6, margin: 0 }}>
           we&apos;re getting the field ready. soon you&apos;ll show interest in a spot near you,
-          and when enough neighbors do the same, a game is born — no captain wrangling required.
+          and when enough neighbors do the same, a game is born - no captain wrangling required.
         </p>
       </div>
     </main>

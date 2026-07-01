@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
 import { users, areas, interestSignals, activityTypes } from "@/lib/db/schema";
 import { resolveHome } from "@/lib/geo";
+import { slackNewPlayer } from "@/lib/slack";
 
 export type CreateMemberInput = {
   email: string;
@@ -81,6 +82,8 @@ export async function createMember(input: CreateMemberInput): Promise<CreateMemb
       });
       return u.id;
     });
+    // Activity feed: a new player joined (the account + interest both committed).
+    slackNewPlayer({ displayName, city: home.displayCity, zip: input.zip });
     return { ok: true, userId };
   } catch (e) {
     const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;

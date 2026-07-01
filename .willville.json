@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Split dev and production into separate environments with their own databases. Pushing the dev branch ships a wide-open dev site; the main branch ships to production behind a full test gate, and production stays parked behind a 'coming soon' page until we're ready for real traffic.",
-    "direction": "Wire up the dev database + first dev deploy, then run the whole pipeline through end to end.",
-    "last_update": "2026-06-25T22:30:00Z"
+    "status": "Worked through all the code-review feedback on the launch PR — tightened a couple security things, fixed some edge-case bugs, and made the riskier data writes safer. All checks green.",
+    "direction": "Get these fixes re-reviewed and the launch PR merged so it can ship to the live site.",
+    "last_update": "2026-06-30T23:20:01Z"
   }
 }

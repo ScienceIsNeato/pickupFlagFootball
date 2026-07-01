@@ -546,6 +546,28 @@ section h2::after {
 .unverified-resend:hover:not(:disabled) { background: rgba(0,0,0,.2); }
 .unverified-resend:disabled { opacity: 0.65; cursor: default; }
 
+/* Support nudge — same shape as the unverified banner, green "supporter" tone. */
+.donate-banner {
+  position: fixed; top: 72px; left: 12px; z-index: 20; max-width: calc(100% - 24px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+  font-size: 13px; color: #eafff0; background: #2f7a39;
+  box-shadow: 0 6px 18px rgba(0,0,0,.28);
+}
+/* The message takes the row; the dot/cta/stop wrap below on narrow screens so the
+   dismiss control can never get pushed off-screen (it's the only way to dismiss). */
+.donate-banner > span:not(.donate-banner-dot) { flex: 1 1 200px; min-width: 0; }
+.donate-banner-dot { flex: none; font-size: 13px; line-height: 1; }
+.donate-banner-cta {
+  flex: none; font-weight: 700; color: #1a1407; background: var(--yellow);
+  border-radius: 6px; padding: 3px 9px; text-decoration: none;
+}
+.donate-banner-cta:hover { filter: brightness(1.05); }
+.donate-banner-stop {
+  flex: none; cursor: pointer; font: inherit; color: inherit; opacity: 0.82;
+  background: rgba(255,255,255,.14); border: none; border-radius: 6px; padding: 3px 9px;
+}
+.donate-banner-stop:hover { opacity: 1; background: rgba(255,255,255,.22); }
+
 /* right-hand "past games" panel mirrors the left one */
 .mine-right { left: auto; right: 12px; }
 /* per-site default pref toggle */
@@ -625,7 +647,7 @@ section h2::after {
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
 /* Account page — three columns: support · you · location. */
-.account { max-width: 1040px; }
+.account { max-width: 1040px; position: relative; }
 .account-grid {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-items: start; margin-top: 26px;
 }
@@ -635,11 +657,41 @@ section h2::after {
   font-family: var(--font-barlow), sans-serif; font-size: 16px; color: var(--ink);
   margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
 }
-.acct-support-badge {
-  display: inline-block; margin-bottom: 12px; padding: 4px 12px; border-radius: 999px;
-  background: rgba(70, 137, 68, 0.18); color: var(--grass-l);
-  border: 1px solid rgba(70, 137, 68, 0.45); font-size: 13px; font-weight: 700;
+/* The dashed accent under each column title — white here, not the global green. */
+.account-col-h::after {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 9px, transparent 9px 15px);
 }
+
+/* Single "Save Changes" button, pinned top-right of the page. */
+.acct-save-bar {
+  position: absolute; top: 2px; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+}
+.acct-save {
+  background: var(--green); color: #fff; font-weight: 700; border: none; border-radius: 8px;
+  padding: 11px 22px; font-size: 15px; cursor: pointer;
+}
+.acct-save:hover { filter: brightness(1.06); }
+.acct-save:disabled { opacity: 0.6; cursor: default; }
+.acct-save-err { color: var(--red); font-size: 13px; max-width: 260px; text-align: right; line-height: 1.4; }
+@media (max-width: 880px) {
+  .acct-save-bar { position: static; margin: 18px 0 0; justify-content: stretch; }
+  .acct-save { width: 100%; }
+}
+
+/* Prominent membership level at the top of the supporter column. */
+.acct-membership {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+}
+.acct-membership-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--faint);
+}
+.acct-membership-level {
+  font-family: var(--font-barlow), sans-serif; font-size: 20px; font-weight: 800; color: var(--ink);
+}
+.acct-membership--supporter { background: rgba(70, 137, 68, 0.16); border-color: rgba(70, 137, 68, 0.45); }
+.acct-membership--supporter .acct-membership-level { color: var(--grass-l); }
 .acct-support-cta {
   display: block; text-align: center; margin: 6px 0 18px; padding: 11px 14px;
   border-radius: 8px; background: var(--green); color: #fff; font-weight: 700; text-decoration: none;
