@@ -9,7 +9,6 @@ on:
       environment:        { type: string, required: true }   # dev | production (GH environment + display)
       service_name:       { type: string, required: true }   # Cloud Run service
       app_base_url:       { type: string, required: false, default: "" }
-      coming_soon:        { type: string, required: false, default: "" }   # "1" = show splash (prod)
       db_secret:          { type: string, required: true }   # Secret Manager name for DATABASE_URL
       db_unpooled_secret: { type: string, required: true }   # …for DATABASE_URL_UNPOOLED
       # Stripe per-env: dev → test keys/webhook/price, prod → live.
@@ -150,7 +149,7 @@ jobs:
           gcloud run deploy ${{ inputs.service_name }} \
             --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
-            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;COMING_SOON=${{ inputs.coming_soon }};APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
