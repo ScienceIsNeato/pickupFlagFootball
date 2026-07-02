@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Worked through all the code-review feedback on the launch PR — tightened a couple security things, fixed some edge-case bugs, and made the riskier data writes safer. All checks green.",
-    "direction": "Get these fixes re-reviewed and the launch PR merged so it can ship to the live site.",
-    "last_update": "2026-06-30T23:20:01Z"
+    "status": "Ripped out the old 'coming soon' holding page and the switch behind it for good, so the public app no longer hides behind a gate. That switch was why the live site was still showing the placeholder.",
+    "direction": "Get this merged through to the live site so the full app is finally public.",
+    "last_update": "2026-07-02T06:01:37Z"
   }
 }

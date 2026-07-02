@@ -1,7 +1,7 @@
 name: Deploy dev
 
 # Every push to develop → build → unit tests → deploy to the dev service.
-# Wild west: full app open (COMING_SOON unset), no e2e gate, scales to zero.
+# Wild west: full app open, no e2e gate, scales to zero.
 on:
   push:
     branches: [develop]
@@ -18,7 +18,6 @@ jobs:
       environment: dev
       service_name: pickupflagfootball-dev
       app_base_url: https://dev.pickupflagfootball.com
-      coming_soon: ""            # full app visible
       db_secret: pff-dev-database-url
       db_unpooled_secret: pff-dev-database-url-unpooled
       # Stripe TEST mode on dev:
