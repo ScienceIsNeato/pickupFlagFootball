@@ -82,7 +82,7 @@
     },
     {
       "q": "how much does this cost?",
-      "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we suggest <a href=\"{donate}\">$3/month on Buy Me a Coffee</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too."
+      "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we suggest <a href=\"{donate}\">chipping in $3/month</a> on Buy Me a Coffee to keep the servers on, but it's an ask, not a gate. one-time tips help too."
     }
   ],
   "register": {
