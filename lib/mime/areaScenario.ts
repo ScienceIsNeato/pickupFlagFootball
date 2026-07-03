@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, inArray } from "drizzle-orm";
-import { games, formationAttempts, attemptInterest, areas } from "@/lib/db/schema";
+import { games, formationAttempts, attemptInterest, areas, areaOptouts } from "@/lib/db/schema";
 import { catchmentUsers, loadTunables, type EngineDb } from "./engine";
 
 /**
@@ -47,12 +47,18 @@ export async function detectAreaScenario(
   if (open) {
     const inRows = await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
       .where(and(eq(attemptInterest.attemptId, open.id), eq(attemptInterest.interested, true)));
+    // Same roster rule resolveAttempt uses against pMin: an "I'm in" doesn't
+    // count if that person has since opted out of this area — otherwise the HUD
+    // can show a higher tally than what actually decides confirm/fail.
+    const optedOut = new Set((await db.select({ userId: areaOptouts.userId }).from(areaOptouts)
+      .where(eq(areaOptouts.areaId, areaId))).map((r) => r.userId));
+    const roster = new Set(inRows.map((r) => r.userId).filter((u) => !optedOut.has(u)));
     const [area] = await db.select({ pMinOverride: areas.pMinOverride }).from(areas)
       .where(eq(areas.id, areaId)).limit(1);
     const t = await loadTunables(db, activityTypeId, area);
     return {
       kind: "open-proposal",
-      interestedCount: new Set(inRows.map((r) => r.userId)).size,
+      interestedCount: roster.size,
       pMin: t.pMin,
       closesAt: open.interestClosesAt.toISOString(),
       placeText: open.placeText.split(" — ")[0],

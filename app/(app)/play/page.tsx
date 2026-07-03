@@ -43,7 +43,10 @@ export default async function PlayPage() {
     .where(eq(activityTypes.slug, "flag-football")).limit(1);
   if (act) {
     const [mine] = await db.select({ areaId: interestSignals.areaId }).from(interestSignals)
-      .where(and(eq(interestSignals.userId, uid), eq(interestSignals.active, true))).limit(1);
+      .where(and(
+        eq(interestSignals.userId, uid), eq(interestSignals.active, true),
+        eq(interestSignals.activityTypeId, act.id),
+      )).limit(1);
     if (mine) {
       scenario = await detectAreaScenario(edb(), act.id, mine.areaId, uid);
       const [area] = await db.select({ city: areas.displayCity, zip: areas.displayZip })
