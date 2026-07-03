@@ -7,7 +7,7 @@ import { users, gameRoster, games, areas, areaCaptains } from "@/lib/db/schema";
 import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
-import { updateDonationPref } from "./actions";
+import { markSupporter, resetDonation } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account - MIME-FF" };
@@ -68,7 +68,7 @@ export default async function AccountPage() {
           <h2 className="account-col-h">supporting the project</h2>
           <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
             <span className="acct-membership-label">membership</span>
-            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
+            <span className="acct-membership-level">{supporting ? "supporter 💚" : "free"}</span>
           </div>
           {supporting ? (
             <>
@@ -81,8 +81,7 @@ export default async function AccountPage() {
                   manage subscription
                 </button>
               ) : (
-                <button type="submit" formAction={updateDonationPref} formNoValidate
-                  name="donation_status" value="unset" className="game-leave">
+                <button type="submit" formAction={resetDonation} formNoValidate className="game-leave">
                   no longer donating? reset this
                 </button>
               )}
@@ -94,6 +93,12 @@ export default async function AccountPage() {
                 helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
+              {/* Honor-system self-declare: BMC is external (no webhook back), so a
+                  donor tells us they've chipped in and we thank them + stop asking. */}
+              <button type="submit" formAction={markSupporter} formNoValidate
+                className="game-leave acct-declare-supporter">
+                already chipping in? mark yourself a supporter
+              </button>
               <label className="donate-opt">
                 <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
                 <span>remind me to make a small monthly donation once I find a game</span>

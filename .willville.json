@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Switched the support button over to Buy Me a Coffee - suggested a few bucks a month, or a one-time tip of any amount the donor picks - and stopped offering the old card-subscription path.",
-    "direction": "Get it merged out to the live site, then decide whether to fully clear out the leftover old-payment plumbing that's no longer used.",
-    "last_update": "2026-07-03T04:52:53Z"
+    "status": "Donations now go through Buy Me a Coffee. Since BMC doesn't tell us who paid, added a simple 'I chip in' button so folks can mark themselves a supporter - that stops the asks and shows a thanks.",
+    "direction": "Get the donations work merged out to the live site.",
+    "last_update": "2026-07-03T07:17:35Z"
   }
 }
