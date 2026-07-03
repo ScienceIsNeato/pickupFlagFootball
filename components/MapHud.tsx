@@ -19,7 +19,9 @@ export function MapHud({ scenario, place }: { scenario: AreaScenario; place: Pla
   useEffect(() => {
     if (scenario.kind !== "open-proposal") return;
     const ms = new Date(scenario.closesAt).getTime() - Date.now();
-    const hours = Math.max(0, Math.round(ms / 3_600_000));
+    // Ceil, not round — 1.4h left must never read as "within the hour" (an
+    // underestimate that could rush someone past a deadline that hasn't hit yet).
+    const hours = Math.max(0, Math.ceil(ms / 3_600_000));
     setClosesText(hours <= 1 ? "closes within the hour" : `closes in ~${hours}h`);
   }, [scenario]);
 

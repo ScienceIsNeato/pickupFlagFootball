@@ -15,8 +15,11 @@ test("alone: two templates, both mention the place and the link", () => {
 });
 
 test("ambient-interest: uses the live total count, not a hardcoded number", () => {
-  const t = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5 }, PLACE, URL);
-  assert.ok(t[0].text.includes("5"));
+  // place: null (no ZIP in the text) so the digit can only have come from
+  // interpolating totalCount — with PLACE, "52241" would make this pass even
+  // if the count were hardcoded.
+  const t = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5 }, null, URL);
+  assert.match(t[0].text, /\b5\b/);
 });
 
 test("open-proposal: shows the real interested/pMin tally", () => {

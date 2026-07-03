@@ -375,13 +375,18 @@ export async function getUserId(email: string): Promise<string> {
  *  map HUD) rather than mere on-map proximity. */
 export async function seedGameInMyArea(email: string, placeText: string): Promise<string> {
   const userId = await getUserId(email);
-  const { rows: [signal] } = await pool.query(
-    "SELECT area_id FROM interest_signals WHERE user_id = $1 AND active = true LIMIT 1",
-    [userId],
-  );
-  if (!signal) throw new Error(`no active interest signal for ${email} — register them first`);
   const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
+  if (!act) throw new Error("no flag-football activity_type row — is the seed fixture loaded?");
+  // Scoped to the SAME activity the map HUD resolves the viewer's area with
+  // (play/page.tsx) — a user with signals across more than one activity must
+  // land the game in the same area the HUD will look at, not a different one.
+  const { rows: [signal] } = await pool.query(
+    "SELECT area_id FROM interest_signals WHERE user_id = $1 AND activity_type_id = $2 AND active = true LIMIT 1",
+    [userId, act.id],
+  );
+  if (!signal) throw new Error(`no active flag-football interest signal for ${email} — register them first`);
   const { rows: [area] } = await pool.query("SELECT center_lat, center_lng FROM areas WHERE id = $1", [signal.area_id]);
+  if (!area) throw new Error(`interest signal for ${email} points at a missing area (${signal.area_id})`);
   const { rows: [game] } = await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,

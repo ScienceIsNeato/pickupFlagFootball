@@ -133,6 +133,22 @@ test("games: multiple active games report a count with no single place name", as
   }
 });
 
+test("a one-off (non-standing) game doesn't claim the 'games' scenario", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { activityTypeId, areaId } = await seedActivityAndArea(db);
+  const viewer = await seedInterestedUser(db, activityTypeId, areaId, "viewer");
+  await seedInterestedUser(db, activityTypeId, areaId, "n1"); // so it falls to ambient-interest, not alone
+
+  await db.insert(games).values({
+    activityTypeId, areaId, placeText: "One-off Pickup", placeLat: LAT, placeLng: LNG,
+    scheduledStart: new Date(Date.now() + 5 * 86_400_000), status: "active", isStanding: false,
+  });
+
+  const s = await detectAreaScenario(db, activityTypeId, areaId, viewer);
+  assert.equal(s.kind, "ambient-interest"); // NOT "games" — a one-off isn't "runs weekly here"
+});
+
 test("an expired proposal is ignored — falls through to ambient-interest", async () => {
   const world = await World.create();
   const db = world.db as unknown as EngineDb;

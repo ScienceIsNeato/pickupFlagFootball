@@ -21,10 +21,16 @@ export type AreaScenario =
 export async function detectAreaScenario(
   db: EngineDb, activityTypeId: string, areaId: string, viewerUserId: string, now = new Date(),
 ): Promise<AreaScenario> {
-  // 1. A live standing game already claims this area — nothing else matters.
+  // 1. A live STANDING game already claims this area — nothing else matters.
+  // isStanding excludes a one-off (non-recurring) confirmed game, which
+  // shouldn't get the "runs weekly here" copy; activityTypeId guards against
+  // cross-activity leakage if the DB ever has inconsistent rows.
   const liveGames = await db.select({ id: games.id, placeText: games.placeText })
     .from(games)
-    .where(and(eq(games.areaId, areaId), inArray(games.status, ["active", "paused"])));
+    .where(and(
+      eq(games.areaId, areaId), eq(games.activityTypeId, activityTypeId),
+      eq(games.isStanding, true), inArray(games.status, ["active", "paused"]),
+    ));
   if (liveGames.length > 0) {
     return {
       kind: "games",
@@ -39,6 +45,7 @@ export async function detectAreaScenario(
   const [open] = await db.select().from(formationAttempts)
     .where(and(
       eq(formationAttempts.areaId, areaId),
+      eq(formationAttempts.activityTypeId, activityTypeId),
       eq(formationAttempts.status, "OPEN"),
       gt(formationAttempts.interestClosesAt, now),
     ))
