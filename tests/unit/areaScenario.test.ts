@@ -149,7 +149,11 @@ test("a one-off (non-standing) game doesn't claim the 'games' scenario", async (
   assert.equal(s.kind, "ambient-interest"); // NOT "games" — a one-off isn't "runs weekly here"
 });
 
-test("an expired proposal is ignored — falls through to ambient-interest", async () => {
+test("a past-deadline but still-OPEN attempt still shows as open-proposal", async () => {
+  // Matches the map's own badge, which is driven by status alone — an attempt
+  // whose deadline just passed but hasn't been resolved yet (the gap before the
+  // next cron tick / event-driven resolve) must read the same way here, or the
+  // HUD says "nobody's proposed a spot yet" while the map still shows the badge.
   const world = await World.create();
   const db = world.db as unknown as EngineDb;
   const { activityTypeId, areaId } = await seedActivityAndArea(db);
@@ -158,8 +162,25 @@ test("an expired proposal is ignored — falls through to ambient-interest", asy
 
   await db.insert(formationAttempts).values({
     activityTypeId, areaId, attemptNumber: 1, status: "OPEN",
-    proposerId: viewer, placeText: "Stale", proposedStart: new Date(Date.now() - 5 * 86_400_000),
-    interestClosesAt: new Date(Date.now() - 3_600_000), // already closed
+    proposerId: viewer, placeText: "Overdue", proposedStart: new Date(Date.now() - 5 * 86_400_000),
+    interestClosesAt: new Date(Date.now() - 3_600_000), // deadline passed, not yet resolved
+  });
+
+  const s = await detectAreaScenario(db, activityTypeId, areaId, viewer);
+  assert.equal(s.kind, "open-proposal");
+});
+
+test("a resolved (FAILED) attempt is ignored — falls through to ambient-interest", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { activityTypeId, areaId } = await seedActivityAndArea(db);
+  const viewer = await seedInterestedUser(db, activityTypeId, areaId, "viewer");
+  await seedInterestedUser(db, activityTypeId, areaId, "n1");
+
+  await db.insert(formationAttempts).values({
+    activityTypeId, areaId, attemptNumber: 1, status: "FAILED",
+    proposerId: viewer, placeText: "Didn't happen", proposedStart: new Date(Date.now() - 5 * 86_400_000),
+    interestClosesAt: new Date(Date.now() - 3_600_000),
   });
 
   const s = await detectAreaScenario(db, activityTypeId, areaId, viewer);

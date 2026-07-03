@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { games, formationAttempts, attemptInterest, areas, areaOptouts } from "@/lib/db/schema";
 import { catchmentUsers, loadTunables, type EngineDb } from "./engine";
 
@@ -19,7 +19,7 @@ export type AreaScenario =
 /** `areaId` is the viewer's own area (their home interest signal's area) — the
  *  HUD describes what's happening in the viewer's own neighborhood. */
 export async function detectAreaScenario(
-  db: EngineDb, activityTypeId: string, areaId: string, viewerUserId: string, now = new Date(),
+  db: EngineDb, activityTypeId: string, areaId: string, viewerUserId: string,
 ): Promise<AreaScenario> {
   // 1. A live STANDING game already claims this area — nothing else matters.
   // isStanding excludes a one-off (non-recurring) confirmed game, which
@@ -41,13 +41,17 @@ export async function detectAreaScenario(
 
   // 2. A proposal is open right now — the most actionable moment (a closing
   // window), so it outranks quietly-ambient interest even though both can be
-  // true at once.
+  // true at once. Matched purely on status='OPEN' (not also interestClosesAt
+  // > now): the map's own "forming" badge is driven by status alone, so an
+  // attempt whose deadline just passed but hasn't been resolved yet (the gap
+  // before the next cron tick / event-driven resolve) must show the SAME
+  // "open-proposal" state here — otherwise the HUD says "nobody's proposed a
+  // spot yet" while the map still shows the badge for that exact attempt.
   const [open] = await db.select().from(formationAttempts)
     .where(and(
       eq(formationAttempts.areaId, areaId),
       eq(formationAttempts.activityTypeId, activityTypeId),
       eq(formationAttempts.status, "OPEN"),
-      gt(formationAttempts.interestClosesAt, now),
     ))
     .orderBy(desc(formationAttempts.createdAt))
     .limit(1);
