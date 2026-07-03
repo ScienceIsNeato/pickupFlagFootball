@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Ripped out the old 'coming soon' holding page and the switch behind it for good, so the public app no longer hides behind a gate. That switch was why the live site was still showing the placeholder.",
-    "direction": "Get this merged through to the live site so the full app is finally public.",
-    "last_update": "2026-07-02T06:01:37Z"
+    "status": "Donations now go through Buy Me a Coffee. Since BMC doesn't tell us who paid, added a simple 'I chip in' button so folks can mark themselves a supporter - that stops the asks and shows a thanks.",
+    "direction": "Get the donations work merged out to the live site.",
+    "last_update": "2026-07-03T07:17:35Z"
   }
 }

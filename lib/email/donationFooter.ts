@@ -4,9 +4,10 @@ import { skin } from "@/lib/skin";
  * The conditional donation block for per-user emails (Phase 6). Only ever shown
  * on the weekly "game on" email (see flush.ts) — never on any other.
  *
- * Honor-system: we never verify a Stripe payment. A user's self-declared
+ * Honor-system: we never verify a payment (Buy Me a Coffee gives us no webhook
+ * back, so there'd be nothing to check even if we wanted to). A user's self-declared
  * `donation_status` decides what (if anything) they see:
- *   - "unset"      → the $5/month ask (they haven't told us either way)
+ *   - "unset"      → the $3/month ask (they haven't told us either way)
  *   - "subscribed" → a thank-you blurb, no ask (they're chipping in)
  *   - "declined"   → nothing (they asked us to stop)
  *
@@ -43,7 +44,7 @@ export function donationFooterFor(user: DonationFooterUser): DonationFooter | nu
     return {
       text:
         "this app is free and pay-what-you-can. if it's running your weekly game, " +
-        "please update your account to chip in $5/month - or tell us you'd rather not, " +
+        "chip in $3/month (or a one-time tip) - or tell us you'd rather not, " +
         "and we'll drop this reminder from future emails.",
       donateUrl: skin.donate.url,
     };

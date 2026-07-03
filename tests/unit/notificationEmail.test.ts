@@ -41,7 +41,7 @@ test("a plain notice omits the two-button row", () => {
 test("week-on renders the donation ask with a chip-in link", () => {
   const mail = buildNotificationEmail("WEEK_ON", {
     displayName: "Sam", appBaseUrl: "https://app.test",
-    footer: { text: "if it's running your weekly game, chip in $5/month.", donateUrl: "/donate" },
+    footer: { text: "if it's running your weekly game, chip in $3/month.", donateUrl: "/donate" },
   });
   assert.match(mail.htmlContent, />chip in<\/a>/, "ask renders a chip-in link");
   assert.ok(mail.htmlContent.includes("https://app.test/donate"), "link is absolute");

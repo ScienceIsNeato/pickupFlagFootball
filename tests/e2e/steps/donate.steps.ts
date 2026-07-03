@@ -91,3 +91,13 @@ When("I turn on the donation reminder in account settings", async ({ page }) => 
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
 });
+
+// ── self-declared supporter (honor system; BMC has no webhook back) ──────────
+When("I mark myself as a supporter in account settings", async ({ page }) => {
+  await page.goto("/account");
+  await page.getByRole("button", { name: /mark yourself a supporter/i }).click();
+});
+
+Then("I'm marked as a supporter", async ({ world }) => {
+  await expect.poll(() => getDonationStatus(world.email!), { timeout: 10000 }).toBe("subscribed");
+});
