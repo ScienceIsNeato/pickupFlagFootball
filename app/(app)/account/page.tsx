@@ -7,7 +7,6 @@ import { users, gameRoster, games, areas, areaCaptains } from "@/lib/db/schema";
 import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
-import { markSupporter, resetDonation } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account - MIME-FF" };
@@ -76,13 +75,9 @@ export default async function AccountPage() {
                 thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
                 people like you find games in brand-new areas.
               </p>
-              {me.stripeSubscriptionId ? (
+              {me.stripeSubscriptionId && (
                 <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
                   manage subscription
-                </button>
-              ) : (
-                <button type="submit" formAction={resetDonation} formNoValidate className="game-leave">
-                  no longer donating? reset this
                 </button>
               )}
             </>
@@ -93,17 +88,20 @@ export default async function AccountPage() {
                 helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              {/* Honor-system self-declare: BMC is external (no webhook back), so a
-                  donor tells us they've chipped in and we thank them + stop asking. */}
-              <button type="submit" formAction={markSupporter} formNoValidate
-                className="game-leave acct-declare-supporter">
-                already chipping in? mark yourself a supporter
-              </button>
-              <label className="donate-opt">
-                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
-                <span>remind me to make a small monthly donation once I find a game</span>
-              </label>
             </>
+          )}
+          {/* Self-declared, honor-system: Buy Me a Coffee is external (no webhook back),
+              so you tell us you've chipped in and we thank you + stop asking. Saved with
+              everything else on "Save Changes". */}
+          <label className="donate-opt">
+            <input type="checkbox" name="supporter" defaultChecked={supporting} />
+            <span>I&apos;ve donated - count me as a supporter</span>
+          </label>
+          {!supporting && (
+            <label className="donate-opt">
+              <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+              <span>remind me to make a small monthly donation once I find a game</span>
+            </label>
           )}
         </section>
 

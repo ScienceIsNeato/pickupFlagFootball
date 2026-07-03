@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Donations now go through Buy Me a Coffee. Since BMC doesn't tell us who paid, added a simple 'I chip in' button so folks can mark themselves a supporter - that stops the asks and shows a thanks.",
+    "status": "Donations go through Buy Me a Coffee now, and the account page has a simple 'I've donated - count me as a supporter' checkbox that flips your membership to supporter when you save.",
     "direction": "Get the donations work merged out to the live site.",
-    "last_update": "2026-07-03T07:17:35Z"
+    "last_update": "2026-07-03T16:15:57Z"
   }
 }

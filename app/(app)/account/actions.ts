@@ -85,43 +85,21 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
     await db.update(users).set(update).where(eq(users.id, uid));
   }
 
-  // Donation reminder — only ours to set when they're not an active subscriber
-  // (that status is webhook-managed). Checkbox present+checked → remind; else stop.
-  if (cur?.donationStatus !== "subscribed" && !cur?.subId) {
-    await setReminder(uid, formData.get("remind") != null);
+  // Self-declared donation status (honor system) from the two checkboxes — skip for a
+  // legacy Stripe subscriber (that status is webhook-managed). "I've donated" wins;
+  // otherwise the reminder checkbox picks ask (unset) vs stop-asking (declined).
+  if (!cur?.subId) {
+    const supporter = formData.get("supporter") != null;
+    const remind = formData.get("remind") != null;
+    await db.update(users)
+      .set({ donationStatus: supporter ? "subscribed" : remind ? "unset" : "declined", updatedAt: new Date() })
+      .where(eq(users.id, uid));
   }
 
   // Refresh the account AND the app-wide donation banner (it keys off this pref).
   revalidatePath("/", "layout");
   return { ok: true };
 }
-
-// Self-declared donation status (honor system): Buy Me a Coffee is external with no
-// webhook back, so a donor tells us they've chipped in and we thank them + stop
-// asking. These are parameterless actions rather than one formData action on
-// purpose — a submit button's name/value isn't reliably delivered to a server
-// action, so the target status has to be baked into the action itself.
-async function setDonationStatus(status: "subscribed" | "unset") {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/api/auth/signin");
-  // A legacy Stripe subscriber is webhook-managed — leave their status be so a
-  // self-declare can't desync it (no new subscribers exist, but the guard is cheap).
-  const [u] = await db.select({ subId: users.stripeSubscriptionId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (u?.subId) redirect("/account");
-  await db.update(users)
-    .set({ donationStatus: status, updatedAt: new Date() })
-    .where(eq(users.id, session.user.id));
-  // Refresh the account + the app-wide donation banner (it keys off this status).
-  revalidatePath("/", "layout");
-  redirect("/account");
-}
-
-/** "I chip in" — mark the signed-in user a supporter (thank-you, no more asks). */
-export async function markSupporter() { await setDonationStatus("subscribed"); }
-
-/** Undo supporter status — back to the default "ask" state. */
-export async function resetDonation() { await setDonationStatus("unset"); }
 
 // Shared write for the reminder preference: checked → remind ("unset"),
 // unchecked / dismissed → "declined". Never clobbers an active subscription: guard
