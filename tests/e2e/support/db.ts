@@ -367,6 +367,32 @@ export async function getUserId(email: string): Promise<string> {
   return String(rows[0].id);
 }
 
+/** An active standing game seeded directly into a player's OWN home area — the
+ *  area their real interest signal already resolved to at registration. Unlike
+ *  seedStandingGame (which computes its own area from a hand-picked lat/lng),
+ *  this guarantees area-id equality with what the app itself looks up for that
+ *  user, which matters for anything keyed strictly on "your home area" (e.g. the
+ *  map HUD) rather than mere on-map proximity. */
+export async function seedGameInMyArea(email: string, placeText: string): Promise<string> {
+  const userId = await getUserId(email);
+  const { rows: [signal] } = await pool.query(
+    "SELECT area_id FROM interest_signals WHERE user_id = $1 AND active = true LIMIT 1",
+    [userId],
+  );
+  if (!signal) throw new Error(`no active interest signal for ${email} — register them first`);
+  const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
+  const { rows: [area] } = await pool.query("SELECT center_lat, center_lng FROM areas WHERE id = $1", [signal.area_id]);
+  const { rows: [game] } = await pool.query(
+    `INSERT INTO games
+       (activity_type_id, area_id, place_text, place_lat, place_lng,
+        scheduled_start, status, is_standing, recur_dow, recur_time, color)
+     VALUES ($1, $2, $3, $4, $5, now() + interval '5 days', 'active', true, 6, '10:00', '#16633a')
+     RETURNING id`,
+    [act.id, signal.area_id, placeText, area.center_lat, area.center_lng],
+  );
+  return String(game.id);
+}
+
 /** Make a user a captain of an area (gates the captain controls in the popup). */
 export async function seedCaptain(areaId: string, email: string): Promise<void> {
   const userId = await getUserId(email);

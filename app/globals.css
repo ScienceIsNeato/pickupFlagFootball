@@ -191,6 +191,34 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   .legend-badge { width: 20px; height: 20px; } .legend-item svg { width: 20px; height: 14px; }
 }
 
+/* Scenario HUD (bottom-right): what's happening in your area + what to do next. */
+.map-hud {
+  position: absolute; bottom: 16px; right: 12px; z-index: 5;
+  width: 280px; max-width: calc(100% - 24px);
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(12, 19, 38, 0.72);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--ink); font-size: 13px; line-height: 1.45;
+}
+.map-hud-h {
+  margin: 0 0 4px; font-family: var(--font-barlow), sans-serif;
+  font-size: 15px; font-weight: 700; color: #fff;
+}
+.map-hud-body { margin: 0 0 10px; color: var(--muted); }
+.map-hud-share { padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.map-hud-share-label { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.map-hud-copy {
+  display: block; width: 100%; margin-bottom: 6px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--border); background: transparent;
+  color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+}
+.map-hud-copy:hover { border-color: var(--green); color: #fff; }
+.map-hud-link { display: inline-block; margin-top: 2px; font-size: 12px; color: var(--link); }
+@media (max-width: 560px) {
+  .map-hud { bottom: 12px; width: auto; left: 12px; right: 12px; }
+}
+
 .map-tip {
   position: absolute; z-index: 6; pointer-events: none;
   padding: 5px 9px; border-radius: 7px; font-size: 13px; white-space: nowrap;
