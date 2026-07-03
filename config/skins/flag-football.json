@@ -82,7 +82,7 @@
     },
     {
       "q": "how much does this cost?",
-      "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we ask for a $5/month <a href=\"{donate}\">subscription</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too."
+      "aHtml": "free and open source, pay what you can - no paywall, ever. if the app is running your weekly game we suggest <a href=\"{donate}\">$3/month on Buy Me a Coffee</a> to keep the servers on, but it's an ask, not a gate. one-time tips help too."
     }
   ],
   "register": {
@@ -97,23 +97,22 @@
     "url": "/donate",
     "label": "support the project",
     "seoTitle": "support · MIME-FF",
-    "seoDescription": "free, open source, pay what you can. a $5/month subscription keeps the servers on, a one-time tip works too, and just showing up for your crew counts.",
+    "seoDescription": "free, open source, pay what you can. we suggest $3/month on Buy Me a Coffee to keep the servers on, a one-time tip works too, and just showing up for your crew counts.",
     "heading": "pay what you can",
-    "blurb": "free and open source, and it stays that way - no paywall, ever. if the app is running your weekly game, we ask for $5/month to keep the servers on. it's an ask, not a gate: skip it and nothing changes. and there's more than one way to chip in.",
+    "blurb": "free and open source, and it stays that way - no paywall, ever. if the app is running your weekly game, we suggest $3/month to keep the servers on. it's an ask, not a gate: skip it and nothing changes. and there's more than one way to chip in.",
     "methods": [
       {
-        "name": "$5 / month",
+        "name": "$3 / month",
         "tag": "suggested",
-        "desc": "the soft ask. if this app is managing your weekly game, a fiver a month keeps it alive. cancel anytime, and nothing locks if you don't.",
-        "cta": "subscribe ↗",
-        "url": "https://buy.stripe.com/REPLACE_ME",
-        "action": "subscribe"
+        "desc": "the soft ask. if this app is managing your weekly game, three bucks a month keeps it alive - tick 'make it monthly' on Buy Me a Coffee. an ask, not a gate: nothing locks if you skip it.",
+        "cta": "chip in monthly ↗",
+        "url": "https://buymeacoffee.com/pickupflagfootball"
       },
       {
         "name": "one-time tip",
-        "desc": "rather not commit? throw in whatever, whenever. a quick one-tap thanks if that's more your speed.",
+        "desc": "rather not commit? throw in whatever, whenever - a quick one-tap thanks if that's more your speed.",
         "cta": "buy us a coffee ↗",
-        "url": "https://buymeacoffee.com/REPLACE_ME"
+        "url": "https://buymeacoffee.com/pickupflagfootball"
       },
       {
         "name": "just show up",

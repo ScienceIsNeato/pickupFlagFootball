@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Ripped out the old 'coming soon' holding page and the switch behind it for good, so the public app no longer hides behind a gate. That switch was why the live site was still showing the placeholder.",
-    "direction": "Get this merged through to the live site so the full app is finally public.",
-    "last_update": "2026-07-02T06:01:37Z"
+    "status": "Switched the support button over to Buy Me a Coffee - suggested a few bucks a month, or a one-time tip of any amount the donor picks - and stopped offering the old card-subscription path.",
+    "direction": "Get it merged out to the live site, then decide whether to fully clear out the leftover old-payment plumbing that's no longer used.",
+    "last_update": "2026-07-03T04:52:53Z"
   }
 }

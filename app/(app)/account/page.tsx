@@ -90,7 +90,7 @@ export default async function AccountPage() {
           ) : (
             <>
               <p className="reg-hint">
-                free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
+                free and pay-what-you-can. a <strong>$3/month</strong> donation keeps the servers on and
                 helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
