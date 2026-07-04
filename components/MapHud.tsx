@@ -35,6 +35,10 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
         // offline/transient — keep showing the last known-good scenario.
       }
     }
+    // Fire once immediately — the interval alone would leave a 15s gap right
+    // after mount (e.g. a soft client-side navigation reusing a stale prop)
+    // before the first live read.
+    void poll();
     const id = setInterval(poll, 15_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);

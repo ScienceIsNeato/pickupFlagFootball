@@ -26,11 +26,11 @@ export function buildShareTemplates(
       // (emailOptIn off, or an opt-out on their own area), and the post can't
       // claim they're counted when they're not.
       const shortLede = scenario.viewerIncluded
-        ? `${scenario.totalCount} of us are interested in a flag football game in ${where}.`
-        : `${scenario.totalCount} people are interested in a flag football game in ${where}.`;
+        ? `${scenario.totalCount} of us are interested in a ${activityName} game in ${where}.`
+        : `${scenario.totalCount} people are interested in a ${activityName} game in ${where}.`;
       const captionLede = scenario.viewerIncluded
-        ? `${scenario.totalCount} people (including me) want a flag football game in ${where} 🏈`
-        : `${scenario.totalCount} people want a flag football game in ${where} 🏈`;
+        ? `${scenario.totalCount} people (including me) want a ${activityName} game in ${where} 🏈`
+        : `${scenario.totalCount} people want a ${activityName} game in ${where} 🏈`;
       return [
         { label: "short", text: `${shortLede} Know a good field/time? Propose it — or just add your name: ${url}` },
         { label: "caption", text: `${captionLede}\n\nNobody's proposed a spot yet — if you're one more, we're that much closer. ${url}` },

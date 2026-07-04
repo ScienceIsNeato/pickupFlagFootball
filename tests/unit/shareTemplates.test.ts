@@ -23,6 +23,20 @@ test("ambient-interest: uses the live total count, not a hardcoded number", () =
   assert.match(t[0].text, /\b5\b/);
 });
 
+test("ambient-interest: uses the passed activityName, not a hardcoded sport", () => {
+  // Regression: an earlier fix threaded activityName into every OTHER branch
+  // but missed the ambient-interest ledes, which still said "flag football"
+  // literally. Use a deliberately different activity name so a reintroduced
+  // hardcode fails loudly instead of passing by coincidence.
+  const t = buildShareTemplates(
+    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true }, "kickball", PLACE, URL,
+  );
+  assert.match(t[0].text, /kickball/);
+  assert.match(t[1].text, /kickball/);
+  assert.doesNotMatch(t[0].text, /flag football/);
+  assert.doesNotMatch(t[1].text, /flag football/);
+});
+
 test("ambient-interest: claims 'of us' / 'including me' only when the viewer is actually counted", () => {
   const included = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true }, ACTIVITY, PLACE, URL);
   assert.match(included[0].text, /of us/);
