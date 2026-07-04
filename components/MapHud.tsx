@@ -174,30 +174,19 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
 
   const templates = buildShareTemplates(scenario, skin.activity, place, url || "https://pickupflagfootball.com");
   const faq = buildFaq(scenario, skin.activity);
-  // Collapsed by default: the HUD sits top center, and a fully expanded FAQ
-  // is tall enough to cover the middle of the map — right where the map
-  // centers the viewer's own badges. Keep the always-on footprint to the
-  // headline + next step, with the full story one click away.
-  const [faqOpen, setFaqOpen] = useState(false);
 
   return (
     <div className="map-hud">
       <p className="map-hud-h">{headline}</p>
       <p className="map-hud-body">{body}</p>
-      <button type="button" className="map-hud-more" aria-expanded={faqOpen}
-        onClick={() => setFaqOpen((v) => !v)}>
-        {faqOpen ? "− hide the details" : "+ how this works here"}
-      </button>
-      {faqOpen && (
-        <div className="map-hud-faq">
-          {faq.map((f) => (
-            <details key={f.q} className="map-hud-faq-item">
-              <summary>{f.q}</summary>
-              <p>{f.a}</p>
-            </details>
-          ))}
-        </div>
-      )}
+      <div className="map-hud-faq">
+        {faq.map((f) => (
+          <details key={f.q} className="map-hud-faq-item">
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
       {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
         <div className="map-hud-share">
           <p className="map-hud-share-label">share this to grow {where}</p>
