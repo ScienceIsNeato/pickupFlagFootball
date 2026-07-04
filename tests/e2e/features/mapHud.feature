@@ -24,3 +24,12 @@ Feature: Map scenario HUD
     And an open proposal with 2 interested is added to my own area
     When I open the map
     Then the HUD tells me a game's been proposed with a live tally
+
+  Scenario: the HUD reflects a change in its own area right away, not after a 15s wait
+    Given I am a confirmed player "Fresh Fiona" with email "fiona@example.com" in ZIP "94102"
+    And an open proposal with 2 interested is added to my own area
+    When I open the map
+    Then the HUD tells me a game's been proposed with a live tally
+    When one more neighbor joins the open proposal in my own area
+    And the map tells the HUD its area changed
+    Then the HUD's tally updates to reflect it, without a page reload

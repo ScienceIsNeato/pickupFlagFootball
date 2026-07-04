@@ -14,10 +14,12 @@ ON CONFLICT (slug) DO NOTHING;
 --   90001 — Los Angeles: far out of range, different metro
 --   10001 — Manhattan: a third metro, isolated for the map-HUD ambient-interest story
 --   60601 — Chicago: a fourth metro, isolated for the map-HUD open-proposal story
+--   94102 — San Francisco: a fifth metro, isolated for the map-HUD live-refresh story
 INSERT INTO zip_centroids (zip, city, state, lat, lng) VALUES
   ('78701', 'Austin',      'TX', 30.2711, -97.7437),
   ('78613', 'Cedar Park',  'TX', 30.5052, -97.8203),
   ('90001', 'Los Angeles', 'CA', 33.9731, -118.2479),
   ('10001', 'New York',    'NY', 40.7506, -73.9972),
-  ('60601', 'Chicago',     'IL', 41.8853, -87.6217)
+  ('60601', 'Chicago',     'IL', 41.8853, -87.6217),
+  ('94102', 'San Francisco', 'CA', 37.7793, -122.4193)
 ON CONFLICT (zip) DO NOTHING;

@@ -17,7 +17,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   // join/interest actions (and anyone else's, in the same area) can change the
   // scenario without a navigation, so poll the same detection server-side runs
   // and adopt whatever it reports — a stale "you're the first one here" after
-  // the viewer just proposed a game would be actively misleading.
+  // the viewer just proposed a game would be actively misleading. The 15s
+  // interval alone is a safety net for changes made by OTHER people in the
+  // area; the viewer's OWN mutations (propose, join/leave, interest response)
+  // dispatch "mime:hud-stale" from MapView/ProposedDetailsModal so this reads
+  // immediately instead of waiting out the interval.
   const [scenario, setScenario] = useState(initialScenario);
   const [place, setPlace] = useState(initialPlace);
   useEffect(() => {
@@ -39,8 +43,10 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
     // after mount (e.g. a soft client-side navigation reusing a stale prop)
     // before the first live read.
     void poll();
+    const onStale = () => { void poll(); };
+    window.addEventListener("mime:hud-stale", onStale);
     const id = setInterval(poll, 15_000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; window.removeEventListener("mime:hud-stale", onStale); clearInterval(id); };
   }, []);
 
   const where = place?.city ? `${place.city}${place.zip ? ` (${place.zip})` : ""}` : "your area";

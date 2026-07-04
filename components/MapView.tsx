@@ -616,6 +616,9 @@ export function MapView({
       { ll: [p.lng, p.lat], count: 0, hasGame: false, forming: true, h3: `opt:${p.lat},${p.lng}`, flags: [], claimedCount: 0 },
     ];
     refreshRef.current?.();
+    // The viewer's own area just went from "no proposal" to "open proposal" —
+    // tell the HUD to re-read now rather than wait for its periodic poll.
+    window.dispatchEvent(new Event("mime:hud-stale"));
   };
 
   return (
@@ -638,7 +641,12 @@ export function MapView({
       )}
       {gameDetails && (
         <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)}
-          onChanged={() => refreshRef.current?.()} />
+          onChanged={() => {
+            refreshRef.current?.();
+            // A join/leave can change whether this area still has an active
+            // game — the HUD's scenario depends on that, so re-read it now.
+            window.dispatchEvent(new Event("mime:hud-stale"));
+          }} />
       )}
       {proposedDetails && (
         <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng}

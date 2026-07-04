@@ -128,6 +128,9 @@ export function ProposedDetailsModal({
       const res = await respondInterest(proposal.attemptId, interested);
       if (!res.ok) { setRespondErr(respondReason(res.reason)); return; }
       await load();
+      // The HUD's own tally for this exact proposal just changed — tell it to
+      // re-read now instead of waiting for its next periodic poll.
+      window.dispatchEvent(new Event("mime:hud-stale"));
     } catch {
       setRespondErr("something went wrong - try again.");
     } finally {
