@@ -19,8 +19,10 @@ export type AreaScenario =
   // in edge cases catchmentUsers excludes them (emailOptIn off, or an area
   // opt-out on their own home area). The share copy must not claim "including
   // me" when that's not actually true.
-  | { kind: "ambient-interest"; othersCount: number; totalCount: number; viewerIncluded: boolean }
-  | { kind: "alone" };
+  // pMin rides along on the pre-game states too: the HUD's FAQ explains "once
+  // N say yes, it's on" and that N must be the area's real threshold.
+  | { kind: "ambient-interest"; othersCount: number; totalCount: number; viewerIncluded: boolean; pMin: number }
+  | { kind: "alone"; pMin: number };
 
 /** `areaId` is the viewer's own area (their home interest signal's area) — the
  *  HUD describes what's happening in the viewer's own neighborhood. */
@@ -61,6 +63,13 @@ export async function detectAreaScenario(
     ))
     .orderBy(desc(formationAttempts.createdAt))
     .limit(1);
+  // Every non-game state needs the area's real confirm threshold (the FAQ
+  // copy explains "once N say yes, it's on"), so load it once here.
+  const [area] = await db.select({
+    pMinOverride: areas.pMinOverride, centerLat: areas.centerLat, centerLng: areas.centerLng,
+  }).from(areas).where(eq(areas.id, areaId)).limit(1);
+  const t = await loadTunables(db, activityTypeId, area);
+
   if (open) {
     const inRows = await db.select({ userId: attemptInterest.userId }).from(attemptInterest)
       .where(and(eq(attemptInterest.attemptId, open.id), eq(attemptInterest.interested, true)));
@@ -70,9 +79,6 @@ export async function detectAreaScenario(
     const optedOut = new Set((await db.select({ userId: areaOptouts.userId }).from(areaOptouts)
       .where(eq(areaOptouts.areaId, areaId))).map((r) => r.userId));
     const roster = new Set(inRows.map((r) => r.userId).filter((u) => !optedOut.has(u)));
-    const [area] = await db.select({ pMinOverride: areas.pMinOverride }).from(areas)
-      .where(eq(areas.id, areaId)).limit(1);
-    const t = await loadTunables(db, activityTypeId, area);
     return {
       kind: "open-proposal",
       interestedCount: roster.size,
@@ -86,16 +92,14 @@ export async function detectAreaScenario(
   // actually reach? Same reachability rule the propose flow itself uses
   // (catchmentUsers), measured from the area's centroid so everyone sharing
   // this area sees the same number regardless of their exact home point.
-  const [area] = await db.select({ centerLat: areas.centerLat, centerLng: areas.centerLng })
-    .from(areas).where(eq(areas.id, areaId)).limit(1);
-  if (!area) return { kind: "alone" };
+  if (!area) return { kind: "alone", pMin: t.pMin };
   const cohort = await catchmentUsers(db, activityTypeId, area.centerLat, area.centerLng, areaId);
   const totalCount = new Set(cohort).size;
   const viewerIncluded = cohort.includes(viewerUserId);
   const othersCount = viewerIncluded ? totalCount - 1 : totalCount;
-  if (othersCount > 0) return { kind: "ambient-interest", othersCount, totalCount, viewerIncluded };
+  if (othersCount > 0) return { kind: "ambient-interest", othersCount, totalCount, viewerIncluded, pMin: t.pMin };
 
-  return { kind: "alone" };
+  return { kind: "alone", pMin: t.pMin };
 }
 
 export type ViewerScenario = {

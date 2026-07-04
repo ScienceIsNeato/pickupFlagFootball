@@ -7,7 +7,7 @@ const PLACE = { city: "Coralville", zip: "52241" };
 const ACTIVITY = "flag football";
 
 test("alone: two templates, both mention the place and the link", () => {
-  const t = buildShareTemplates({ kind: "alone" }, ACTIVITY, PLACE, URL);
+  const t = buildShareTemplates({ kind: "alone", pMin: 6 }, ACTIVITY, PLACE, URL);
   assert.equal(t.length, 2);
   for (const x of t) {
     assert.match(x.text, /Coralville/);
@@ -19,7 +19,7 @@ test("ambient-interest: uses the live total count, not a hardcoded number", () =
   // place: null (no ZIP in the text) so the digit can only have come from
   // interpolating totalCount — with PLACE, "52241" would make this pass even
   // if the count were hardcoded.
-  const t = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true }, ACTIVITY, null, URL);
+  const t = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 }, ACTIVITY, null, URL);
   assert.match(t[0].text, /\b5\b/);
 });
 
@@ -29,7 +29,7 @@ test("ambient-interest: uses the passed activityName, not a hardcoded sport", ()
   // literally. Use a deliberately different activity name so a reintroduced
   // hardcode fails loudly instead of passing by coincidence.
   const t = buildShareTemplates(
-    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true }, "kickball", PLACE, URL,
+    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 }, "kickball", PLACE, URL,
   );
   assert.match(t[0].text, /kickball/);
   assert.match(t[1].text, /kickball/);
@@ -38,13 +38,13 @@ test("ambient-interest: uses the passed activityName, not a hardcoded sport", ()
 });
 
 test("ambient-interest: claims 'of us' / 'including me' only when the viewer is actually counted", () => {
-  const included = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true }, ACTIVITY, PLACE, URL);
+  const included = buildShareTemplates({ kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 }, ACTIVITY, PLACE, URL);
   assert.match(included[0].text, /of us/);
   assert.match(included[1].text, /including me/);
 
   // catchmentUsers can exclude the viewer (emailOptIn off, or an opt-out on
   // their own area) — the post must not claim they're one of the count.
-  const excluded = buildShareTemplates({ kind: "ambient-interest", othersCount: 5, totalCount: 5, viewerIncluded: false }, ACTIVITY, PLACE, URL);
+  const excluded = buildShareTemplates({ kind: "ambient-interest", othersCount: 5, totalCount: 5, viewerIncluded: false, pMin: 6 }, ACTIVITY, PLACE, URL);
   assert.doesNotMatch(excluded[0].text, /of us/);
   assert.doesNotMatch(excluded[1].text, /including me/);
 });
@@ -63,6 +63,6 @@ test("games: names the place when there's exactly one", () => {
 });
 
 test("no place on file falls back to a generic phrase, not 'null'", () => {
-  const t = buildShareTemplates({ kind: "alone" }, ACTIVITY, null, URL);
+  const t = buildShareTemplates({ kind: "alone", pMin: 6 }, ACTIVITY, null, URL);
   for (const x of t) assert.ok(!/null/.test(x.text));
 });

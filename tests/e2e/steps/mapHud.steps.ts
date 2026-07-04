@@ -21,6 +21,16 @@ Then("the HUD tells me I'm the first one here", async ({ page }) => {
   await expect(page.locator(".map-hud-h")).toContainText(/first one here/i, { timeout: 10000 });
 });
 
+// Every scenario carries a 4-item mini-FAQ; the formation answer must
+// interpolate the area's LIVE pMin (default 6 here), not a hardcoded count.
+Then("the HUD's FAQ explains how a game forms, with the live threshold", async ({ page }) => {
+  const items = page.locator(".map-hud-faq-item");
+  await expect(items).toHaveCount(4);
+  const first = items.first();
+  await first.locator("summary").click();
+  await expect(first).toContainText(/once 6 say yes/i);
+});
+
 Then("the HUD offers a copyable share post", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-write"]);
   const btn = page.locator(".map-hud-copy").first();

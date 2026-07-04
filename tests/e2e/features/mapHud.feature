@@ -4,6 +4,7 @@ Feature: Map scenario HUD
     Given I am a confirmed player "Lonely Lou" with email "lou@example.com" in ZIP "90001"
     When I open the map
     Then the HUD tells me I'm the first one here
+    And the HUD's FAQ explains how a game forms, with the live threshold
     And the HUD offers a copyable share post
 
   Scenario: an area with a standing game points you at it

@@ -7,8 +7,63 @@ import { buildShareTemplates } from "@/lib/shareTemplates";
 import { skin } from "@/lib/skin";
 
 type Place = { city: string | null; zip: string | null } | null;
+type Faq = { q: string; a: string };
 
-/** Bottom-right map HUD: autodetects which of a handful of real states the
+/** Every question someone in this exact state would ask, answered with the
+ *  area's live numbers — the whole "how does this even work" story, scoped to
+ *  where the viewer actually is in it. Answers describe the real engine
+ *  behavior (proposal emails, the pMin threshold, weekly polls), so if that
+ *  behavior changes this copy must change with it. */
+function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
+  switch (scenario.kind) {
+    case "alone":
+      return [
+        { q: "how do games actually form?",
+          a: `you propose a spot, day, and time. everyone nearby on the map gets an email asking if they're in - once ${scenario.pMin} say yes, it's a real weekly game. nobody has to organize anything after that.` },
+        { q: "why shouldn't i propose right now?",
+          a: "a proposal only reaches people already on the map. right now that's nobody - it would sit unseen and quietly fail." },
+        { q: "so what do i actually do?",
+          a: "get a few neighbors on the map first. the buttons below give you a ready-made post - drop it in a group chat, a local subreddit, a flyer, wherever your neighbors actually are." },
+        { q: "what do people have to do to join?",
+          a: "name, email, and a rough location - about 30 seconds, no app to install. everyone on this map is a real person who did exactly that." },
+      ];
+    case "ambient-interest":
+      return [
+        { q: `who are these ${scenario.totalCount} people?`,
+          a: `neighbors who put themselves on the map and can travel to a game here. nothing on this map is seeded or fake - every flag is a real person.` },
+        { q: "what happens if i propose?",
+          a: `all ${scenario.totalCount} get an email with your spot, day, and time, asking if they're in. once ${scenario.pMin} say yes before the window closes, the game is on - and it repeats weekly from there.` },
+        { q: "what if not enough say yes?",
+          a: "the proposal quietly fails and nothing bad happens - no game, no spam. anyone can propose again, usually once the area has grown a bit." },
+        { q: "how do i propose?",
+          a: `right-click the map where you'd want to play. good spots: a park or field people already know, a weekend morning.` },
+      ];
+    case "open-proposal":
+      return [
+        { q: "how do i say i'm in?",
+          a: `click the proposed-site badge on the map and hit "i'm interested". that's the whole job - no commitment beyond showing up.` },
+        { q: `what happens at ${scenario.pMin}?`,
+          a: `the game is scheduled: everyone who said yes gets a game-on email with the spot and time, and it repeats weekly from there.` },
+        { q: "what if it falls short?",
+          a: "when the window closes short, the proposal fails quietly - no game, no drama. anyone can propose again, and your interest stays on the map either way." },
+        { q: "can i still bring people in?",
+          a: `yes - anyone who joins the map near here before the window closes can tap in on this exact proposal.` },
+      ];
+    case "games":
+      return [
+        { q: "how do i join?",
+          a: "click the game badge on the map and say you're in - you're on the roster from then on." },
+        { q: "what's the weekly rhythm?",
+          a: `before each game, everyone on the roster gets a quick poll email. enough yeses and the week is on; too few and that week is skipped - no group-chat wrangling.` },
+        { q: "what if i can't make a week?",
+          a: "answer the poll honestly and sit it out. skipping a week never drops you from the roster." },
+        { q: `want a second ${activity} game here?`,
+          a: "right-click the map to propose another spot or time - areas can hold more than one game." },
+      ];
+  }
+}
+
+/** Map HUD (top center): autodetects which of a handful of real states the
  *  viewer's own area is in and gives concrete next-step advice — never a bare
  *  "propose a game" to an area with nobody in it. Every number shown comes
  *  from the server's live scenario detection, not hardcoded copy. */
@@ -118,11 +173,20 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   }
 
   const templates = buildShareTemplates(scenario, skin.activity, place, url || "https://pickupflagfootball.com");
+  const faq = buildFaq(scenario, skin.activity);
 
   return (
     <div className="map-hud">
       <p className="map-hud-h">{headline}</p>
       <p className="map-hud-body">{body}</p>
+      <div className="map-hud-faq">
+        {faq.map((f) => (
+          <details key={f.q} className="map-hud-faq-item">
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
       {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
         <div className="map-hud-share">
           <p className="map-hud-share-label">share this to grow {where}</p>

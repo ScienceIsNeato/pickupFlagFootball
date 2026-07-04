@@ -40,6 +40,9 @@ test("alone: only the viewer has interest, no game, no proposal", async () => {
 
   const s = await detectAreaScenario(db, activityTypeId, areaId, viewer);
   assert.equal(s.kind, "alone");
+  // The FAQ tells a first user "once N say yes, it's on" — N must be the
+  // area's live threshold, carried on every pre-game state.
+  if (s.kind === "alone") assert.equal(s.pMin, 6);
 });
 
 test("ambient-interest: others nearby, no game, no open proposal", async () => {
@@ -56,6 +59,7 @@ test("ambient-interest: others nearby, no game, no open proposal", async () => {
     assert.equal(s.othersCount, 2);
     assert.equal(s.totalCount, 3);
     assert.equal(s.viewerIncluded, true);
+    assert.equal(s.pMin, 6);
   }
 });
 
