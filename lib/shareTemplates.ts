@@ -16,11 +16,22 @@ export function buildShareTemplates(
         { label: "short", text: `Trying to get a pickup flag football game going in ${where} — right now it's just me. If you're in, join me: ${url}` },
         { label: "caption", text: `Starting a flag football crew in ${where} 🏈\n\nNo game yet — just me so far. If enough of us sign up, it becomes a real weekly game, no organizing required. Takes 30 seconds: ${url}` },
       ];
-    case "ambient-interest":
+    case "ambient-interest": {
+      // First-person "of us" / "including me" only when the viewer is
+      // actually one of totalCount — catchmentUsers can exclude them
+      // (emailOptIn off, or an opt-out on their own area), and the post can't
+      // claim they're counted when they're not.
+      const shortLede = scenario.viewerIncluded
+        ? `${scenario.totalCount} of us are interested in a flag football game in ${where}.`
+        : `${scenario.totalCount} people are interested in a flag football game in ${where}.`;
+      const captionLede = scenario.viewerIncluded
+        ? `${scenario.totalCount} people (including me) want a flag football game in ${where} 🏈`
+        : `${scenario.totalCount} people want a flag football game in ${where} 🏈`;
       return [
-        { label: "short", text: `${scenario.totalCount} of us are interested in a flag football game in ${where}. Know a good field/time? Propose it — or just add your name: ${url}` },
-        { label: "caption", text: `${scenario.totalCount} people (including me) want a flag football game in ${where} 🏈\n\nNobody's proposed a spot yet — if you're one more, we're that much closer. ${url}` },
+        { label: "short", text: `${shortLede} Know a good field/time? Propose it — or just add your name: ${url}` },
+        { label: "caption", text: `${captionLede}\n\nNobody's proposed a spot yet — if you're one more, we're that much closer. ${url}` },
       ];
+    }
     case "open-proposal":
       return [
         { label: "short", text: `A flag football game's been proposed in ${where} — ${scenario.interestedCount}/${scenario.pMin} people are in. Tap in before it closes: ${url}` },

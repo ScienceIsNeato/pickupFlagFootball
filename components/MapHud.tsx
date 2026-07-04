@@ -18,11 +18,22 @@ export function MapHud({ scenario, place }: { scenario: AreaScenario; place: Pla
 
   useEffect(() => {
     if (scenario.kind !== "open-proposal") return;
-    const ms = new Date(scenario.closesAt).getTime() - Date.now();
-    // Ceil, not round — 1.4h left must never read as "within the hour" (an
-    // underestimate that could rush someone past a deadline that hasn't hit yet).
-    const hours = Math.max(0, Math.ceil(ms / 3_600_000));
-    setClosesText(hours <= 1 ? "closes within the hour" : `closes in ~${hours}h`);
+    const closesAt = new Date(scenario.closesAt).getTime();
+    const compute = () => {
+      const ms = closesAt - Date.now();
+      // The attempt can still be OPEN in the DB after its deadline (the gap
+      // before the next cron tick / event-driven resolve) — say so plainly
+      // rather than "closes within the hour", which implies time still left.
+      if (ms <= 0) { setClosesText("closing any moment"); return; }
+      // Ceil, not round — 1.4h left must never read as "within the hour" (an
+      // underestimate that could rush someone past a deadline that hasn't hit yet).
+      const hours = Math.ceil(ms / 3_600_000);
+      setClosesText(hours <= 1 ? "closes within the hour" : `closes in ~${hours}h`);
+    };
+    compute();
+    // Keep it fresh in a long-lived tab, not just at mount.
+    const id = setInterval(compute, 60_000);
+    return () => clearInterval(id);
   }, [scenario]);
 
   const [url, setUrl] = useState("");

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { latLngToCell } from "h3-js";
 import { World } from "../sim/harness/world";
 import {
-  activityTypes, areas, games, formationAttempts, attemptInterest, interestSignals, users,
+  activityTypes, areas, games, formationAttempts, attemptInterest, interestSignals, users, areaOptouts,
 } from "@/lib/db/schema";
 import { detectAreaScenario } from "@/lib/mime/areaScenario";
 import type { EngineDb } from "@/lib/mime/engine";
@@ -55,6 +55,27 @@ test("ambient-interest: others nearby, no game, no open proposal", async () => {
   if (s.kind === "ambient-interest") {
     assert.equal(s.othersCount, 2);
     assert.equal(s.totalCount, 3);
+    assert.equal(s.viewerIncluded, true);
+  }
+});
+
+test("ambient-interest: viewerIncluded is false when the viewer is opted out of their own area", async () => {
+  // catchmentUsers excludes an area_optouts row — so the viewer themselves can
+  // be absent from totalCount even though they're the one looking at the HUD.
+  // Share copy must not then claim "of us" / "including me".
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { activityTypeId, areaId } = await seedActivityAndArea(db);
+  const viewer = await seedInterestedUser(db, activityTypeId, areaId, "viewer");
+  await seedInterestedUser(db, activityTypeId, areaId, "n1");
+  await db.insert(areaOptouts).values({ areaId, userId: viewer });
+
+  const s = await detectAreaScenario(db, activityTypeId, areaId, viewer);
+  assert.equal(s.kind, "ambient-interest");
+  if (s.kind === "ambient-interest") {
+    assert.equal(s.totalCount, 1); // just n1 — viewer excluded
+    assert.equal(s.othersCount, 1);
+    assert.equal(s.viewerIncluded, false);
   }
 });
 

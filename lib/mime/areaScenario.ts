@@ -13,7 +13,11 @@ import { catchmentUsers, loadTunables, type EngineDb } from "./engine";
 export type AreaScenario =
   | { kind: "games"; count: number; placeText: string | null }
   | { kind: "open-proposal"; interestedCount: number; pMin: number; closesAt: string; placeText: string }
-  | { kind: "ambient-interest"; othersCount: number; totalCount: number }
+  // viewerIncluded: whether the viewer themselves is one of totalCount — false
+  // in edge cases catchmentUsers excludes them (emailOptIn off, or an area
+  // opt-out on their own home area). The share copy must not claim "including
+  // me" when that's not actually true.
+  | { kind: "ambient-interest"; othersCount: number; totalCount: number; viewerIncluded: boolean }
   | { kind: "alone" };
 
 /** `areaId` is the viewer's own area (their home interest signal's area) — the
@@ -85,8 +89,9 @@ export async function detectAreaScenario(
   if (!area) return { kind: "alone" };
   const cohort = await catchmentUsers(db, activityTypeId, area.centerLat, area.centerLng, areaId);
   const totalCount = new Set(cohort).size;
-  const othersCount = cohort.includes(viewerUserId) ? totalCount - 1 : totalCount;
-  if (othersCount > 0) return { kind: "ambient-interest", othersCount, totalCount };
+  const viewerIncluded = cohort.includes(viewerUserId);
+  const othersCount = viewerIncluded ? totalCount - 1 : totalCount;
+  if (othersCount > 0) return { kind: "ambient-interest", othersCount, totalCount, viewerIncluded };
 
   return { kind: "alone" };
 }
