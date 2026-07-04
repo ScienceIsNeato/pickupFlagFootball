@@ -373,13 +373,15 @@ export async function getUserId(email: string): Promise<string> {
  *  this guarantees area-id equality with what the app itself looks up for that
  *  user, which matters for anything keyed strictly on "your home area" (e.g. the
  *  map HUD) rather than mere on-map proximity. */
-export async function seedGameInMyArea(email: string, placeText: string): Promise<string> {
+/** Resolves a registered player's OWN flag-football area — the exact area the
+ *  map HUD looks at for them (play/page.tsx). Every "seed X in my area" helper
+ *  below goes through this rather than independently computing an area from a
+ *  hand-picked lat/lng (which can land in a different H3 cell than the real
+ *  zip_centroid for the same nominal ZIP — see seedGameInMyArea's history). */
+async function resolveMyArea(email: string) {
   const userId = await getUserId(email);
   const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
   if (!act) throw new Error("no flag-football activity_type row — is the seed fixture loaded?");
-  // Scoped to the SAME activity the map HUD resolves the viewer's area with
-  // (play/page.tsx) — a user with signals across more than one activity must
-  // land the game in the same area the HUD will look at, not a different one.
   const { rows: [signal] } = await pool.query(
     "SELECT area_id FROM interest_signals WHERE user_id = $1 AND activity_type_id = $2 AND active = true LIMIT 1",
     [userId, act.id],
@@ -387,15 +389,73 @@ export async function seedGameInMyArea(email: string, placeText: string): Promis
   if (!signal) throw new Error(`no active flag-football interest signal for ${email} — register them first`);
   const { rows: [area] } = await pool.query("SELECT center_lat, center_lng FROM areas WHERE id = $1", [signal.area_id]);
   if (!area) throw new Error(`interest signal for ${email} points at a missing area (${signal.area_id})`);
+  return { userId, activityTypeId: String(act.id), areaId: String(signal.area_id), lat: area.center_lat, lng: area.center_lng };
+}
+
+export async function seedGameInMyArea(email: string, placeText: string): Promise<string> {
+  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
   const { rows: [game] } = await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
         scheduled_start, status, is_standing, recur_dow, recur_time, color)
      VALUES ($1, $2, $3, $4, $5, now() + interval '5 days', 'active', true, 6, '10:00', '#16633a')
      RETURNING id`,
-    [act.id, signal.area_id, placeText, area.center_lat, area.center_lng],
+    [activityTypeId, areaId, placeText, lat, lng],
   );
   return String(game.id);
+}
+
+/** N throwaway "background" users with active interest in the SAME area as
+ *  `email` — the ambient-interest HUD state (people nearby, nobody's proposed
+ *  yet). Their homes sit exactly at the area centroid so they're always within
+ *  anyone's default travel radius. */
+export async function seedInterestInMyArea(email: string, n: number): Promise<void> {
+  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+  const tag = `${areaId}`.slice(0, 8);
+  for (let i = 0; i < n; i++) {
+    const { rows: [u] } = await pool.query(
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, '00000', now()) RETURNING id`,
+      [`bg-${tag}-${i}@example.com`, `Neighbor ${i + 1}`, lat, lng],
+    );
+    await pool.query(
+      `INSERT INTO interest_signals (activity_type_id, user_id, area_id, h3_base, active)
+       VALUES ($1, $2, $3, 0, true)`,
+      [activityTypeId, u.id, areaId],
+    );
+  }
+}
+
+/** An OPEN formation attempt (proposed spot/time, not yet resolved) in `email`'s
+ *  own area — the open-proposal HUD state. The proposer is auto-interested,
+ *  matching the real proposeGame flow; `interestedCount` more throwaway users
+ *  are added on top so the HUD's live tally isn't just "1". */
+export async function seedOpenProposalInMyArea(
+  email: string, placeText: string, interestedCount = 1,
+): Promise<string> {
+  const { userId, activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+  const { rows: [att] } = await pool.query(
+    `INSERT INTO formation_attempts
+       (activity_type_id, area_id, attempt_number, status, proposer_id,
+        place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time, interest_closes_at)
+     VALUES ($1, $2, 1, 'OPEN', $3, $4, $5, $6, now() + interval '5 days', 6, '10:00', now() + interval '24 hours')
+     RETURNING id`,
+    [activityTypeId, areaId, userId, placeText, lat, lng],
+  );
+  await pool.query(
+    `INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)`,
+    [att.id, userId],
+  );
+  const tag = `${att.id}`.slice(0, 8);
+  for (let i = 1; i < interestedCount; i++) {
+    const { rows: [u] } = await pool.query(
+      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+       VALUES ($1, $2, $3, $4, '00000', now()) RETURNING id`,
+      [`bg-${tag}-${i}@example.com`, `Interested ${i}`, lat, lng],
+    );
+    await pool.query(`INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)`, [att.id, u.id]);
+  }
+  return String(att.id);
 }
 
 /** Make a user a captain of an area (gates the captain controls in the popup). */

@@ -11,3 +11,16 @@ Feature: Map scenario HUD
     And a standing game is added to my own area
     When I open the map
     Then the HUD tells me there's a game near me
+
+  Scenario: ambient interest with no proposal yet nudges you to propose or share
+    Given I am a confirmed player "Nearby Nora" with email "nora@example.com" in ZIP "10001"
+    And 3 other neighbors are interested in my own area
+    When I open the map
+    Then the HUD tells me how many are interested near me
+    And the HUD offers a copyable share post
+
+  Scenario: an open proposal shows the live tally and a way to join in
+    Given I am a confirmed player "Proposal Pete" with email "pete@example.com" in ZIP "60601"
+    And an open proposal with 2 interested is added to my own area
+    When I open the map
+    Then the HUD tells me a game's been proposed with a live tally
