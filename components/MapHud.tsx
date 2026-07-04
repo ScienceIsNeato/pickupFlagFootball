@@ -21,7 +21,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "how do games actually form?",
           a: `you propose a spot, day, and time. everyone nearby on the map gets an email asking if they're in - once ${scenario.pMin} say yes, it's a real weekly game. nobody has to organize anything after that.` },
         { q: "why shouldn't i propose right now?",
-          a: "a proposal only reaches people already on the map. right now that's nobody - it would sit unseen and quietly fail." },
+          a: "a proposal only reaches people already on the map who are in range of your spot. right now that's next to nobody - it would sit unseen and quietly fail." },
         { q: "so what do i actually do?",
           a: "get a few neighbors on the map first. the buttons below give you a ready-made post - drop it in a group chat, a local subreddit, a flyer, wherever your neighbors actually are." },
         { q: "what do people have to do to join?",
@@ -32,7 +32,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: `who are these ${scenario.totalCount} people?`,
           a: `neighbors who put themselves on the map and can travel to a game here. nothing on this map is seeded or fake - every flag is a real person.` },
         { q: "what happens if i propose?",
-          a: `all ${scenario.totalCount} get an email with your spot, day, and time, asking if they're in. once ${scenario.pMin} say yes before the window closes, the game is on - and it repeats weekly from there.` },
+          a: `everyone in range of your spot - about ${scenario.totalCount} people right now - gets an email with the day and time, asking if they're in. once ${scenario.pMin} say yes before the window closes, the game is on - and it repeats weekly from there.` },
         { q: "what if not enough say yes?",
           a: "the proposal quietly fails and nothing bad happens - no game, no spam. anyone can propose again, usually once the area has grown a bit." },
         { q: "how do i propose?",
@@ -168,11 +168,16 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       break;
     case "alone":
       headline = "you're the first one here";
-      body = "a game needs a few neighbors to get moving. proposing now would reach no one — share this with people nearby first.";
+      // "next to no one", not "no one": the count is measured from the area's
+      // center, and a real proposal reaches whoever's in range of the exact
+      // spot chosen — which can pick up a stray neighbor the estimate misses.
+      body = "a game needs a few neighbors to get moving. proposing now would reach next to no one — share this with people nearby first.";
       break;
   }
 
-  const templates = buildShareTemplates(scenario, skin.activity, place, url || "https://pickupflagfootball.com");
+  const templates = buildShareTemplates(
+    scenario, { name: skin.activity, emoji: skin.emoji }, place, url || "https://pickupflagfootball.com",
+  );
   const faq = buildFaq(scenario, skin.activity);
 
   return (

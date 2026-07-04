@@ -4,7 +4,7 @@ import { buildShareTemplates } from "@/lib/shareTemplates";
 
 const URL = "https://pickupflagfootball.com";
 const PLACE = { city: "Coralville", zip: "52241" };
-const ACTIVITY = "flag football";
+const ACTIVITY = { name: "flag football", emoji: "🏈" };
 
 test("alone: two templates, both mention the place and the link", () => {
   const t = buildShareTemplates({ kind: "alone", pMin: 6 }, ACTIVITY, PLACE, URL);
@@ -29,12 +29,34 @@ test("ambient-interest: uses the passed activityName, not a hardcoded sport", ()
   // literally. Use a deliberately different activity name so a reintroduced
   // hardcode fails loudly instead of passing by coincidence.
   const t = buildShareTemplates(
-    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 }, "kickball", PLACE, URL,
+    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 }, { name: "kickball", emoji: "" }, PLACE, URL,
   );
   assert.match(t[0].text, /kickball/);
   assert.match(t[1].text, /kickball/);
   assert.doesNotMatch(t[0].text, /flag football/);
   assert.doesNotMatch(t[1].text, /flag football/);
+});
+
+test("the skin's emoji is used — never a hardcoded 🏈, never a dangling space", () => {
+  // Same regression class as the activity name: templates must not assume
+  // football. A kickball skin with no emoji gets clean copy with no 🏈 and no
+  // double spaces; the football skin still gets its 🏈 from config.
+  const scenarios = [
+    { kind: "alone", pMin: 6 },
+    { kind: "ambient-interest", othersCount: 4, totalCount: 5, viewerIncluded: true, pMin: 6 },
+    { kind: "open-proposal", interestedCount: 3, pMin: 6, closesAt: new Date().toISOString(), placeText: "The Park" },
+    { kind: "games", count: 1, placeText: "Republic Square" },
+  ] as const;
+  for (const s of scenarios) {
+    for (const t of buildShareTemplates(s, { name: "kickball", emoji: "" }, PLACE, URL)) {
+      assert.doesNotMatch(t.text, /🏈/);
+      assert.doesNotMatch(t.text, /  /);
+    }
+    assert.ok(
+      buildShareTemplates(s, ACTIVITY, PLACE, URL).some((t) => t.text.includes("🏈")),
+      `football skin should surface its emoji somewhere in ${s.kind} templates`,
+    );
+  }
 });
 
 test("ambient-interest: claims 'of us' / 'including me' only when the viewer is actually counted", () => {

@@ -92,6 +92,11 @@ export async function detectAreaScenario(
   // actually reach? Same reachability rule the propose flow itself uses
   // (catchmentUsers), measured from the area's centroid so everyone sharing
   // this area sees the same number regardless of their exact home point.
+  // Known approximation: proposeGame freezes its cohort from the venue the
+  // proposer actually right-clicks, which doesn't exist yet in these states —
+  // so a real proposal near the area's edge can reach a slightly different
+  // set than this centroid estimate. The HUD copy phrases these counts as
+  // approximate ("about N", "next to no one") for exactly that reason.
   if (!area) return { kind: "alone", pMin: t.pMin };
   const cohort = await catchmentUsers(db, activityTypeId, area.centerLat, area.centerLng, areaId);
   const totalCount = new Set(cohort).size;
