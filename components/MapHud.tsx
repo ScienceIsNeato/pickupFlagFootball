@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AreaScenario } from "@/lib/mime/areaScenario";
 import { buildShareTemplates } from "@/lib/shareTemplates";
@@ -24,13 +24,20 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   // immediately instead of waiting out the interval.
   const [scenario, setScenario] = useState(initialScenario);
   const [place, setPlace] = useState(initialPlace);
+  // The interval, the immediate mount-fire, and "mime:hud-stale" can all kick
+  // off overlapping fetches — a slower one landing after a newer one must not
+  // overwrite it with older data. seqRef tags each poll's request; a response
+  // only applies if no newer poll has started since it began.
+  const seqRef = useRef(0);
   useEffect(() => {
     let cancelled = false;
     async function poll() {
+      const seq = ++seqRef.current;
       try {
         const r = await fetch("/api/hud", { cache: "no-store" });
-        if (!r.ok || cancelled) return;
+        if (!r.ok || cancelled || seq !== seqRef.current) return;
         const data = (await r.json()) as { scenario: AreaScenario | null; place: Place };
+        if (cancelled || seq !== seqRef.current) return;
         // scenario: null means "no area yet" (an invariant violation this
         // component doesn't expect while mounted) — keep showing the last
         // known-good state rather than guess, same as a transient fetch error.
