@@ -21,9 +21,12 @@ Then("the HUD tells me I'm the first one here", async ({ page }) => {
   await expect(page.locator(".map-hud-h")).toContainText(/first one here/i, { timeout: 10000 });
 });
 
-// Every scenario carries a 4-item mini-FAQ; the formation answer must
-// interpolate the area's LIVE pMin (default 6 here), not a hardcoded count.
+// Every scenario carries a 4-item mini-FAQ behind the "how this works here"
+// toggle (collapsed by default so the HUD never covers mid-map badges); the
+// formation answer must interpolate the area's LIVE pMin (default 6 here),
+// not a hardcoded count.
 Then("the HUD's FAQ explains how a game forms, with the live threshold", async ({ page }) => {
+  await page.locator(".map-hud-more").click();
   const items = page.locator(".map-hud-faq-item");
   await expect(items).toHaveCount(4);
   const first = items.first();

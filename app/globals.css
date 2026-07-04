@@ -209,6 +209,11 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   font-size: 15px; font-weight: 700; color: #fff;
 }
 .map-hud-body { margin: 0 0 10px; color: var(--muted); }
+.map-hud-more {
+  display: block; margin: 0 0 10px; padding: 0; border: none; background: none;
+  font-size: 12px; font-weight: 700; color: var(--grass-l); cursor: pointer; text-align: left;
+}
+.map-hud-more:hover { color: #fff; }
 .map-hud-faq { margin: 0 0 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
 .map-hud-faq-item { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .map-hud-faq-item summary {
