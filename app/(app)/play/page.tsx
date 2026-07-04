@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, activityTypes, interestSignals, areas } from "@/lib/db/schema";
+import { users } from "@/lib/db/schema";
 import { MapView } from "@/components/MapView";
 import { MapHud } from "@/components/MapHud";
-import { detectAreaScenario, type AreaScenario } from "@/lib/mime/areaScenario";
+import { resolveViewerAreaScenario } from "@/lib/mime/areaScenario";
 import type { EngineDb } from "@/lib/mime/engine";
+import { skin } from "@/lib/skin";
 
 export const metadata = { title: "Find a Game - MIME-FF" };
 
@@ -36,24 +37,12 @@ export default async function PlayPage() {
   // The HUD: "what's my situation here, what do I do next" — derived from the
   // viewer's OWN area (their active interest signal — home IS their interest).
   // Every signed-up user has one, but render nothing rather than guess if that
-  // invariant is ever violated (e.g. a not-yet-backfilled row).
-  let scenario: AreaScenario | null = null;
-  let areaPlace: { city: string | null; zip: string | null } | null = null;
-  const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
-    .where(eq(activityTypes.slug, "flag-football")).limit(1);
-  if (act) {
-    const [mine] = await db.select({ areaId: interestSignals.areaId }).from(interestSignals)
-      .where(and(
-        eq(interestSignals.userId, uid), eq(interestSignals.active, true),
-        eq(interestSignals.activityTypeId, act.id),
-      )).limit(1);
-    if (mine) {
-      scenario = await detectAreaScenario(edb(), act.id, mine.areaId, uid);
-      const [area] = await db.select({ city: areas.displayCity, zip: areas.displayZip })
-        .from(areas).where(eq(areas.id, mine.areaId)).limit(1);
-      areaPlace = area ?? null;
-    }
-  }
+  // invariant is ever violated (e.g. a not-yet-backfilled row). This is just
+  // the first paint; MapHud polls /api/hud client-side to stay live after the
+  // viewer proposes, joins, or otherwise changes the area's state.
+  const resolved = await resolveViewerAreaScenario(edb(), skin.slug, uid);
+  const scenario = resolved?.scenario ?? null;
+  const areaPlace = resolved?.place ?? null;
 
   // Fullscreen map; the floating header/footer (app layout) sit on top.
   return (

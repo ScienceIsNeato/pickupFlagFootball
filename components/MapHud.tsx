@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { AreaScenario } from "@/lib/mime/areaScenario";
 import { buildShareTemplates } from "@/lib/shareTemplates";
+import { skin } from "@/lib/skin";
 
 type Place = { city: string | null; zip: string | null } | null;
 
@@ -11,7 +12,33 @@ type Place = { city: string | null; zip: string | null } | null;
  *  viewer's own area is in and gives concrete next-step advice — never a bare
  *  "propose a game" to an area with nobody in it. Every number shown comes
  *  from the server's live scenario detection, not hardcoded copy. */
-export function MapHud({ scenario, place }: { scenario: AreaScenario; place: Place }) {
+export function MapHud({ scenario: initialScenario, place: initialPlace }: { scenario: AreaScenario; place: Place }) {
+  // Server-rendered props are only the first paint. The viewer's own propose/
+  // join/interest actions (and anyone else's, in the same area) can change the
+  // scenario without a navigation, so poll the same detection server-side runs
+  // and adopt whatever it reports — a stale "you're the first one here" after
+  // the viewer just proposed a game would be actively misleading.
+  const [scenario, setScenario] = useState(initialScenario);
+  const [place, setPlace] = useState(initialPlace);
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const r = await fetch("/api/hud", { cache: "no-store" });
+        if (!r.ok || cancelled) return;
+        const data = (await r.json()) as { scenario: AreaScenario | null; place: Place };
+        // scenario: null means "no area yet" (an invariant violation this
+        // component doesn't expect while mounted) — keep showing the last
+        // known-good state rather than guess, same as a transient fetch error.
+        if (data.scenario) { setScenario(data.scenario); setPlace(data.place); }
+      } catch {
+        // offline/transient — keep showing the last known-good scenario.
+      }
+    }
+    const id = setInterval(poll, 15_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   const where = place?.city ? `${place.city}${place.zip ? ` (${place.zip})` : ""}` : "your area";
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [closesText, setClosesText] = useState("closes soon");
@@ -73,7 +100,7 @@ export function MapHud({ scenario, place }: { scenario: AreaScenario; place: Pla
       break;
   }
 
-  const templates = buildShareTemplates(scenario, place, url || "https://pickupflagfootball.com");
+  const templates = buildShareTemplates(scenario, skin.activity, place, url || "https://pickupflagfootball.com");
 
   return (
     <div className="map-hud">

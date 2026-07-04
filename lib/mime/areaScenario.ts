@@ -1,5 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { games, formationAttempts, attemptInterest, areas, areaOptouts } from "@/lib/db/schema";
+import {
+  games, formationAttempts, attemptInterest, areas, areaOptouts, activityTypes, interestSignals,
+} from "@/lib/db/schema";
 import { catchmentUsers, loadTunables, type EngineDb } from "./engine";
 
 /**
@@ -94,4 +96,35 @@ export async function detectAreaScenario(
   if (othersCount > 0) return { kind: "ambient-interest", othersCount, totalCount, viewerIncluded };
 
   return { kind: "alone" };
+}
+
+export type ViewerScenario = {
+  scenario: AreaScenario;
+  place: { city: string | null; zip: string | null } | null;
+};
+
+/**
+ * Resolve a viewer's own area (their active interest signal for this
+ * activity) and detect its scenario in one call. Shared by the /play page's
+ * initial server render and the /api/hud poll it uses to stay live — both
+ * need the exact same "which area is this viewer's home area" logic.
+ */
+export async function resolveViewerAreaScenario(
+  db: EngineDb, activitySlug: string, viewerUserId: string,
+): Promise<ViewerScenario | null> {
+  const [act] = await db.select({ id: activityTypes.id }).from(activityTypes)
+    .where(eq(activityTypes.slug, activitySlug)).limit(1);
+  if (!act) return null;
+
+  const [mine] = await db.select({ areaId: interestSignals.areaId }).from(interestSignals)
+    .where(and(
+      eq(interestSignals.userId, viewerUserId), eq(interestSignals.active, true),
+      eq(interestSignals.activityTypeId, act.id),
+    )).limit(1);
+  if (!mine) return null;
+
+  const scenario = await detectAreaScenario(db, act.id, mine.areaId, viewerUserId);
+  const [area] = await db.select({ city: areas.displayCity, zip: areas.displayZip })
+    .from(areas).where(eq(areas.id, mine.areaId)).limit(1);
+  return { scenario, place: area ?? null };
 }
