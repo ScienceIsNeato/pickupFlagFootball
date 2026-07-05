@@ -10,7 +10,10 @@
 --
 -- Idempotent (IF NOT EXISTS + drop-then-add) so the pglite test harness, which
 -- replays every migration over the baseline snapshot on a fresh DB, is safe.
+-- The 2..60 bound matches the API/UI (setMinPlayers) so an out-of-band write
+-- can't make a game impossible to hold or trivially always-on.
 ALTER TABLE games ADD COLUMN IF NOT EXISTS min_players integer;
 ALTER TABLE games DROP CONSTRAINT IF EXISTS games_min_players_positive;
-ALTER TABLE games ADD CONSTRAINT games_min_players_positive
-  CHECK (min_players IS NULL OR min_players >= 1);
+ALTER TABLE games DROP CONSTRAINT IF EXISTS games_min_players_range;
+ALTER TABLE games ADD CONSTRAINT games_min_players_range
+  CHECK (min_players IS NULL OR min_players BETWEEN 2 AND 60);

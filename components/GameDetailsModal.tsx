@@ -286,11 +286,23 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 <div className="game-minplayers">
                   <label className="game-minplayers-label" htmlFor="minplayers">minimum expected players</label>
                   <div className="game-minplayers-row">
-                    <input id="minplayers" type="number" inputMode="numeric" min={2} max={60}
-                      className="game-minplayers-input" value={minInput} disabled={busy}
-                      onChange={(e) => setMinInput(e.target.value)} />
-                    <button type="button" disabled={busy || minInput.trim() === "" || Number(minInput) === game.minPlayersEffective}
-                      onClick={() => run(() => setMinPlayers(game.gameId, Math.trunc(Number(minInput))))}>save</button>
+                    {(() => {
+                      // Save only a valid whole number in range — never truncate a
+                      // decimal (5.5 → 5) silently past the server's integer check.
+                      const parsed = Number(minInput);
+                      const valid = minInput.trim() !== "" && Number.isInteger(parsed)
+                        && parsed >= 2 && parsed <= 60;
+                      const unchanged = parsed === game.minPlayersEffective;
+                      return (
+                        <>
+                          <input id="minplayers" type="number" inputMode="numeric" min={2} max={60} step={1}
+                            className="game-minplayers-input" value={minInput} disabled={busy}
+                            onChange={(e) => setMinInput(e.target.value)} />
+                          <button type="button" disabled={busy || !valid || unchanged}
+                            onClick={() => run(() => setMinPlayers(game.gameId, parsed))}>save</button>
+                        </>
+                      );
+                    })()}
                     {game.minPlayers !== null && (
                       <button type="button" className="game-minplayers-reset" disabled={busy}
                         onClick={() => run(() => setMinPlayers(game.gameId, null))}>use area default</button>
