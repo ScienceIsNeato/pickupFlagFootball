@@ -52,8 +52,10 @@ AfterStep(async ({ page, $step, $testInfo, world }) => {
 
   // (2) New emails this step produced → render the inbox into a scratch page and
   //     attach as its own beat (doesn't disturb the app page under test).
+  //     Skipped when a beat lens is set: that story is about one widget only,
+  //     so a full-page inbox beat would break the "HUD-only" report.
   try {
-    if (page && !page.isClosed()) {
+    if (page && !page.isClosed() && !world.beatLens) {
       let seen = seenEmailIds.get(id);
       if (!seen) { seen = new Set(); seenEmailIds.set(id, seen); }
       const fresh = await freshEmails(seen);
