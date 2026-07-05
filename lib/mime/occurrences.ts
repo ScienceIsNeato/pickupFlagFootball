@@ -196,8 +196,10 @@ async function countIn(db: EngineDb, gameId: string, date: string): Promise<numb
 }
 
 async function minPlayers(db: EngineDb, gameId: string): Promise<number> {
+  // Per-site override (games.min_players, captain-set) wins; else the area
+  // default (min_players_to_schedule); else the hardcoded floor of 6.
   const res = await db.execute(sql`
-    select a.min_players_to_schedule as m
+    select coalesce(g.min_players, a.min_players_to_schedule) as m
     from games g join areas a on a.id = g.area_id where g.id = ${gameId} limit 1`);
   return Number(((res as { rows?: { m: number }[] }).rows ?? [])[0]?.m ?? 6);
 }

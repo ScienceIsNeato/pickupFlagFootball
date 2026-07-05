@@ -221,6 +221,9 @@ export const games = pgTable("games", {
   scheduledStart:  timestamp("scheduled_start", { withTimezone: true }).notNull(),
   status:          seriesStatusEnum("status").notNull().default("active"),
   confirmedCount:  integer("confirmed_count").notNull().default(0),
+  // Per-site captain-set "minimum expected players" (migration 024). Null →
+  // fall back to the area default; drives the weekly poll's run/skip threshold.
+  minPlayers:      integer("min_players"),
   color:           text("color"),  // assigned at insert time; consumers fall back to gameColor(id) for legacy rows
   isStanding:      boolean("is_standing").notNull().default(false),
   recurDow:        integer("recur_dow"),
