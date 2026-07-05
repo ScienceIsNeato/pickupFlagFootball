@@ -6,7 +6,9 @@ import { seedGameInMyArea, seedInterestInMyArea, seedOpenProposalInMyArea, seedI
 // by other step files).
 
 // The walkthrough story is about the HUD alone — its report beats capture
-// just the widget, not the whole map (see beatLens in world.ts/hooks.ts).
+// just the widget, not the whole map. The World.beatLens field (defined in
+// world.ts) is read by the AfterStep hook (hooks.ts) to screenshot one
+// element instead of the full page.
 Given("the report captures only the HUD", async ({ world }) => {
   world.beatLens = ".map-hud";
 });
