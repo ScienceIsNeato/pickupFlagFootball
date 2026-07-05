@@ -27,14 +27,19 @@ function stepTitle($step: unknown): string {
 //      adds no beat, so the report shows change, not noise.
 //   2. Any email a step caused is captured as its own beat (rendered from Mailpit),
 //      so every email in a flow shows up — automatically, across all scenarios.
-AfterStep(async ({ page, $step, $testInfo }) => {
+AfterStep(async ({ page, $step, $testInfo, world }) => {
   const id = $testInfo.testId;
   const title = stepTitle($step);
 
-  // (1) Deduped page screenshot.
+  // (1) Deduped screenshot — the whole page, or just the scenario's "beat
+  // lens" element when one is set (stories about a single widget). A lens
+  // that isn't on screen yet (e.g. setup steps before the widget's page)
+  // simply times out into the catch and contributes no beat.
   try {
     if (page && !page.isClosed() && page.url() !== "about:blank") {
-      const shot = await page.screenshot({ type: "jpeg", quality: 72 });
+      const shot = world.beatLens
+        ? await page.locator(world.beatLens).screenshot({ type: "jpeg", quality: 72, timeout: 2_000 })
+        : await page.screenshot({ type: "jpeg", quality: 72 });
       const hash = createHash("sha1").update(shot).digest("hex");
       if (lastShotHash.get(id) !== hash) {
         lastShotHash.set(id, hash);

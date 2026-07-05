@@ -5,8 +5,18 @@ import { seedGameInMyArea, seedInterestInMyArea, seedOpenProposalInMyArea, seedI
 // Reuses "I am a confirmed player …" and "I open the map" (registered globally
 // by other step files).
 
+// The walkthrough story is about the HUD alone — its report beats capture
+// just the widget, not the whole map (see beatLens in world.ts/hooks.ts).
+Given("the report captures only the HUD", async ({ world }) => {
+  world.beatLens = ".map-hud";
+});
+
 Given("a standing game is added to my own area", async ({ world }) => {
   await seedGameInMyArea(world.email!, "Republic Square");
+});
+
+Given("a second standing game is added to my own area", async ({ world }) => {
+  await seedGameInMyArea(world.email!, "Eastside Turf");
 });
 
 Given("{int} other neighbors are interested in my own area", async ({ world }, n: number) => {
@@ -46,6 +56,12 @@ Then("the HUD offers a copyable share post", async ({ page, context }) => {
 // holds regardless of how many.
 Then("the HUD tells me there's a game near me", async ({ page }) => {
   await expect(page.locator(".map-hud-h")).toContainText(/game.*near you|games near you/i, { timeout: 10000 });
+});
+
+// The multi-game variant drops the single place name for a count — distinct
+// copy, so the walkthrough asserts (and screenshots) it as its own state.
+Then("the HUD tells me there are {int} games near me", async ({ page }, n: number) => {
+  await expect(page.locator(".map-hud-h")).toContainText(new RegExp(`${n} games near you`, "i"), { timeout: 10000 });
 });
 
 // This area is genuinely isolated (a fresh ZIP nobody else touches), so the

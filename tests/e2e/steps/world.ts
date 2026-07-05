@@ -9,6 +9,10 @@ export type World = {
   nextGameCaption?: string;
   attemptId?: string; // the live formation attempt, for the formation-FSM e2e
   occurrenceId?: string; // the weekly occurrence row, for the occurrence-FSM e2e
+  // Report "beat lens": when set (a CSS selector), the AfterStep hook
+  // screenshots just that element for this scenario's beats instead of the
+  // full page — for stories that are about one widget, not the whole screen.
+  beatLens?: string;
 };
 
 export const test = base.extend<{ world: World }>({
