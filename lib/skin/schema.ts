@@ -10,6 +10,9 @@ export const SkinSchema = z.object({
   brandName: z.string(),
   acronym: z.string(),
   activity: z.string(),
+  // Small icon for share posts and the like (e.g. "🏈"). Optional — an
+  // activity without an obvious emoji just omits it and copy renders clean.
+  emoji: z.string().default(""),
   event: z.string(),
   participant: z.string(),
   seo: z.object({ title: z.string(), description: z.string() }),

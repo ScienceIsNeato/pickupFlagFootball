@@ -191,6 +191,52 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   .legend-badge { width: 20px; height: 20px; } .legend-item svg { width: 20px; height: 14px; }
 }
 
+/* Scenario HUD: what's happening in your area + what to do next, with a
+   per-scenario mini-FAQ. A full-height left rail with the same geometry and
+   glass as .mine-panel (my-games "upcoming games"), so the two pages read as
+   one family. Left placement keeps it clear of the map's own badges, which
+   center on the viewer's area. */
+.map-hud {
+  position: absolute; top: 64px; left: 12px; bottom: 12px; z-index: 6;
+  width: 360px; max-width: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 16px 16px 12px; border-radius: 14px;
+  background: rgba(12, 19, 38, 0.62);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--ink); font-size: 13px; line-height: 1.45;
+}
+.map-hud-h {
+  margin: 0 0 10px; font-family: var(--font-barlow), sans-serif;
+  font-size: 22px; font-weight: 700; color: #fff;
+}
+.map-hud-body { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.map-hud-faq { margin: 0 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.map-hud-faq-item { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.map-hud-faq-item summary {
+  padding: 9px 0; cursor: pointer; list-style: none;
+  font-size: 13px; font-weight: 600; color: var(--ink);
+}
+.map-hud-faq-item summary::-webkit-details-marker { display: none; }
+.map-hud-faq-item summary::before { content: "+ "; color: var(--grass-l); font-weight: 800; }
+.map-hud-faq-item[open] summary::before { content: "− "; }
+.map-hud-faq-item summary:hover { color: #fff; }
+.map-hud-faq-item p { margin: 0 0 10px; padding-left: 14px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.map-hud-share { padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.map-hud-share-label { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.map-hud-copy {
+  display: block; width: 100%; margin-bottom: 6px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--border); background: transparent;
+  color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+}
+.map-hud-copy:hover { border-color: var(--green); color: #fff; }
+.map-hud-link { display: inline-block; margin-top: 2px; font-size: 12px; color: var(--link); }
+@media (max-width: 560px) {
+  /* Small screens: the legend already owns the top strip — dock the HUD at
+     the bottom there, capped so the map stays usable above it. */
+  .map-hud { top: auto; bottom: 12px; width: auto; left: 12px; right: 12px; max-height: 45vh; }
+}
+
 .map-tip {
   position: absolute; z-index: 6; pointer-events: none;
   padding: 5px 9px; border-radius: 7px; font-size: 13px; white-space: nowrap;

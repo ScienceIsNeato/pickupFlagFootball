@@ -1,11 +1,19 @@
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { MapView } from "@/components/MapView";
+import { MapHud } from "@/components/MapHud";
+import { resolveViewerAreaScenario } from "@/lib/mime/areaScenario";
+import type { EngineDb } from "@/lib/mime/engine";
+import { skin } from "@/lib/skin";
 
 export const metadata = { title: "Find a Game - MIME-FF" };
+
+// Read-only engine call against the one-shot client — no transaction, so the
+// neon-http/txnDb split that writes care about doesn't apply here.
+const edb = () => db as unknown as EngineDb;
 
 export default async function PlayPage() {
   const session = await auth();
@@ -26,10 +34,21 @@ export default async function PlayPage() {
         city: u.city ?? null, zip: u.zip ?? null }
     : null;
 
+  // The HUD: "what's my situation here, what do I do next" — derived from the
+  // viewer's OWN area (their active interest signal — home IS their interest).
+  // Every signed-up user has one, but render nothing rather than guess if that
+  // invariant is ever violated (e.g. a not-yet-backfilled row). This is just
+  // the first paint; MapHud polls /api/hud client-side to stay live after the
+  // viewer proposes, joins, or otherwise changes the area's state.
+  const resolved = await resolveViewerAreaScenario(edb(), skin.slug, uid);
+  const scenario = resolved?.scenario ?? null;
+  const areaPlace = resolved?.place ?? null;
+
   // Fullscreen map; the floating header/footer (app layout) sit on top.
   return (
     <div className="dash-map">
       <MapView center={center} zoom={9} home={home} />
+      {scenario && <MapHud scenario={scenario} place={areaPlace} />}
     </div>
   );
 }
