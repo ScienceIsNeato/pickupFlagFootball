@@ -463,17 +463,28 @@ async function seedRosters(activityId: string) {
 const PROD_DB_HOSTS = [
   "ep-jolly-cake-a67grtal", // mime-ff "production" branch — the live app's DB
 ];
+/** hostname only — parse so a denylist fragment can't false-match in a
+ *  username/password/query, and an unparseable string is treated as "no host". */
+function hostOf(raw: string): string {
+  try { return new URL(raw).hostname.toLowerCase(); } catch { return ""; }
+}
 function assertSeedable(): void {
   if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
     throw new Error("demo seed refused: a production environment marker is set — this data must never reach prod.");
   }
-  const url = (process.env.DATABASE_URL ?? "").toLowerCase();
-  if (!url) throw new Error("demo seed refused: DATABASE_URL is not set.");
+  // The seed connects via lib/db (DATABASE_URL). Guard BOTH it and the unpooled
+  // variant the migration tooling prefers — a prod host in either is refused,
+  // so a mixed/misconfigured env can't slip a prod endpoint past the check.
+  if (!process.env.DATABASE_URL) throw new Error("demo seed refused: DATABASE_URL is not set (the seed connects through it).");
   const blocked = [...PROD_DB_HOSTS, ...(process.env.SEED_BLOCK_HOSTS ?? "").split(",")]
     .map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const hit = blocked.find((b) => url.includes(b));
-  if (hit) {
-    throw new Error(`demo seed refused: DATABASE_URL targets a known production host (${hit}) — this must never be seeded.`);
+  for (const envName of ["DATABASE_URL", "DATABASE_URL_UNPOOLED"] as const) {
+    const host = hostOf(process.env[envName] ?? "");
+    if (!host) continue;
+    const hit = blocked.find((b) => host.includes(b));
+    if (hit) {
+      throw new Error(`demo seed refused: ${envName} targets a known production host (${hit}) — this must never be seeded.`);
+    }
   }
 }
 

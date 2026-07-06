@@ -81,10 +81,11 @@ has_db_url() {
 }
 
 # Optional demo-data seed (--seed). The seed script is the authoritative prod
-# guard: it refuses a non-local DATABASE_URL and any production environment
-# marker, so this just invokes it — a refusal exits non-zero and (set -e) aborts
-# the deploy before the running release is touched. Seeds throwaway Iowa City /
-# Cedar Rapids demo interest so a fresh local map isn't empty.
+# guard: it refuses any known production host (DATABASE_URL / DATABASE_URL_UNPOOLED
+# / SEED_BLOCK_HOSTS) and any production environment marker, so this just invokes
+# it — a refusal exits non-zero and (set -e) aborts the deploy before the running
+# release is touched. Seeds throwaway Iowa City / Cedar Rapids demo interest so a
+# fresh dev map isn't empty.
 run_seed() {
   [[ "$SEED" == "1" ]] || return 0
   local script="$ROOT/scripts/seed-demo-interest.ts"
