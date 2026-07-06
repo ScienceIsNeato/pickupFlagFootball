@@ -1,36 +1,35 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedGameInMyArea, seedInterestInMyArea, seedOpenProposalInMyArea, seedInterested } from "../support/db";
+import {
+  seedNeighborsInMyArea, openProposalBackedBy, confirmProposalIntoGame,
+  seedGameRosteredInMyArea, gameRosterCount,
+} from "../support/db";
 
 // Reuses "I am a confirmed player …" and "I open the map" (registered globally
-// by other step files).
+// by other step files). This is the single HUD walkthrough: one login, one
+// persistent cohort of real neighbors that backs the proposal and rosters the
+// games — every number the HUD shows is real interest, never fabricated.
 
-Given("a standing game is added to my own area", async ({ world }) => {
-  await seedGameInMyArea(world.email!, "Republic Square");
-});
-
-Given("{int} other neighbors are interested in my own area", async ({ world }, n: number) => {
-  await seedInterestInMyArea(world.email!, n);
-});
-
-Given("an open proposal with {int} interested is added to my own area", async ({ world }, n: number) => {
-  world.attemptId = await seedOpenProposalInMyArea(world.email!, "The Park", n);
+// The story is about the HUD alone — its report beats capture just the widget,
+// not the whole map. World.beatLens (world.ts) is read by the AfterStep hook
+// (hooks.ts) to screenshot one element instead of the full page.
+Given("the report captures only the HUD", async ({ world }) => {
+  world.beatLens = ".map-hud";
 });
 
 Then("the HUD tells me I'm the first one here", async ({ page }) => {
   await expect(page.locator(".map-hud-h")).toContainText(/first one here/i, { timeout: 10000 });
 });
 
-// Every scenario carries a 4-item mini-FAQ (always visible in the left rail —
-// the rail sits clear of the map's own badges, so nothing needs collapsing);
-// the formation answer must interpolate the area's LIVE pMin (default 6
-// here), not a hardcoded count.
+// The mini-FAQ interpolates the area's LIVE pMin (default 6), not a hardcoded
+// count — so "once N say yes" tracks the real threshold. Find the formation
+// answer by its question (not by position/count) so adding other FAQ items
+// (e.g. "what am i looking at?") never breaks this.
 Then("the HUD's FAQ explains how a game forms, with the live threshold", async ({ page }) => {
-  const items = page.locator(".map-hud-faq-item");
-  await expect(items).toHaveCount(4);
-  const first = items.first();
-  await first.locator("summary").click();
-  await expect(first).toContainText(/once 6 say yes/i);
+  const formation = page.locator(".map-hud-faq-item").filter({ hasText: "how do games actually form" });
+  await expect(formation).toBeVisible({ timeout: 10000 });
+  await formation.locator("summary").click();
+  await expect(formation).toContainText(/once 6 say yes/i);
 });
 
 Then("the HUD offers a copyable share post", async ({ page, context }) => {
@@ -41,45 +40,69 @@ Then("the HUD offers a copyable share post", async ({ page, context }) => {
   await expect(btn).toContainText(/copied/i);
 });
 
-// Loose on the exact count — other scenarios in this shared-DB run may have
-// also seeded games in the same fixture area; the HUD's "there's a game" framing
-// holds regardless of how many.
-Then("the HUD tells me there's a game near me", async ({ page }) => {
-  await expect(page.locator(".map-hud-h")).toContainText(/game.*near you|games near you/i, { timeout: 10000 });
+// The cohort is created ONCE and reused (stored on world) — the same real
+// people carry through the proposal and the game rosters.
+When("{int} neighbors show real interest in my own area", async ({ world }, n: number) => {
+  world.cohort = await seedNeighborsInMyArea(world.email!, n);
 });
 
-// This area is genuinely isolated (a fresh ZIP nobody else touches), so the
-// exact live total (viewer + 3 seeded neighbors = 4) is asserted precisely —
-// proving the number is interpolated, not just "some" copy showing up.
-Then("the HUD tells me how many are interested near me", async ({ page }) => {
-  await expect(page.locator(".map-hud-h")).toContainText(/4 interested in/i, { timeout: 10000 });
-  await expect(page.locator(".map-hud-body")).toContainText(/3 others? nearby/i);
-});
-
-// Proposer + 1 seeded background user = 2 interested; pMin defaults to 6.
-Then("the HUD tells me a game's been proposed with a live tally", async ({ page }) => {
-  await expect(page.locator(".map-hud-h")).toContainText(/proposed/i, { timeout: 10000 });
-  await expect(page.locator(".map-hud-body")).toContainText(/The Park/);
-  await expect(page.locator(".map-hud-body")).toContainText(/2\/6 people are in/i);
-});
-
-// A write that happens entirely outside the browser (another player, or in this
-// case a direct DB seed standing in for one) — the HUD has no way to know about
-// it except by re-reading /api/hud.
-When("one more neighbor joins the open proposal in my own area", async ({ world }) => {
-  await seedInterested(world.attemptId!, 1);
-});
-
-// Simulates what MapView/ProposedDetailsModal do after the viewer's own
-// propose/join/interest action: dispatch the same event MapHud listens for,
-// rather than driving the full canvas-click UI just to prove the wiring.
-When("the map tells the HUD its area changed", async ({ page }) => {
+// Each transition asserts AFTER nudging the HUD with the same "mime:hud-stale"
+// event a real map action fires — so the beat (and its screenshot) is captured
+// on the descriptive assertion step, not a generic "area changed" step. The 10s
+// assert window is under the 15s poll, so a pass proves the event drove the
+// refresh (not the interval): the live-refresh is covered at every beat.
+async function nudge(page: import("@playwright/test").Page): Promise<void> {
   await page.evaluate(() => window.dispatchEvent(new Event("mime:hud-stale")));
+}
+
+// Isolated ZIP (nobody else touches it), so the exact live total (viewer + N
+// neighbors) is asserted precisely — proving the number is interpolated.
+Then("the HUD tells me {int} people are interested near me", async ({ page }, total: number) => {
+  await nudge(page);
+  await expect(page.locator(".map-hud-h")).toContainText(new RegExp(`${total} interested in`, "i"), { timeout: 10000 });
+  await expect(page.locator(".map-hud-body")).toContainText(new RegExp(`${total - 1} others? nearby`, "i"));
 });
 
-// Playwright's default assertion timeout (5s) is well under the HUD's 15s
-// polling interval, so this only passes if the event-triggered poll — not the
-// interval — is what picked up the change.
-Then("the HUD's tally updates to reflect it, without a page reload", async ({ page }) => {
-  await expect(page.locator(".map-hud-body")).toContainText(/3\/6 people are in/i);
+// The proposal is backed by the WHOLE cohort — its tally is real interest.
+When("those neighbors back a proposal at {string}", async ({ world }, place: string) => {
+  world.attemptId = await openProposalBackedBy(world.email!, place, world.cohort!);
+});
+
+Then("the HUD tells me a game's been proposed at {string} with {int} of {int} in",
+  async ({ page }, place: string, inCount: number, pMin: number) => {
+    await nudge(page);
+    await expect(page.locator(".map-hud-h")).toContainText(/proposed/i, { timeout: 10000 });
+    await expect(page.locator(".map-hud-body")).toContainText(new RegExp(place));
+    await expect(page.locator(".map-hud-body")).toContainText(new RegExp(`${inCount}/${pMin} people are in`, "i"));
+  });
+
+// The proposal confirms into a real standing game, rostered with its backers.
+When("the proposal fills and the game is on", async ({ world }) => {
+  world.gameId = await confirmProposalIntoGame(world.email!, world.attemptId!, world.cohort!);
+});
+
+Then("the HUD tells me there's a game near me", async ({ page }) => {
+  await nudge(page);
+  await expect(page.locator(".map-hud-h")).toContainText(/there's a game near you/i, { timeout: 10000 });
+});
+
+// The whole point: the game isn't a ghost — real people are on its roster.
+Then("that game is backed by a real {int}-player roster", async ({ world }, n: number) => {
+  expect(await gameRosterCount(world.gameId!)).toBe(n);
+});
+
+When("those neighbors form a second game at {string}", async ({ world }, place: string) => {
+  world.secondGameId = await seedGameRosteredInMyArea(world.email!, place, world.cohort!);
+});
+
+// The multi-game variant drops the single place name for a count — distinct
+// copy, so the walkthrough asserts (and screenshots) it as its own state.
+Then("the HUD tells me there are {int} games near me", async ({ page }, n: number) => {
+  await nudge(page);
+  await expect(page.locator(".map-hud-h")).toContainText(new RegExp(`${n} games near you`, "i"), { timeout: 10000 });
+});
+
+Then("both games are backed by real rosters", async ({ world }) => {
+  expect(await gameRosterCount(world.gameId!)).toBeGreaterThan(0);
+  expect(await gameRosterCount(world.secondGameId!)).toBeGreaterThan(0);
 });

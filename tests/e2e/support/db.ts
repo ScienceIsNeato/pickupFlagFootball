@@ -377,7 +377,7 @@ export async function getUserId(email: string): Promise<string> {
  *  map HUD looks at for them (play/page.tsx). Every "seed X in my area" helper
  *  below goes through this rather than independently computing an area from a
  *  hand-picked lat/lng (which can land in a different H3 cell than the real
- *  zip_centroid for the same nominal ZIP — see seedGameInMyArea's history). */
+ *  zip_centroid for the same nominal ZIP). */
 async function resolveMyArea(email: string) {
   const userId = await getUserId(email);
   const { rows: [act] } = await pool.query("SELECT id FROM activity_types WHERE slug = 'flag-football' LIMIT 1");
@@ -392,70 +392,96 @@ async function resolveMyArea(email: string) {
   return { userId, activityTypeId: String(act.id), areaId: String(signal.area_id), lat: area.center_lat, lng: area.center_lng };
 }
 
-export async function seedGameInMyArea(email: string, placeText: string): Promise<string> {
-  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+/** A standing game rostered with real people — the honest "a game exists here"
+ *  state, backed by `rosterIds` (never a ghost game with nobody in it). */
+async function insertStandingGameRostered(
+  activityTypeId: string, areaId: string, placeText: string, lat: number, lng: number, rosterIds: string[],
+): Promise<string> {
   const { rows: [game] } = await pool.query(
     `INSERT INTO games
        (activity_type_id, area_id, place_text, place_lat, place_lng,
-        scheduled_start, status, is_standing, recur_dow, recur_time, color)
-     VALUES ($1, $2, $3, $4, $5, now() + interval '5 days', 'active', true, 6, '10:00', '#16633a')
+        scheduled_start, status, is_standing, recur_dow, recur_time, color, confirmed_count)
+     VALUES ($1, $2, $3, $4, $5, now() + interval '5 days', 'active', true, 6, '10:00', '#16633a', $6)
      RETURNING id`,
-    [activityTypeId, areaId, placeText, lat, lng],
+    [activityTypeId, areaId, placeText, lat, lng, rosterIds.length],
   );
+  for (const uid of rosterIds) {
+    await pool.query(
+      `INSERT INTO game_roster (game_id, user_id, default_status) VALUES ($1, $2, 'in') ON CONFLICT DO NOTHING`,
+      [game.id, uid],
+    );
+  }
   return String(game.id);
 }
 
-/** N throwaway "background" users with active interest in the SAME area as
- *  `email` — the ambient-interest HUD state (people nearby, nobody's proposed
- *  yet). Their homes sit exactly at the area centroid so they're always within
- *  anyone's default travel radius. */
-export async function seedInterestInMyArea(email: string, n: number): Promise<void> {
+/** N persistent "neighbor" users with real active interest in `email`'s area —
+ *  the ambient-interest state, AND the cohort reused downstream to back the
+ *  proposal and roster the games. Homes sit at the area centroid so they're
+ *  always within anyone's default travel radius. Returns their ids so later
+ *  steps reuse the SAME people (one honest arc, not throwaway-per-stage). */
+export async function seedNeighborsInMyArea(email: string, n: number): Promise<string[]> {
   const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
   const tag = `${areaId}`.slice(0, 8);
+  const ids: string[] = [];
   for (let i = 0; i < n; i++) {
     const { rows: [u] } = await pool.query(
       `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
        VALUES ($1, $2, $3, $4, '00000', now()) RETURNING id`,
-      [`bg-${tag}-${i}@example.com`, `Neighbor ${i + 1}`, lat, lng],
+      [`nb-${tag}-${i}@example.com`, `Neighbor ${i + 1}`, lat, lng],
     );
     await pool.query(
       `INSERT INTO interest_signals (activity_type_id, user_id, area_id, h3_base, active)
        VALUES ($1, $2, $3, 0, true)`,
       [activityTypeId, u.id, areaId],
     );
+    ids.push(String(u.id));
   }
+  return ids;
 }
 
-/** An OPEN formation attempt (proposed spot/time, not yet resolved) in `email`'s
- *  own area — the open-proposal HUD state. The proposer is auto-interested,
- *  matching the real proposeGame flow; `interestedCount` more throwaway users
- *  are added on top so the HUD's live tally isn't just "1". */
-export async function seedOpenProposalInMyArea(
-  email: string, placeText: string, interestedCount = 1,
-): Promise<string> {
-  const { userId, activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+/** An OPEN proposal backed by an EXISTING cohort — every one of them is "in",
+ *  so the HUD's tally is real interest (cohort.length / pMin), not a fabricated
+ *  number. The proposer is one of them (matching the real proposeGame flow). */
+export async function openProposalBackedBy(email: string, placeText: string, cohortIds: string[]): Promise<string> {
+  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
   const { rows: [att] } = await pool.query(
     `INSERT INTO formation_attempts
        (activity_type_id, area_id, attempt_number, status, proposer_id,
         place_text, place_lat, place_lng, proposed_start, recur_dow, recur_time, interest_closes_at)
      VALUES ($1, $2, 1, 'OPEN', $3, $4, $5, $6, now() + interval '5 days', 6, '10:00', now() + interval '24 hours')
      RETURNING id`,
-    [activityTypeId, areaId, userId, placeText, lat, lng],
+    [activityTypeId, areaId, cohortIds[0], placeText, lat, lng],
   );
-  await pool.query(
-    `INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)`,
-    [att.id, userId],
-  );
-  const tag = `${att.id}`.slice(0, 8);
-  for (let i = 1; i < interestedCount; i++) {
-    const { rows: [u] } = await pool.query(
-      `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
-       VALUES ($1, $2, $3, $4, '00000', now()) RETURNING id`,
-      [`bg-${tag}-${i}@example.com`, `Interested ${i}`, lat, lng],
+  for (const uid of cohortIds) {
+    await pool.query(
+      `INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true) ON CONFLICT DO NOTHING`,
+      [att.id, uid],
     );
-    await pool.query(`INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, true)`, [att.id, u.id]);
   }
   return String(att.id);
+}
+
+/** Confirm a proposal into a real standing game — it forms at the proposed spot
+ *  and is rostered with the cohort that backed it (the attempt goes CONFIRMED
+ *  and points at the game, as the real resolve does). Returns gameId. */
+export async function confirmProposalIntoGame(email: string, attemptId: string, cohortIds: string[]): Promise<string> {
+  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+  const { rows: [att] } = await pool.query("SELECT place_text FROM formation_attempts WHERE id = $1", [attemptId]);
+  const gameId = await insertStandingGameRostered(activityTypeId, areaId, att.place_text, lat, lng, cohortIds);
+  await pool.query("UPDATE formation_attempts SET status = 'CONFIRMED', scheduled_game_id = $1 WHERE id = $2", [gameId, attemptId]);
+  return gameId;
+}
+
+/** A second standing game in the same area, also rostered with real people. */
+export async function seedGameRosteredInMyArea(email: string, placeText: string, cohortIds: string[]): Promise<string> {
+  const { activityTypeId, areaId, lat, lng } = await resolveMyArea(email);
+  return insertStandingGameRostered(activityTypeId, areaId, placeText, lat, lng, cohortIds);
+}
+
+/** How many real people are on a game's roster — proves a game isn't a ghost. */
+export async function gameRosterCount(gameId: string): Promise<number> {
+  const { rows: [r] } = await pool.query("SELECT count(*)::int AS c FROM game_roster WHERE game_id = $1", [gameId]);
+  return Number(r?.c ?? 0);
 }
 
 /** Make a user a captain of an area (gates the captain controls in the popup). */

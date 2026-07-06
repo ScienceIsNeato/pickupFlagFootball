@@ -18,6 +18,8 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
   switch (scenario.kind) {
     case "alone":
       return [
+        { q: "what am i looking at?",
+          a: `the map, centered on your neighborhood. right now you're the only person here who's said they want a ${activity} game - so there's nothing to join yet. you're the first, and that's exactly how these get started.` },
         { q: "how do games actually form?",
           a: `you propose a spot, day, and time. everyone nearby on the map gets an email asking if they're in - once ${scenario.pMin} say yes, it's a real weekly game. nobody has to organize anything after that.` },
         { q: "why shouldn't i propose right now?",
@@ -29,6 +31,8 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
       ];
     case "ambient-interest":
       return [
+        { q: "what am i looking at?",
+          a: `your neighborhood, with everyone who wants a ${activity} game here on the map. ${scenario.totalCount} of you are interested, but nobody's picked a spot and time yet - real demand, just no game on the calendar.` },
         { q: `who are these ${scenario.totalCount} people?`,
           a: `neighbors who put themselves on the map and can travel to a game here. nothing on this map is seeded or fake - every flag is a real person.` },
         { q: "what happens if i propose?",
@@ -40,6 +44,8 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
       ];
     case "open-proposal":
       return [
+        { q: "what am i looking at?",
+          a: `someone's put an actual game on the table near you - a place, a day, a time - and people are saying whether they're in. ${scenario.interestedCount} of the ${scenario.pMin} it needs have said yes so far. get it there and it becomes a real weekly game.` },
         { q: "how do i say i'm in?",
           a: `click the proposed-site badge on the map and hit "i'm interested". that's the whole job - no commitment beyond showing up.` },
         { q: `what happens at ${scenario.pMin}?`,
@@ -51,6 +57,10 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
       ];
     case "games":
       return [
+        { q: "what am i looking at?",
+          a: scenario.count === 1
+            ? `a standing ${activity} game that already runs near you, week after week. nothing to start or organize - just join the roster and show up.`
+            : `${scenario.count} standing ${activity} games that already run near you on a regular schedule. join whichever fits - nothing to organize, just show up.` },
         { q: "how do i join?",
           a: "click the game badge on the map and say you're in - you're on the roster from then on." },
         { q: "what's the weekly rhythm?",
