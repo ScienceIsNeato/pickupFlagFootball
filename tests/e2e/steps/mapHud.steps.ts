@@ -22,13 +22,14 @@ Then("the HUD tells me I'm the first one here", async ({ page }) => {
 });
 
 // The mini-FAQ interpolates the area's LIVE pMin (default 6), not a hardcoded
-// count — so "once N say yes" tracks the real threshold.
+// count — so "once N say yes" tracks the real threshold. Find the formation
+// answer by its question (not by position/count) so adding other FAQ items
+// (e.g. "what am i looking at?") never breaks this.
 Then("the HUD's FAQ explains how a game forms, with the live threshold", async ({ page }) => {
-  const items = page.locator(".map-hud-faq-item");
-  await expect(items).toHaveCount(4);
-  const first = items.first();
-  await first.locator("summary").click();
-  await expect(first).toContainText(/once 6 say yes/i);
+  const formation = page.locator(".map-hud-faq-item").filter({ hasText: "how do games actually form" });
+  await expect(formation).toBeVisible({ timeout: 10000 });
+  await formation.locator("summary").click();
+  await expect(formation).toContainText(/once 6 say yes/i);
 });
 
 Then("the HUD offers a copyable share post", async ({ page, context }) => {
