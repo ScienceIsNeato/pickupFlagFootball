@@ -108,3 +108,23 @@ When("I volunteer as captain", async ({ page }) => {
 Then("I have captain controls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "pause series" })).toBeVisible({ timeout: 10000 });
 });
+
+Then("the site uses the area default minimum players", async ({ page }) => {
+  // A freshly-seeded game has no per-site override → the hint says so and there's
+  // no "use area default" reset (nothing to reset to).
+  await expect(page.locator(".game-minplayers-hint")).toContainText(/using the area default/i, { timeout: 10000 });
+  await expect(page.getByRole("button", { name: "use area default" })).toHaveCount(0);
+});
+
+When("I set the minimum expected players to {int}", async ({ page }, n: number) => {
+  await page.locator(".game-minplayers-input").fill(String(n));
+  await page.locator(".game-minplayers-row").getByRole("button", { name: "save" }).click();
+});
+
+Then("the site's minimum expected players is {int}", async ({ page }, n: number) => {
+  // Saved: the field reflects it, the hint flips to "set for this site", and the
+  // reset-to-default control appears.
+  await expect(page.locator(".game-minplayers-input")).toHaveValue(String(n), { timeout: 10000 });
+  await expect(page.locator(".game-minplayers-hint")).toContainText(/set for this site/i);
+  await expect(page.getByRole("button", { name: "use area default" })).toBeVisible();
+});

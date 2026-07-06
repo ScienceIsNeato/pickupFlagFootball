@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
-import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain } from "@/app/(app)/play/captain-actions";
+import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain, setMinPlayers } from "@/app/(app)/play/captain-actions";
 
 type GameInfo = {
   gameId: string;
@@ -14,6 +14,9 @@ type GameInfo = {
   scheduledStart: string;
   isStanding: boolean; recurDow: number | null; recurTime: string | null;
   confirmedCount: number; status: string;
+  // Per-site "minimum expected players": the captain's override (null = unset)
+  // and the effective value the weekly poll uses (override or area default).
+  minPlayers: number | null; minPlayersEffective: number;
   pausedUntil: string | null; pauseNote: string | null;
   city: string | null; zip: string | null;
   captains: string[];
@@ -69,6 +72,9 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
   const [pauseNote, setPauseNote] = useState("");
   const [pref, setPref] = useState<"regular" | "occasional">("regular");
   const [nextIn, setNextIn] = useState(true);
+  // Captain's "minimum expected players" input — seeded from the effective value
+  // on load so editing starts from what's actually in force.
+  const [minInput, setMinInput] = useState("");
   // Portal the modal to document.body so it escapes .dash-map's stacking
   // context (z:0) and renders above the floating site header (z:30).
   const [mounted, setMounted] = useState(false);
@@ -111,7 +117,9 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     // Effective next-game RSVP: explicit override wins, else the site default.
     const effectiveNext = game.myRsvp ?? game.myDefault ?? "in";
     setNextIn(game.onRoster ? effectiveNext === "in" : true);
-  }, [game?.gameId, game?.onRoster, game?.myDefault, game?.myRsvp]);
+    // Start the min-players input from the effective value in force.
+    setMinInput(String(game.minPlayersEffective));
+  }, [game?.gameId, game?.onRoster, game?.myDefault, game?.myRsvp, game?.minPlayersEffective]);
 
   async function run(action: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true); setActionErr("");
@@ -272,6 +280,39 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 {!game.canRetire && game.retireBlockedReason && (
                   <p className="game-muted game-retire-hint">{game.retireBlockedReason}</p>
                 )}
+                {/* Per-site minimum expected players — the bar the weekly poll uses
+                    to decide whether that week's game runs. Captain-set, since they
+                    know their own walk-on / no-show balance. */}
+                <div className="game-minplayers">
+                  <label className="game-minplayers-label" htmlFor="minplayers">minimum expected players</label>
+                  <div className="game-minplayers-row">
+                    {(() => {
+                      // Save only a valid whole number in range — never truncate a
+                      // decimal (5.5 → 5) silently past the server's integer check.
+                      const parsed = Number(minInput);
+                      const valid = minInput.trim() !== "" && Number.isInteger(parsed)
+                        && parsed >= 2 && parsed <= 60;
+                      const unchanged = parsed === game.minPlayersEffective;
+                      return (
+                        <>
+                          <input id="minplayers" type="number" inputMode="numeric" min={2} max={60} step={1}
+                            className="game-minplayers-input" value={minInput} disabled={busy}
+                            onChange={(e) => setMinInput(e.target.value)} />
+                          <button type="button" disabled={busy || !valid || unchanged}
+                            onClick={() => run(() => setMinPlayers(game.gameId, parsed))}>save</button>
+                        </>
+                      );
+                    })()}
+                    {game.minPlayers !== null && (
+                      <button type="button" className="game-minplayers-reset" disabled={busy}
+                        onClick={() => run(() => setMinPlayers(game.gameId, null))}>use area default</button>
+                    )}
+                  </div>
+                  <p className="game-muted game-minplayers-hint">
+                    a week only runs when at least this many say they&apos;re in.{" "}
+                    {game.minPlayers === null ? "using the area default." : "set for this site."}
+                  </p>
+                </div>
                 {/* Relinquish the role (distinct from retiring the whole series). */}
                 <button type="button" className="game-leave" disabled={busy}
                   onClick={() => { if (window.confirm("step down as captain of this game?")) run(() => stepDownAsCaptain(game.gameId)); }}>

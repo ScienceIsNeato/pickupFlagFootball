@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Built the map HUD that tells you what's happening in your area and what to do next, with a mini-FAQ and ready-to-paste share posts — PR #54 green and waiting on merge",
-    "direction": "Land the HUD, then build the splash-page 'how it works' gallery so first-time visitors get the same story before signing up",
-    "last_update": "2026-07-04T15:37:00Z"
+    "status": "Captains can now set each site's own 'minimum expected players' bar for the weekly game — PR #56 green and waiting on merge",
+    "direction": "Land it, then loop back on whether the default should move now that the threshold is per-site and research-backed",
+    "last_update": "2026-07-05T16:18:00Z"
   }
 }

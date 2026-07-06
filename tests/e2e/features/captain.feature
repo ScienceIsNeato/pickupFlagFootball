@@ -43,3 +43,11 @@ Feature: Captain controls
     Then the game shows it has no captain
     When I volunteer as captain
     Then I have captain controls
+
+  Scenario: a captain sets this site's minimum expected players
+    Given an established weekly game near me
+    And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
+    When I open the game on the map
+    Then the site uses the area default minimum players
+    When I set the minimum expected players to 9
+    Then the site's minimum expected players is 9

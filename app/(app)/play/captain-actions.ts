@@ -153,6 +153,29 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   return { ok: true };
 }
 
+/** Captain sets this site's "minimum expected players" — the bar the weekly
+ *  poll uses to decide whether a given week's game actually runs. Per-site so a
+ *  captain can bake in local knowledge (walk-ons vs no-shows); `null` clears the
+ *  override and falls back to the area default. Kept to a sane range so a typo
+ *  can't make a game impossible to hold or trivially always-on. */
+// Module-local (not exported): a "use server" file may only export async
+// functions. The popup input carries the same 2..60 bounds as literals.
+const MIN_PLAYERS_FLOOR = 2;
+const MIN_PLAYERS_CEIL = 60;
+export async function setMinPlayers(gameId: string, value: number | null): Promise<CaptainResult> {
+  const c = await asCaptain(gameId);
+  if (!c.ok) return c;
+  if (value !== null) {
+    if (!Number.isInteger(value) || value < MIN_PLAYERS_FLOOR || value > MIN_PLAYERS_CEIL) {
+      return { ok: false, error: `pick a whole number between ${MIN_PLAYERS_FLOOR} and ${MIN_PLAYERS_CEIL}` };
+    }
+  }
+  await db.update(games).set({ minPlayers: value }).where(eq(games.id, gameId));
+  revalidatePath("/play");
+  revalidatePath("/my-games");
+  return { ok: true };
+}
+
 /** A captain relinquishes the role (moving away, too much, …). Allowed even if
  *  they're the last captain — the site then shows the "volunteer" prompt to all. */
 export async function stepDownAsCaptain(gameId: string): Promise<CaptainResult> {

@@ -36,6 +36,7 @@ export async function GET(req: Request) {
     scheduledStart: games.scheduledStart, isStanding: games.isStanding,
     recurDow: games.recurDow, recurTime: games.recurTime,
     confirmedCount: games.confirmedCount, status: games.status,
+    minPlayers: games.minPlayers, areaMinPlayers: areas.minPlayersToSchedule,
     pausedUntil: games.pausedUntil, pauseNote: games.pauseNote,
     city: areas.displayCity, zip: areas.displayZip,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
@@ -122,6 +123,9 @@ export async function GET(req: Request) {
       scheduledStart: best.scheduledStart, isStanding: best.isStanding,
       recurDow: best.recurDow, recurTime: best.recurTime,
       confirmedCount: best.confirmedCount, status: best.status,
+      // Per-site min-expected-players: the captain's override (or null) plus the
+      // area default it falls back to, so the popup can show "using default N".
+      minPlayers: best.minPlayers, minPlayersEffective: best.minPlayers ?? best.areaMinPlayers,
       pausedUntil: best.pausedUntil, pauseNote: best.pauseNote,
       city: best.city, zip: best.zip,
       captains,

@@ -20,7 +20,7 @@ const POLL_OPEN = new Date("2026-07-02T12:00:00");
 const AFTER_CLOSE = new Date("2026-07-03T12:00:00");
 const AFTER_KICK = new Date("2026-07-04T11:00:00");
 
-async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number) {
+async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number, minPlayers?: number) {
   const [act] = await db.insert(activityTypes)
     .values({ slug: `ff-${lat}-${lng}`, displayName: "Flag football" })
     .returning({ id: activityTypes.id });
@@ -31,6 +31,7 @@ async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number
     activityTypeId: act.id, areaId: area.id, placeText: "The Field",
     placeLat: lat, placeLng: lng, scheduledStart: new Date("2026-06-06T10:00:00"),
     status: "active", isStanding: true, recurDow: 6, recurTime: "10:00:00",
+    minPlayers: minPlayers ?? null, // per-site override; null → area default (6)
   }).returning({ id: games.id });
   for (let i = 0; i < rosterIn; i++) {
     const [u] = await db.insert(users)
@@ -86,4 +87,49 @@ test("occurrence cycle: too few RSVPs → skipped", async () => {
 
   await runOccurrences(db, AFTER_KICK);
   assert.equal((await occ(db, gameId))[0].status, "skipped", "skipped is terminal");
+});
+
+test("per-site min_players override LOWERS the bar: 5 in schedules when the site min is 5", async () => {
+  // 5 in would skip at the area default of 6 — the per-site override (a captain
+  // who knows they get walk-ons) drops the bar to 5, so the week runs.
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const gameId = await seedGame(db, 42.10, -92.10, 5, 5);
+
+  await runOccurrences(db, POLL_OPEN);
+  await runOccurrences(db, AFTER_CLOSE);
+  const [o] = await occ(db, gameId);
+  assert.equal(o.inCount, 5);
+  assert.equal(o.status, "awaiting_game", "5 in meets the site's min of 5 → scheduled");
+  assert.equal((await notifs(db, gameId, "WEEK_ON")).length, 5, "game-on email to each");
+});
+
+test("games.min_players CHECK rejects out-of-range writes (matches the 2..60 API bound)", async () => {
+  // Defense in depth: even a direct DB write can't set a bar that makes a game
+  // impossible to hold or trivially always-on. Mirrors setMinPlayers' 2..60.
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const gameId = await seedGame(db, 44.40, -94.40, 2, 2);
+  // The CHECK is what makes these throw (Drizzle wraps the pg error, so match on
+  // the query, not the nested constraint text — that it rejects at all is proof).
+  await assert.rejects(() => db.update(games).set({ minPlayers: 1 }).where(eq(games.id, gameId)));
+  await assert.rejects(() => db.update(games).set({ minPlayers: 61 }).where(eq(games.id, gameId)));
+  // null (fall back to area default) and the in-range bounds are fine.
+  await db.update(games).set({ minPlayers: null }).where(eq(games.id, gameId));
+  await db.update(games).set({ minPlayers: 60 }).where(eq(games.id, gameId));
+});
+
+test("per-site min_players override RAISES the bar: 6 in skips when the site min is 8", async () => {
+  // 6 in would schedule at the area default of 6 — a captain who knows they get
+  // no-shows raises the bar to 8, so the same 6 aren't enough and the week skips.
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const gameId = await seedGame(db, 43.20, -93.20, 6, 8);
+
+  await runOccurrences(db, POLL_OPEN);
+  await runOccurrences(db, AFTER_CLOSE);
+  const [o] = await occ(db, gameId);
+  assert.equal(o.inCount, 6);
+  assert.equal(o.status, "skipped", "6 in is below the site's min of 8 → skipped");
+  assert.equal((await notifs(db, gameId, "WEEK_OFF")).length, 6, "week-off email to each");
 });
