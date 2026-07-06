@@ -9,6 +9,11 @@ export type World = {
   nextGameCaption?: string;
   attemptId?: string; // the live formation attempt, for the formation-FSM e2e
   occurrenceId?: string; // the weekly occurrence row, for the occurrence-FSM e2e
+  // The HUD walkthrough's persistent cohort of real neighbors — created once and
+  // reused to back the proposal and roster the games, so the whole story is one
+  // honest arc (the interest that accumulates is what actually forms the games).
+  cohort?: string[]; // neighbor user ids
+  gameId?: string; secondGameId?: string; // the games that form, for roster assertions
   // Report "beat lens": when set (a CSS selector), the AfterStep hook
   // screenshots just that element for this scenario's beats instead of the
   // full page — for stories that are about one widget, not the whole screen.
