@@ -442,7 +442,43 @@ async function seedRosters(activityId: string) {
   }
 }
 
+/**
+ * Prod safety. This seed scatters synthetic Iowa City / Cedar Rapids demo data
+ * and must NEVER reach the live app's database. It's the authoritative guard, so
+ * the seed self-protects no matter how it's invoked (deploy flag, bespoke
+ * command, CI). Two independent blocks:
+ *   1. A production environment marker (NODE_ENV / VERCEL_ENV = "production") is
+ *      an absolute refusal — no override. This is the backstop for the actual
+ *      prod deploy environment even if the denylist below ever goes stale.
+ *   2. The target DATABASE_URL is checked against a denylist of known prod hosts
+ *      (the mime-ff "production" branch endpoint, plus anything in the
+ *      SEED_BLOCK_HOSTS env, CSV). A match is refused.
+ * Everything else — the "main" dev branch that .env.local uses, a localhost DB —
+ * is allowed. If prod's endpoint ever changes, add it to PROD_DB_HOSTS (or
+ * SEED_BLOCK_HOSTS); the marker block (1) covers the deploy env in the meantime.
+ *
+ * The endpoint id below is a Neon hostname, not a credential — useless without
+ * the password, which lives only in the GCP secret. Safe to commit.
+ */
+const PROD_DB_HOSTS = [
+  "ep-jolly-cake-a67grtal", // mime-ff "production" branch — the live app's DB
+];
+function assertSeedable(): void {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("demo seed refused: a production environment marker is set — this data must never reach prod.");
+  }
+  const url = (process.env.DATABASE_URL ?? "").toLowerCase();
+  if (!url) throw new Error("demo seed refused: DATABASE_URL is not set.");
+  const blocked = [...PROD_DB_HOSTS, ...(process.env.SEED_BLOCK_HOSTS ?? "").split(",")]
+    .map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const hit = blocked.find((b) => url.includes(b));
+  if (hit) {
+    throw new Error(`demo seed refused: DATABASE_URL targets a known production host (${hit}) — this must never be seeded.`);
+  }
+}
+
 async function main() {
+  assertSeedable();
   if (process.argv.includes("--clean")) { await clean(); return; }
 
   const [activity] = await db.select({ id: activityTypes.id }).from(activityTypes)
