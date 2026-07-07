@@ -595,7 +595,10 @@ export function MapView({
     let lpAt: { x: number; y: number } | null = null;
     const clearLongPress = () => { if (lpTimer) clearTimeout(lpTimer); lpTimer = null; lpAt = null; };
     const onTouchStart = (e: TouchEvent) => {
-      if (mineOnly || e.touches.length !== 1) return; // ignore pinch/multitouch
+      if (mineOnly) return;
+      // A second finger joining a hold (pinch-zoom) must cancel any pending press,
+      // or its timer could still fire and open the modal mid-gesture.
+      if (e.touches.length !== 1) { clearLongPress(); return; }
       const b = container.getBoundingClientRect();
       const t = e.touches[0];
       lpAt = { x: t.clientX - b.left, y: t.clientY - b.top };
