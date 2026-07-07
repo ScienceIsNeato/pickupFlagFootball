@@ -5,6 +5,12 @@ Feature: Proposing a game (the proposer's view)
   captain. It then gathers enough interest and gets scheduled, or falls short and
   fails. The emails the flow sends are captured into the story report.
 
+  Scenario: the "propose a game" button opens the propose form (works without a right-click)
+    Given I am a confirmed player "Mobile Mo" with email "mo@example.com" in ZIP "78701"
+    When I open the map
+    And I tap the propose-a-game button
+    Then the propose form opens
+
   Scenario: a proposed game fails when too few are interested
     Given I am a confirmed player "Polly Propose" with email "polly@example.com" in ZIP "78701"
     When I propose a game at a nearby spot

@@ -58,3 +58,17 @@ Then("everyone hears the proposal fell short", async () => {
     { timeout: 10000 },
   ).toBe(true);
 });
+
+// The floating button is the phone-friendly propose path (no right-click). It
+// proposes at the map center — which is the viewer's own home, so within radius.
+When("I tap the propose-a-game button", async ({ page }) => {
+  const btn = page.locator(".map-propose-btn");
+  await expect(btn).toBeVisible({ timeout: 10000 });
+  await btn.click();
+});
+
+Then("the propose form opens", async ({ page }) => {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 10000 });
+  await expect(dialog.locator("#propose-title")).toHaveText(/propose a game/i);
+});
