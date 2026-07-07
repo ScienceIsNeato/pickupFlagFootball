@@ -62,7 +62,7 @@ Then("everyone hears the proposal fell short", async () => {
 // The floating button is the phone-friendly propose path (no right-click). It
 // proposes at the map center — which is the viewer's own home, so within radius.
 When("I tap the propose-a-game button", async ({ page }) => {
-  const btn = page.locator(".map-propose-btn");
+  const btn = page.getByRole("button", { name: /propose a game/i });
   await expect(btn).toBeVisible({ timeout: 10000 });
   await btn.click();
 });
@@ -81,7 +81,7 @@ When("I open the map on a phone", async ({ page }) => {
 // On a phone the HUD is a bottom sheet and the propose button floats above the
 // footer — they must stack, not overlap (the button is below the HUD sheet).
 Then("the propose button and the HUD don't overlap", async ({ page }) => {
-  const btn = page.locator(".map-propose-btn");
+  const btn = page.getByRole("button", { name: /propose a game/i });
   const hud = page.locator(".map-hud");
   await expect(btn).toBeVisible({ timeout: 10000 });
   await expect(hud).toBeVisible();

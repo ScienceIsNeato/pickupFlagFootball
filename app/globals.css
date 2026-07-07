@@ -185,6 +185,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 }
 .map-propose-btn:hover { filter: brightness(1.06); }
 .map-propose-btn:active { transform: translateX(-50%) scale(0.97); }
+.map-propose-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 @media (max-width: 560px) {
   /* Stack above the footer but BELOW the HUD's bottom sheet (which raises to
      104px on mobile), so the button never overlaps the HUD's own controls. */
