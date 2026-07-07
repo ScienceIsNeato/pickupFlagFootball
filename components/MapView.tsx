@@ -511,7 +511,7 @@ export function MapView({
       // over a badge → "click…" immediately; over open space + settled → propose.
       let hoverText: string | null = null;
       if (overBadge) hoverText = overBadge === "game" ? "click to see game details" : "click to see this proposal";
-      else if (!mineOnly && on && performance.now() - lastMoveAt > 120) hoverText = "right-click to propose a game here";
+      else if (!mineOnly && on && performance.now() - lastMoveAt > 120) hoverText = "right-click or long-press to propose here";
       mapEl.style.cursor = overBadge ? "pointer" : "crosshair";
       const tip = tipRef.current;
       if (tip) {
@@ -557,7 +557,11 @@ export function MapView({
       }
       return best;
     };
+    // Set when a long-press fires so the click maplibre emits on finger release
+    // doesn't ALSO open game/proposed details on top of the propose modal.
+    let suppressNextClick = false;
     map.on("click", async (e) => {
+      if (suppressNextClick) { suppressNextClick = false; return; }
       const hit = nearestCluster(e.point.x, e.point.y);
       if (!hit) return;
       // Click an existing game → its details (works at any zoom).
@@ -587,6 +591,42 @@ export function MapView({
       const { lat, lng } = e.lngLat;
       setPropose({ h3: latLngToCell(lat, lng, PROPOSE_RES), lat, lng });
     });
+
+    // Touch long-press = the mobile equivalent of right-click: hold on a spot
+    // (without panning) to propose a game there. The floating button covers the
+    // "propose at the view center" case; this gives point-precision on a phone.
+    let lpTimer: ReturnType<typeof setTimeout> | null = null;
+    let lpAt: { x: number; y: number } | null = null;
+    const clearLongPress = () => { if (lpTimer) clearTimeout(lpTimer); lpTimer = null; lpAt = null; };
+    const onTouchStart = (e: TouchEvent) => {
+      if (mineOnly) return;
+      // Drop any pending press before (re)scheduling, so an orphaned timer from a
+      // prior touch can't still fire. Covers multitouch too (pinch cancels a hold).
+      clearLongPress();
+      if (e.touches.length !== 1) return;
+      suppressNextClick = false; // fresh gesture — clear any stale suppression
+      const b = container.getBoundingClientRect();
+      const t = e.touches[0];
+      lpAt = { x: t.clientX - b.left, y: t.clientY - b.top };
+      lpTimer = setTimeout(() => {
+        if (!lpAt) return;
+        const ll = map.unproject([lpAt.x, lpAt.y]);
+        suppressNextClick = true; // swallow the click this hold emits on release
+        setPropose({ h3: latLngToCell(ll.lat, ll.lng, PROPOSE_RES), lat: ll.lat, lng: ll.lng });
+        lpAt = null;
+      }, 500);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!lpAt || !e.touches[0]) return;
+      const b = container.getBoundingClientRect();
+      const t = e.touches[0];
+      // Moved too far → it's a pan, not a press. Cancel.
+      if (Math.hypot(t.clientX - b.left - lpAt.x, t.clientY - b.top - lpAt.y) > 12) clearLongPress();
+    };
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: true });
+    container.addEventListener("touchend", clearLongPress);
+    container.addEventListener("touchcancel", clearLongPress);
     raf = requestAnimationFrame(frame);
 
     return () => {
@@ -597,6 +637,11 @@ export function MapView({
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
       container.removeEventListener("contextmenu", onCtxMenu);
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", clearLongPress);
+      container.removeEventListener("touchcancel", clearLongPress);
+      clearLongPress();
       if (process.env.NEXT_PUBLIC_E2E === "1") {
         const w = window as unknown as { __e2eMap?: maplibregl.Map };
         if (w.__e2eMap === map) delete w.__e2eMap; // don't leave a destroyed handle behind
@@ -621,10 +666,25 @@ export function MapView({
     window.dispatchEvent(new Event("mime:hud-stale"));
   };
 
+  // Propose at the center of the current view — the discoverable, touch-friendly
+  // path (no precise right-click needed on a phone). The modal's address picker
+  // refines the exact venue from this seed point.
+  const proposeAtCenter = () => {
+    const m = mapRef.current;
+    if (!m) return;
+    const c = m.getCenter();
+    setPropose({ h3: latLngToCell(c.lat, c.lng, PROPOSE_RES), lat: c.lat, lng: c.lng });
+  };
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
+      {!mineOnly && (
+        <button type="button" className="map-propose-btn" onClick={proposeAtCenter}>
+          + propose a game here
+        </button>
+      )}
       <div className="map-legend">
         {home && <span className="legend-item"><img src="/you-badge.png" alt="" className="legend-badge" /> you</span>}
         <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player <span ref={cInterested} className="legend-n">0</span></span>
@@ -632,7 +692,7 @@ export function MapView({
         <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site <span ref={cProposed} className="legend-n">0</span></span>
         <span className="legend-item"><Streamer color="#94a3b8" /> claimed (in a game) <span ref={cClaimed} className="legend-n">0</span></span>
-        <span className="legend-item"><Crosshair /> right-click to propose game</span>
+        <span className="legend-item"><Crosshair /> right-click or long-press to propose</span>
       </div>
       <div ref={tipRef} className="map-tip" style={{ display: "none" }}>Click to see game details</div>
       {propose && (

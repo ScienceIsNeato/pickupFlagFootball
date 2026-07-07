@@ -58,3 +58,36 @@ Then("everyone hears the proposal fell short", async () => {
     { timeout: 10000 },
   ).toBe(true);
 });
+
+// The floating button is the phone-friendly propose path (no right-click). It
+// proposes at the map center — which is the viewer's own home, so within radius.
+When("I tap the propose-a-game button", async ({ page }) => {
+  const btn = page.getByRole("button", { name: /propose a game/i });
+  await expect(btn).toBeVisible({ timeout: 10000 });
+  await btn.click();
+});
+
+Then("the propose form opens", async ({ page }) => {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 10000 });
+  await expect(dialog.locator("#propose-title")).toHaveText(/propose a game/i);
+});
+
+When("I open the map on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/play");
+});
+
+// On a phone the HUD is a bottom sheet and the propose button floats above the
+// footer — they must stack, not overlap (the button is below the HUD sheet).
+Then("the propose button and the HUD don't overlap", async ({ page }) => {
+  const btn = page.getByRole("button", { name: /propose a game/i });
+  const hud = page.locator(".map-hud");
+  await expect(btn).toBeVisible({ timeout: 10000 });
+  await expect(hud).toBeVisible();
+  const b = await btn.boundingBox();
+  const h = await hud.boundingBox();
+  if (!b || !h) throw new Error("missing bounding box");
+  // The button sits entirely below the HUD sheet's bottom edge.
+  expect(b.y).toBeGreaterThanOrEqual(h.y + h.height - 1);
+});
