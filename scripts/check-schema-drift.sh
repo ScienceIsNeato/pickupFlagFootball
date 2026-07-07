@@ -14,7 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 COMPOSE="docker compose -f tests/e2e/docker-compose.yml"
-PSQL_ADMIN="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"
+# throwaway creds for the local ephemeral e2e container (tests/e2e/docker-compose.yml)
+PSQL_ADMIN="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"  # pragma: allowlist secret
 
 echo "  ▸ ensuring e2e Postgres is up"
 $COMPOSE up -d --wait postgres >/dev/null
@@ -23,7 +24,7 @@ for db in drift_migrated drift_pushed; do
   PGPASSWORD=mimeff psql "$PSQL_ADMIN" -q -c "DROP DATABASE IF EXISTS $db;" -c "CREATE DATABASE $db;"
 done
 
-BASE="postgres://mimeff:mimeff@127.0.0.1:55433"
+BASE="postgres://mimeff:mimeff@127.0.0.1:55433"  # pragma: allowlist secret
 
 echo "  ▸ building drift_migrated via migrate.mjs (fresh-bootstrap path)"
 DATABASE_URL="$BASE/drift_migrated" DATABASE_URL_UNPOOLED="$BASE/drift_migrated" \
