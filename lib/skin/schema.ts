@@ -66,6 +66,10 @@ export const SkinSchema = z.object({
     tagline: z.string(),
     githubUrl: z.string(),
     note: z.string(),
+    // Physical postal address shown in email footers — CAN-SPAM requires a valid
+    // mailing address on commercial/mixed mail. Set a real address or P.O. box
+    // before launch.
+    mailingAddress: z.string(),
   }),
   privacy: z.object({
     seoTitle: z.string(),

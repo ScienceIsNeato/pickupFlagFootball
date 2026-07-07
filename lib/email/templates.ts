@@ -26,7 +26,7 @@ type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: st
 type Details = { place: string; when: string };
 type Roster = { count: number; names: string[] };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster }): string {
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster; unsubscribeUrl?: string }): string {
   // The proposal's spot + time, shown right in the email so the recipient can
   // decide without clicking through.
   const detailsHtml = p.details
@@ -69,7 +69,10 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       ${footerHtml}
     </td></tr>
     <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
-      you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>.
+      you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>${
+        p.unsubscribeUrl ? `, or <a href="${esc(p.unsubscribeUrl)}" style="color:#5b9452; text-decoration:none;">unsubscribe</a>` : ""
+      }.
+      <br/><span style="color:#5b616f;">${esc(skin.footer.mailingAddress)}</span>
     </td></tr>
   </table>
 </td></tr></table></body></html>`;
@@ -103,6 +106,8 @@ export function buildNotificationEmail(
     details?: Details;
     // who said they're in, shown in the WEEK_ON ("game on this week") email.
     roster?: Roster;
+    // one-click unsubscribe link (footer + text). Set for bulk notification mail.
+    unsubscribeUrl?: string;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -121,11 +126,12 @@ export function buildNotificationEmail(
   const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}\nwhen: ${opts.details.when}` : "";
   const rosterLine = opts.roster ? `\n\n${opts.roster.count} planning to play: ${opts.roster.names.join(", ") || "—"}` : "";
   const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account\n\n${skin.brandName}`;
+  const unsubLine = opts.unsubscribeUrl ? `\nunsubscribe: ${opts.unsubscribeUrl}` : "";
+  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster, unsubscribeUrl: opts.unsubscribeUrl }),
     textContent,
   };
 }

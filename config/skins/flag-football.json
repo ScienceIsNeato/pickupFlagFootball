@@ -132,7 +132,8 @@
   "footer": {
     "tagline": "free, open source pickup flag football. no organizer, no fees.",
     "githubUrl": "https://github.com/ScienceIsNeato/pickupFlagFootball",
-    "note": "open source · not affiliated with the nfl or nfl flag"
+    "note": "open source · not affiliated with the nfl or nfl flag",
+    "mailingAddress": "MIME-FF · Coralville, IA 52241"
   },
   "privacy": {
     "seoTitle": "privacy · MIME-FF",

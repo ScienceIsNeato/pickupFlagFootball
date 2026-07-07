@@ -48,6 +48,11 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
   const miles = Number(str(formData.get("max_travel_miles")));
   if (Number.isFinite(miles) && miles >= 1 && miles <= 100) update.maxTravelKm = milesToKm(miles);
 
+  // Email opt-in — an unchecked checkbox isn't submitted, so absence = off. This
+  // is the global unsubscribe control (the email footer's "unsubscribe" flips the
+  // same flag). Honored by the notification flush + engine catchment.
+  update.emailOptIn = formData.get("email_opt_in") != null;
+
   // Did the user edit any location field? Keep this separate from "is the ZIP
   // valid": a malformed ZIP edit must surface an error, not silently fall through
   // to a name-only save that reports success while quietly dropping the move.

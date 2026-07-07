@@ -6,6 +6,7 @@ import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
 import { rsvpLink } from "@/lib/rsvpLink";
 import { interestLink } from "@/lib/interestLink";
+import { unsubscribeUrl, unsubscribeApiUrl } from "@/lib/unsubscribeLink";
 
 // Weekly poll emails carry one-click RSVP links. WEEK_OFF is settled (no links).
 const RSVP_LINK_KINDS = new Set<NotifKind>(["POLL_ASK", "WEEK_ON"]);
@@ -143,8 +144,16 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
         : kind === "WEEK_ON" && r.gameId && r.occDate
         ? await occurrenceRoster(r.gameId, r.occDate)
         : undefined;
-      const mail = buildNotificationEmail(kind, { displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster });
-      const delivered = await sendEmail({ to: r.email, toName: r.displayName, ...mail });
+      // CAN-SPAM: every bulk notification carries a one-click unsubscribe — a
+      // footer link (page) and the List-Unsubscribe header (the api POST target).
+      const mail = buildNotificationEmail(kind, {
+        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster,
+        unsubscribeUrl: unsubscribeUrl(APP_BASE_URL, r.userId),
+      });
+      const delivered = await sendEmail({
+        to: r.email, toName: r.displayName, ...mail,
+        listUnsubscribeUrl: unsubscribeApiUrl(APP_BASE_URL, r.userId),
+      });
       if (delivered) {
         sent++;
       } else {
