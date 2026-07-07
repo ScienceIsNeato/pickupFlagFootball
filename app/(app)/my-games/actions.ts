@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { gameRoster, gameAttendance, games, gameOccurrences } from "@/lib/db/schema";
+import { gameRoster, gameAttendance, games, gameOccurrences, areas } from "@/lib/db/schema";
 import { reachableActiveGame } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 import { runOccurrence } from "@/lib/mime/trigger";
@@ -66,8 +66,9 @@ export async function setOccurrenceRsvp(formData: FormData) {
   // dates into the attendance/history record.
   const [game] = await db.select({
     isStanding: games.isStanding, recurDow: games.recurDow, recurTime: games.recurTime,
-    scheduledStart: games.scheduledStart, status: games.status,
+    scheduledStart: games.scheduledStart, status: games.status, timezone: areas.timezone,
   }).from(games)
+    .innerJoin(areas, eq(areas.id, games.areaId))
     .innerJoin(gameRoster, and(eq(gameRoster.gameId, games.id), eq(gameRoster.userId, me)))
     .where(eq(games.id, gameId)).limit(1);
   if (!game || game.status !== "active") throw new Error("not on this roster");

@@ -55,7 +55,7 @@ export default async function UpcomingGamesPage() {
         id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
         scheduledStart: games.scheduledStart, isStanding: games.isStanding,
         recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
-        city: areas.displayCity, zip: areas.displayZip,
+        city: areas.displayCity, zip: areas.displayZip, timezone: areas.timezone,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
         .where(and(inArray(games.id, rosterIds), inArray(games.status, ["active", "paused"])))
     : [];
@@ -100,7 +100,7 @@ export default async function UpcomingGamesPage() {
   };
   // Once kickoff passes the week is no longer RSVP-able (setOccurrenceRsvp rejects
   // it), so drop it from the list rather than show controls that fail.
-  const started = (g: { recurTime: string | null; scheduledStart: Date }, date: string) =>
+  const started = (g: { recurTime: string | null; scheduledStart: Date; timezone: string }, date: string) =>
     kickoffAtFor(g, date) <= now;
   const upcoming = rosterGames
     .filter((g) => g.status === "active") // paused series have no upcoming games to RSVP to

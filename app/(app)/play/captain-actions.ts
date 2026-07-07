@@ -5,18 +5,19 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
-import { games, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
+import { games, areas, areaCaptains, gameOccurrences, gameRoster } from "@/lib/db/schema";
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { retireEligibility } from "@/lib/games/retireEligibility";
 import { runOccurrence } from "@/lib/mime/trigger";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
+import { kickoffAtFor } from "@/lib/datetime";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
 
 /** A user may run captain controls on a game only if they're a captain of its
  *  area. Returns the game's recur info (for cancel-week) or an error. */
 type SeriesStatus = "active" | "paused" | "retired";
-type Game = { areaId: string; status: SeriesStatus; recurDow: number | null; recurTime: string | null; scheduledStart: Date };
+type Game = { areaId: string; status: SeriesStatus; recurDow: number | null; recurTime: string | null; scheduledStart: Date; timezone: string };
 
 async function asCaptain(gameId: string): Promise<{ ok: false; error: string } | { ok: true; game: Game }> {
   const session = await auth();
@@ -24,8 +25,8 @@ async function asCaptain(gameId: string): Promise<{ ok: false; error: string } |
   const uid = session.user.id;
   const [g] = await db.select({
     areaId: games.areaId, status: games.status, recurDow: games.recurDow, recurTime: games.recurTime,
-    scheduledStart: games.scheduledStart,
-  }).from(games).where(eq(games.id, gameId)).limit(1);
+    scheduledStart: games.scheduledStart, timezone: areas.timezone,
+  }).from(games).innerJoin(areas, eq(areas.id, games.areaId)).where(eq(games.id, gameId)).limit(1);
   if (!g) return { ok: false, error: "game not found" };
   const [cap] = await db.select({ u: areaCaptains.userId }).from(areaCaptains)
     .where(and(eq(areaCaptains.areaId, g.areaId), eq(areaCaptains.userId, uid))).limit(1);
@@ -128,10 +129,13 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   // already off or kicked off — so "cancel this week" hits the game players are
   // actually preparing for, not a settled date.
   const date = await nextPlayableOccurrence(
-    { id: gameId, isStanding: true, recurDow: g.recurDow, recurTime: g.recurTime, scheduledStart: String(g.scheduledStart) },
+    { id: gameId, isStanding: true, recurDow: g.recurDow, recurTime: g.recurTime, scheduledStart: String(g.scheduledStart), timezone: g.timezone },
     now,
   );
-  const kickoff = new Date(`${date}T${g.recurTime}`);
+  // Compose kickoff in the game's local zone (not the server's) — same helper the
+  // rest of the flow uses, so the "already started" guard and the stored
+  // kickoff/poll timestamps are correct for non-UTC areas.
+  const kickoff = kickoffAtFor(c.game, date);
   // Only an upcoming game can be called off — never rewrite one that's kicked off.
   if (kickoff <= now) return { ok: false, error: "this week's game has already started" };
   const done = await db.insert(gameOccurrences)

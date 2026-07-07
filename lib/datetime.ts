@@ -41,16 +41,63 @@ export function upcomingDatesForDow(dow: number, count: number, from: Date): str
  * for now — refine with the user's timezone later.
  */
 /**
- * The kickoff instant for a game's occurrence on a given YMD: recur_time when set,
- * otherwise the time-of-day from scheduled_start. Single source for the kickoff
- * cutoff shared by nextPlayableOccurrence, the my-games list, and setOccurrenceRsvp.
+ * The UTC instant of a wall-clock date+time interpreted in an IANA `timeZone` —
+ * e.g. (2026-07-04, "10:00", "America/Chicago") → the Date for 10am Central that
+ * day. Composing `new Date(\`${ymd}T${time}\`)` instead parses in the runtime's
+ * zone (UTC on the server), which is the timezone bug this fixes. Pure JS via
+ * Intl (no dependency); DST-safe by correcting against the zone's actual offset
+ * at the target instant, re-derived once so a guess that straddles a DST change
+ * still lands right.
+ */
+export function zonedWallTimeToUtc(ymd: string, time: string, timeZone: string): Date {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const [h, mi, s = 0] = time.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi, s); // wall clock read as if it were UTC
+  const o1 = zoneOffsetMs(guess, timeZone);
+  const o2 = zoneOffsetMs(guess - o1, timeZone); // correct across a possible DST boundary
+  return new Date(guess - o2);
+}
+
+// Building an Intl.DateTimeFormat is relatively expensive, and the occurrence
+// engine composes kickoffs many times per tick — cache one formatter per zone.
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let dtf = zoneFormatters.get(timeZone);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone, hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    zoneFormatters.set(timeZone, dtf);
+  }
+  return dtf;
+}
+
+/** The zone's offset from UTC (ms; negative west of UTC) at a given instant. */
+function zoneOffsetMs(utcMs: number, timeZone: string): number {
+  const dtf = formatterFor(timeZone);
+  const p: Record<string, number> = {};
+  for (const part of dtf.formatToParts(new Date(utcMs))) {
+    if (part.type !== "literal") p[part.type] = Number(part.value);
+  }
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - utcMs;
+}
+
+/**
+ * The kickoff instant for a game's occurrence on a given YMD. For a standing game
+ * (recur_time set) that's the recurring wall-clock time in the game's timezone;
+ * for a one-off it's the fixed scheduled_start instant. Single source for the
+ * kickoff cutoff shared by nextPlayableOccurrence, the my-games list, and
+ * setOccurrenceRsvp.
  */
 export function kickoffAtFor(
-  game: { recurTime: string | null; scheduledStart: string | Date },
+  game: { recurTime: string | null; scheduledStart: string | Date; timezone: string },
   ymd: string,
 ): Date {
-  const time = game.recurTime ?? new Date(game.scheduledStart).toTimeString().slice(0, 8);
-  return new Date(`${ymd}T${time}`);
+  if (!game.recurTime) return new Date(game.scheduledStart); // one-off: the fixed instant
+  return zonedWallTimeToUtc(ymd, game.recurTime, game.timezone);
 }
 
 export function nextOccurrenceYMD(

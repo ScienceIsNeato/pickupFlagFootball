@@ -1,3 +1,4 @@
+import tzLookup from "tz-lookup";
 import { db } from "@/lib/db";
 import { areas } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -16,6 +17,10 @@ export async function ensureArea(
       displayZip: display.zip,
       centerLat: display.centerLat,
       centerLng: display.centerLng,
+      // The area's IANA zone from its centroid — the occurrence engine uses this
+      // to fire kickoff/poll windows in local time. tz-lookup is offline (bundled
+      // boundary data), so no network call.
+      timezone: tzLookup(display.centerLat, display.centerLng),
     })
     .onConflictDoNothing()
     .returning({ id: areas.id });
