@@ -58,13 +58,25 @@ export function zonedWallTimeToUtc(ymd: string, time: string, timeZone: string):
   return new Date(guess - o2);
 }
 
+// Building an Intl.DateTimeFormat is relatively expensive, and the occurrence
+// engine composes kickoffs many times per tick — cache one formatter per zone.
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+function formatterFor(timeZone: string): Intl.DateTimeFormat {
+  let dtf = zoneFormatters.get(timeZone);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone, hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    zoneFormatters.set(timeZone, dtf);
+  }
+  return dtf;
+}
+
 /** The zone's offset from UTC (ms; negative west of UTC) at a given instant. */
 function zoneOffsetMs(utcMs: number, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone, hourCycle: "h23",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
+  const dtf = formatterFor(timeZone);
   const p: Record<string, number> = {};
   for (const part of dtf.formatToParts(new Date(utcMs))) {
     if (part.type !== "literal") p[part.type] = Number(part.value);

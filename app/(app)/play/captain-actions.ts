@@ -10,6 +10,7 @@ import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { retireEligibility } from "@/lib/games/retireEligibility";
 import { runOccurrence } from "@/lib/mime/trigger";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
+import { kickoffAtFor } from "@/lib/datetime";
 
 export type CaptainResult = { ok: true } | { ok: false; error: string };
 
@@ -131,7 +132,10 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
     { id: gameId, isStanding: true, recurDow: g.recurDow, recurTime: g.recurTime, scheduledStart: String(g.scheduledStart), timezone: g.timezone },
     now,
   );
-  const kickoff = new Date(`${date}T${g.recurTime}`);
+  // Compose kickoff in the game's local zone (not the server's) — same helper the
+  // rest of the flow uses, so the "already started" guard and the stored
+  // kickoff/poll timestamps are correct for non-UTC areas.
+  const kickoff = kickoffAtFor(c.game, date);
   // Only an upcoming game can be called off — never rewrite one that's kicked off.
   if (kickoff <= now) return { ok: false, error: "this week's game has already started" };
   const done = await db.insert(gameOccurrences)
