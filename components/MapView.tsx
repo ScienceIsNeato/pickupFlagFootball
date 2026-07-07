@@ -600,9 +600,10 @@ export function MapView({
     const clearLongPress = () => { if (lpTimer) clearTimeout(lpTimer); lpTimer = null; lpAt = null; };
     const onTouchStart = (e: TouchEvent) => {
       if (mineOnly) return;
-      // A second finger joining a hold (pinch-zoom) must cancel any pending press,
-      // or its timer could still fire and open the modal mid-gesture.
-      if (e.touches.length !== 1) { clearLongPress(); return; }
+      // Drop any pending press before (re)scheduling, so an orphaned timer from a
+      // prior touch can't still fire. Covers multitouch too (pinch cancels a hold).
+      clearLongPress();
+      if (e.touches.length !== 1) return;
       suppressNextClick = false; // fresh gesture — clear any stale suppression
       const b = container.getBoundingClientRect();
       const t = e.touches[0];
