@@ -557,7 +557,11 @@ export function MapView({
       }
       return best;
     };
+    // Set when a long-press fires so the click maplibre emits on finger release
+    // doesn't ALSO open game/proposed details on top of the propose modal.
+    let suppressNextClick = false;
     map.on("click", async (e) => {
+      if (suppressNextClick) { suppressNextClick = false; return; }
       const hit = nearestCluster(e.point.x, e.point.y);
       if (!hit) return;
       // Click an existing game → its details (works at any zoom).
@@ -599,12 +603,14 @@ export function MapView({
       // A second finger joining a hold (pinch-zoom) must cancel any pending press,
       // or its timer could still fire and open the modal mid-gesture.
       if (e.touches.length !== 1) { clearLongPress(); return; }
+      suppressNextClick = false; // fresh gesture — clear any stale suppression
       const b = container.getBoundingClientRect();
       const t = e.touches[0];
       lpAt = { x: t.clientX - b.left, y: t.clientY - b.top };
       lpTimer = setTimeout(() => {
         if (!lpAt) return;
         const ll = map.unproject([lpAt.x, lpAt.y]);
+        suppressNextClick = true; // swallow the click this hold emits on release
         setPropose({ h3: latLngToCell(ll.lat, ll.lng, PROPOSE_RES), lat: ll.lat, lng: ll.lng });
         lpAt = null;
       }, 500);

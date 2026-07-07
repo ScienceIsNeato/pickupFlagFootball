@@ -186,6 +186,8 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-propose-btn:hover { filter: brightness(1.06); }
 .map-propose-btn:active { transform: translateX(-50%) scale(0.97); }
 @media (max-width: 560px) {
+  /* Stack above the footer but BELOW the HUD's bottom sheet (which raises to
+     104px on mobile), so the button never overlaps the HUD's own controls. */
   .map-propose-btn { bottom: 52px; font-size: 14px; padding: 12px 18px; }
 }
 
@@ -250,8 +252,9 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-hud-link { display: inline-block; margin-top: 2px; font-size: 12px; color: var(--link); }
 @media (max-width: 560px) {
   /* Small screens: the legend already owns the top strip — dock the HUD at
-     the bottom there, capped so the map stays usable above it. */
-  .map-hud { top: auto; bottom: 12px; width: auto; left: 12px; right: 12px; max-height: 45vh; }
+     the bottom, ABOVE the floating propose button (which sits ~52–96px up), so
+     the two never overlap. Capped so the map stays usable above it. */
+  .map-hud { top: auto; bottom: 104px; width: auto; left: 12px; right: 12px; max-height: 40vh; }
 }
 
 .map-tip {
