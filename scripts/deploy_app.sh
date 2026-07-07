@@ -33,10 +33,16 @@ Usage:
   scripts/deploy_app.sh --stop     Stop this repo's server
   scripts/deploy_app.sh --help     Show this help
 
+  Add --seed to a deploy/serve to load demo data after migrating, e.g.
+    scripts/deploy_app.sh serve --seed
+  The seed refuses any known production host and any production environment
+  marker, so it can never touch prod (extra hosts via SEED_BLOCK_HOSTS).
+
 Environment:
   PORT         Detached: preferred starting port (default 3000), a free port at
                or above it is chosen. serve: the exact port to bind (default 3000).
   SKIP_BUILD=1 serve: skip `next build` and serve the existing .next bundle.
+               (Also skips --seed, which rides the build/migrate path.)
 EOF
 }
 
@@ -72,6 +78,25 @@ local_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev
 has_db_url() {
   [[ -n "${DATABASE_URL:-}" || -n "${DATABASE_URL_UNPOOLED:-}" ]] && return 0
   [[ -f "$ROOT/.env.local" ]] && grep -qE '^(DATABASE_URL|DATABASE_URL_UNPOOLED)=' "$ROOT/.env.local"
+}
+
+# Optional demo-data seed (--seed). The seed script is the authoritative prod
+# guard: it refuses any known production host (DATABASE_URL / DATABASE_URL_UNPOOLED
+# / SEED_BLOCK_HOSTS) and any production environment marker, so this just invokes
+# it — a refusal exits non-zero and (set -e) aborts the deploy before the running
+# release is touched. Seeds throwaway Iowa City / Cedar Rapids demo interest so a
+# fresh dev map isn't empty.
+run_seed() {
+  [[ "$SEED" == "1" ]] || return 0
+  local script="$ROOT/scripts/seed-demo-interest.ts"
+  [[ -f "$script" ]] || die "--seed requested but $script is missing"
+  has_db_url || die "--seed requested but no database URL is configured"
+  echo "Seeding demo data (--seed)..."
+  if [[ -f "$ROOT/.env.local" ]]; then
+    node --env-file="$ROOT/.env.local" --import tsx "$script"
+  else
+    node --import tsx "$script"
+  fi
 }
 
 run_migrations() {
@@ -162,12 +187,14 @@ show_logs() {
 }
 
 ACTION="deploy"
+SEED=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     serve|--foreground) ACTION="serve"; shift ;;
     --stop) ACTION="stop"; shift ;;
     --status) ACTION="status"; shift ;;
     --logs) ACTION="logs"; shift ;;
+    --seed) SEED=1; shift ;;  # modifier: seed demo data after migrating (deploy/serve)
     --help|-h) ACTION="help"; shift ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -193,6 +220,7 @@ case "$ACTION" in
       # Migrate only when we're (re)building — SKIP_BUILD serves the existing
       # bundle as-is, so don't move the schema out from under stale code.
       run_migrations
+      run_seed  # no-op unless --seed; self-guards against prod
       echo "Building (set SKIP_BUILD=1 to skip)..."
       npm run build
     else
@@ -216,8 +244,10 @@ echo "Branch: $BRANCH"
 echo ""
 
 # Migrate BEFORE tearing down the running release — if a migration fails, the
-# old (healthy) process keeps serving instead of going down with it.
+# old (healthy) process keeps serving instead of going down with it. Same for the
+# optional --seed: a prod-guard refusal aborts here, before the release is touched.
 run_migrations
+run_seed
 
 echo "Cleaning stale deployments..."
 cleanup_stale
