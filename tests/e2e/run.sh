@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One command to run the full-stack e2e suite: brings up the local Docker stack
-# (Postgres + Mailpit), builds the app's schema from the ORM, seeds fixed data,
-# builds the app, generates the BDD specs, and runs them. Nothing is mocked and
-# nothing talks to the internet.
+# (Postgres + Mailpit), builds the schema via the real migration path, checks it
+# matches the ORM, seeds fixed data, builds the app, generates the BDD specs,
+# and runs them. Nothing is mocked and nothing talks to the internet.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -11,8 +11,9 @@ DB_URL="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"
 # Fail closed: pin every seam to local e2e backends so an ambient DATABASE_URL /
 # BREVO_API_KEY in the shell can never route these tests at a real service.
 # (Playwright's webServer.env re-pins the app process too; this covers the
-# schema-push and any tooling run directly from this script.)
+# migration runner and any tooling run directly from this script.)
 export DATABASE_URL="$DB_URL"
+export DATABASE_URL_UNPOOLED="$DB_URL"   # migrate.mjs prefers this — pin it too
 export DATABASE_DRIVER="node-postgres"
 export EMAIL_TRANSPORT="smtp"
 export SMTP_URL="smtp://127.0.0.1:11025"
@@ -21,12 +22,14 @@ unset BREVO_API_KEY
 echo "▸ docker stack up (Postgres + Mailpit)"
 docker compose -f tests/e2e/docker-compose.yml up -d --wait
 
-echo "▸ schema (drizzle-kit push from lib/db/schema.ts)"
-# Rebuild from scratch so the schema always matches lib/db/schema.ts exactly —
-# incremental push can't migrate some changes (e.g. an enum type swap), which
-# would leave the DB drifted from the ORM.
+echo "▸ schema (migrate.mjs apply from empty — the same path a fresh prod uses)"
+# Rebuild from scratch through the real migration runner, so every e2e run
+# proves a brand-new database bootstraps correctly from db/migrations alone.
 PGPASSWORD=mimeff psql "$DB_URL" -q -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-DATABASE_URL="$DB_URL" npx drizzle-kit push --config tests/e2e/drizzle.config.ts
+node scripts/migrate.mjs apply
+
+echo "▸ drift check (migrations ≡ lib/db/schema.ts)"
+bash scripts/check-schema-drift.sh
 
 echo "▸ seed reference data"
 PGPASSWORD=mimeff psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f tests/e2e/seed.sql

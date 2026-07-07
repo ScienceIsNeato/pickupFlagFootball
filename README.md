@@ -32,8 +32,9 @@ Scripts:
 ```bash
 npm run build          # next build
 npm test               # unit tests (node --test): geo, mime engine, datetime, …
-npm run sim            # formation-engine simulation harness (tests/sim)
-node --env-file=.env.local scripts/apply-sql.mjs db/migrations/<file>.sql   # apply a migration
+npm run db:generate -- --name <change>    # generate a migration from lib/db/schema.ts
+node --env-file=.env.local scripts/migrate.mjs           # apply pending migrations
+npm run db:check       # drift gate: migrations from empty ≡ lib/db/schema.ts
 node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts        # seed demo data
 node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts --clean
 ```
@@ -84,12 +85,16 @@ preview); `--status` / `--logs` / `--stop` manage it.
 - `auth*`, `skin/`, `brand.ts`, `datetime.ts`, `email/`.
 
 ### `db/`
-- `schema.sql` — canonical, ORM-agnostic Postgres schema (source of truth).
+- The schema's **single source of truth is `lib/db/schema.ts`** (Drizzle ORM).
   Activity-agnostic core, H3 grid + ZIP/city for display, **no street addresses
   at rest beyond what a user opts into**. Interest signals, the formation FSM
   (suggestion + availability windows, soft promises, options), games + roster,
   area captains, per-game color, the anti-spam ledger.
-- `migrations/` — incremental SQL, applied with `scripts/apply-sql.mjs`.
+- `migrations/` — SQL **generated** from the ORM schema with
+  `npm run db:generate` (never hand-written; drizzle-kit's journal lives in
+  `migrations/meta/`). Applied in order by `scripts/migrate.mjs` — a fresh
+  database needs nothing else. `npm run db:check` proves migrations-from-empty
+  match the ORM exactly; the e2e suite bootstraps through the same path.
 
 ### `site/`
 - The original static concept site (`build.mjs`, zero deps). Superseded by the

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Working the pre-launch punch list. On the email compliance one — people can turn off game emails everywhere, and every email carries a real unsubscribe. Fixing two review notes now.",
-    "direction": "Get this one green and merged, then on to reconciling the database setup docs and adding a liability waiver before launch",
-    "last_update": "2026-07-07T10:10:00Z"
+    "status": "Fixed the recurring database drift problem for good: one source of truth now, with a gate that fails the build if things ever de-sync. Along the way it surfaced a hidden bug that would have broken game scheduling in production.",
+    "direction": "Land this, rebuild the dev database clean from the new setup, then the last launch blocker: a terms-of-service / liability waiver",
+    "last_update": "2026-07-07T23:10:00Z"
   }
 }

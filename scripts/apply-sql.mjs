@@ -1,5 +1,5 @@
 // Apply a .sql file to the database (direct/unpooled connection).
-// Usage: node --env-file=.env.local scripts/apply-sql.mjs db/schema.sql
+// Usage: node --env-file=.env.local scripts/apply-sql.mjs <file.sql>
 import { readFileSync } from "node:fs";
 import pg from "pg";
 

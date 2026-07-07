@@ -1,5 +1,5 @@
--- Deterministic seed for the e2e tests. Applied after db/schema.sql on a fresh
--- DB each run (see globalSetup). Keep this small and fixed — every row here is
+-- Deterministic seed for the e2e tests. Applied after the migrations build a fresh
+-- DB each run (see tests/e2e/run.sh). Keep this small and fixed — every row here is
 -- something a user story depends on.
 
 -- The activity registration needs (saveLocationAndInterest looks up this slug).
