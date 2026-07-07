@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Captains can now set each site's own 'minimum expected players' bar for the weekly game — PR #56 green and waiting on merge",
-    "direction": "Land it, then loop back on whether the default should move now that the threshold is per-site and research-backed",
-    "last_update": "2026-07-05T16:18:00Z"
+    "status": "Working the pre-launch punch list. On the email compliance one — people can turn off game emails everywhere, and every email carries a real unsubscribe. Fixing two review notes now.",
+    "direction": "Get this one green and merged, then on to reconciling the database setup docs and adding a liability waiver before launch",
+    "last_update": "2026-07-07T10:10:00Z"
   }
 }
