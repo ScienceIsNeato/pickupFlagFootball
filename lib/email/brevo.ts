@@ -7,6 +7,17 @@ export type BrevoEmail = {
   subject: string;
   htmlContent: string;
   textContent: string;
+  // RFC-8058 one-click unsubscribe target (the /api/unsubscribe POST endpoint).
+  // Set on bulk notification mail so Gmail/Yahoo show a native unsubscribe button
+  // and don't spam-penalize us. Omitted for pure transactional mail.
+  //
+  // NOTE: Brevo may replace this header with its own on transactional sends
+  // (account-level; only Enterprise can keep a custom one). We still set it — it
+  // costs nothing, is honored on the SMTP transport (dev/e2e) and by any provider
+  // that respects it, and Brevo's own header is a valid fallback. The compliance
+  // backbone is the visible unsubscribe link in every footer, which always flips
+  // email_opt_in regardless of transport.
+  listUnsubscribeUrl?: string;
 };
 
 const sender = () => ({
@@ -41,6 +52,12 @@ export async function sendBrevoEmail(email: BrevoEmail): Promise<boolean> {
     subject: email.subject,
     htmlContent: email.htmlContent,
     textContent: email.textContent,
+    ...(email.listUnsubscribeUrl ? {
+      headers: {
+        "List-Unsubscribe": `<${email.listUnsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    } : {}),
   };
   await appendOutbox(payload);
 

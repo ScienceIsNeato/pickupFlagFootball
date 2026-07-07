@@ -23,13 +23,14 @@ export default async function AccountPage() {
       addressLine1: users.addressLine1, addressLine2: users.addressLine2,
       city: users.city, state: users.state, zip: users.zip,
       maxTravelKm: users.maxTravelKm,
+      emailOptIn: users.emailOptIn,
       donationStatus: users.donationStatus,
       stripeSubscriptionId: users.stripeSubscriptionId,
     })
     .from(users).where(eq(users.id, uid)).limit(1);
   const me = u ?? {
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
-    donationStatus: "unset" as const, stripeSubscriptionId: null,
+    emailOptIn: true, donationStatus: "unset" as const, stripeSubscriptionId: null,
   };
   const travelMiles = Math.round(kmToMiles(me.maxTravelKm ?? 24.14));
   const supporting = me.donationStatus === "subscribed";
@@ -168,6 +169,10 @@ export default async function AccountPage() {
               how far will you travel? (miles)
               <input type="number" name="max_travel_miles" min="1" max="100" step="1"
                 defaultValue={travelMiles} inputMode="numeric" />
+            </label>
+            <label className="donate-opt">
+              <input type="checkbox" name="email_opt_in" defaultChecked={me.emailOptIn ?? true} />
+              email me when a game is forming or running near me
             </label>
             <p className="reg-hint">
               your address and travel distance are only used to measure how far games

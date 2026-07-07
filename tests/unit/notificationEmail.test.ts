@@ -2,6 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildNotificationEmail } from "@/lib/email/templates";
 
+test("CAN-SPAM: footer carries the unsubscribe link and a postal address", () => {
+  const unsub = "https://app.test/unsubscribe?t=abc.sig";
+  const mail = buildNotificationEmail("POLL_ASK", {
+    displayName: "Sam", appBaseUrl: "https://app.test", footer: null, unsubscribeUrl: unsub,
+  });
+  assert.ok(mail.htmlContent.includes(unsub), "html footer has the unsubscribe link");
+  assert.ok(mail.textContent.includes(unsub), "text footer has the unsubscribe link");
+  // the mailing address (skin config) is present in both parts
+  assert.match(mail.htmlContent, /Coralville, IA 52241/, "html has the postal address");
+  assert.match(mail.textContent, /Coralville, IA 52241/, "text has the postal address");
+});
+
+test("no unsubscribe link when none is provided", () => {
+  const mail = buildNotificationEmail("POLL_ASK", {
+    displayName: "Sam", appBaseUrl: "https://app.test", footer: null,
+  });
+  assert.ok(!/unsubscribe/i.test(mail.htmlContent), "no unsubscribe when not supplied");
+});
+
 test("proposal email carries the details + Interested/Not-Interested buttons", () => {
   const inUrl = "https://app.test/interested?t=in.sig";
   const outUrl = "https://app.test/interested?t=out.sig";

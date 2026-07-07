@@ -33,3 +33,15 @@ Then("my account keeps name {string} and travel {string}", async ({ page }, name
   await expect(page.locator("input[name=max_travel_miles]")).toHaveValue(miles);
   await expect(page.locator("input[name=displayName]")).toHaveValue(name);
 });
+
+When("I turn off game emails", async ({ page }) => {
+  await page.uncheck("input[name=email_opt_in]");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+// The global unsubscribe — the same flag the email footer's "unsubscribe" flips.
+Then("game emails stay off", async ({ page }) => {
+  await page.reload();
+  await expect(page.locator("input[name=email_opt_in]")).not.toBeChecked();
+});
