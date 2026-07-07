@@ -20,14 +20,16 @@ async function setOptIn(t: string, optIn: boolean): Promise<boolean> {
   return true;
 }
 
+// Both redirect back to the token page, which reads the REAL email_opt_in from
+// the DB to render status — so a crafted query string can't fake "unsubscribed".
 export async function applyUnsubscribe(formData: FormData) {
   const t = String(formData.get("t") ?? "");
-  const ok = await setOptIn(t, false);
-  redirect(ok ? `/unsubscribe?t=${encodeURIComponent(t)}&done=off` : "/unsubscribe?done=invalid");
+  await setOptIn(t, false);
+  redirect(`/unsubscribe?t=${encodeURIComponent(t)}`);
 }
 
 export async function applyResubscribe(formData: FormData) {
   const t = String(formData.get("t") ?? "");
-  const ok = await setOptIn(t, true);
-  redirect(ok ? "/unsubscribe?done=on" : "/unsubscribe?done=invalid");
+  await setOptIn(t, true);
+  redirect(`/unsubscribe?t=${encodeURIComponent(t)}`);
 }

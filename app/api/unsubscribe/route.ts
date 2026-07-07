@@ -22,7 +22,10 @@ async function setOptIn(token: string | null, optIn: boolean): Promise<boolean> 
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
-  const ok = await setOptIn(url.searchParams.get("t"), url.searchParams.get("resubscribe") !== "1");
+  // Default is UNSUBSCRIBE (opt-in false) — a bare one-click List-Unsubscribe-Post
+  // has no query param and must turn emails OFF. Only ?resubscribe=1 re-enables.
+  const optIn = url.searchParams.get("resubscribe") === "1";
+  const ok = await setOptIn(url.searchParams.get("t"), optIn);
   return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "invalid token" }, { status: 400 });
 }
 

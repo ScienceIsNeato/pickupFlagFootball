@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { verifyUnsubscribeToken } from "@/lib/unsubscribeLink";
 import { applyUnsubscribe, applyResubscribe } from "./actions";
 
@@ -6,43 +9,39 @@ export const metadata = { title: "unsubscribe - MIME-FF" };
 export const dynamic = "force-dynamic";
 
 /**
- * Footer "unsubscribe" landing. The GET is read-only — it shows a confirm button
- * that POSTs (see actions.ts) so mail link-scanners hitting the GET can't opt
- * anyone out. The signed token is the auth (no session).
+ * Footer "unsubscribe" landing. Status is read from the DB (the user's real
+ * email_opt_in), never a query param — so a crafted URL can't show a fake
+ * "unsubscribed". The GET is read-only (shows a button that POSTs, see
+ * actions.ts) so mail link-scanners hitting the GET can't opt anyone out. The
+ * signed token is the auth (no session).
  */
 export default async function UnsubscribePage({
   searchParams,
-}: { searchParams: Promise<{ t?: string; done?: string }> }) {
-  const { t, done } = await searchParams;
+}: { searchParams: Promise<{ t?: string }> }) {
+  const { t } = await searchParams;
+  const userId = t ? verifyUnsubscribeToken(t) : null;
 
-  if (done === "off") {
+  const invalid = (
+    <main className="prose">
+      <h1>this link didn&apos;t work</h1>
+      <p>it may have been altered. manage your emails from your <Link href="/account">account</Link>.</p>
+    </main>
+  );
+  if (!userId) return invalid;
+
+  const [u] = await db.select({ optIn: users.emailOptIn }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!u) return invalid;
+
+  if (!u.optIn) {
     return (
       <main className="prose">
         <h1>you&apos;re unsubscribed</h1>
-        <p>we won&apos;t email you about games anymore. changed your mind?</p>
-        {t ? (
-          <form action={applyResubscribe}>
-            <input type="hidden" name="t" value={t} />
-            <button type="submit" className="btn-green">re-subscribe</button>
-          </form>
-        ) : null}
+        <p>we won&apos;t email you about games. changed your mind?</p>
+        <form action={applyResubscribe}>
+          <input type="hidden" name="t" value={t} />
+          <button type="submit" className="btn-green">re-subscribe</button>
+        </form>
         <p>you can also manage this anytime in your <Link href="/account">account</Link>.</p>
-      </main>
-    );
-  }
-  if (done === "on") {
-    return (
-      <main className="prose">
-        <h1>you&apos;re back on the list</h1>
-        <p>we&apos;ll email you about games near you again. manage it anytime in your <Link href="/account">account</Link>.</p>
-      </main>
-    );
-  }
-  if (done === "invalid" || !t || !verifyUnsubscribeToken(t)) {
-    return (
-      <main className="prose">
-        <h1>this link didn&apos;t work</h1>
-        <p>it may have been altered. manage your emails from your <Link href="/account">account</Link>.</p>
       </main>
     );
   }
