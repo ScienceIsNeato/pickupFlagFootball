@@ -90,7 +90,7 @@ export function buildVerificationEmail(
   return {
     subject: `confirm your email to play · ${skin.brandName}`,
     htmlContent: layout({ title: "confirm your email", intro, cta: "confirm my email", ctaUrl, greeting, footer: null, base }),
-    textContent: `${greeting}\n\n${intro}\n\nconfirm your email: ${ctaUrl}\n\nif you didn't sign up, you can ignore this.\n\n${skin.brandName}`,
+    textContent: `${greeting}\n\n${intro}\n\nconfirm your email: ${ctaUrl}\n\nif you didn't sign up, you can ignore this.\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
   };
 }
 

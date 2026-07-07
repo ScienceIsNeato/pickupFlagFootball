@@ -30,7 +30,10 @@ export async function POST(req: Request) {
 }
 
 export function GET(req: Request) {
-  // Humans arriving via GET get the friendly page (which also flips the flag).
+  // Read-only: a human (or a mail link-scanner) arriving via GET is only
+  // redirected to the confirmation page. It does NOT change email_opt_in — the
+  // flag is flipped solely by an explicit POST, which is what keeps scanners
+  // from silently opting anyone out.
   const url = new URL(req.url);
   return NextResponse.redirect(new URL(`/unsubscribe?t=${encodeURIComponent(url.searchParams.get("t") ?? "")}`, url));
 }
