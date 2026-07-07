@@ -91,7 +91,8 @@ CREATE TABLE "formation_attempts" (
 	"interest_closes_at" timestamp with time zone NOT NULL,
 	"scheduled_game_id" uuid,
 	"failure_reason" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "formation_attempts_recur_dow_check" CHECK ("formation_attempts"."recur_dow" is null or "formation_attempts"."recur_dow" between 0 and 6)
 );
 --> statement-breakpoint
 CREATE TABLE "game_attendance" (

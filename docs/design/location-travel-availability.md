@@ -68,11 +68,11 @@ New/changed fields on the setup + account forms:
 4. **Availability / blackouts** — mark days/times you are *not* available. Anyone blacked-out for the
    active time context is excluded from interest counts and dropped from the probe.
 
-> **Privacy tension to settle (Open Decision A).** The schema today is emphatic: *"NO PII … we NEVER store a
-> street address"* ([`lib/db/schema.ts`](../../lib/db/schema.ts)). Collecting an address means we now hold a precise
-> home point. Recommendation: store the **precise** `home_lat/lng` for matching math only, never serve it to the
-> client; the map always renders a **jittered** point (see §7). Optionally don't persist the raw address string at
-> all — geocode it on submit, keep lat/lng, discard the text. This keeps "no street address at rest" mostly true.
+> **Privacy tension (Open Decision A — since settled).** The original schema was emphatic ("NO PII … we NEVER
+> store a street address"); today [`lib/db/schema.ts`](../../lib/db/schema.ts) does persist optional, user-supplied
+> `address_line1/2` — server-only, used to geocode a precise home point, never served to any client. The precise
+> `home_lat/lng` is for matching math only; the map always renders a **jittered** point (see §7). A stricter
+> variant remains open: geocode on submit, keep lat/lng, discard the address text.
 
 ---
 

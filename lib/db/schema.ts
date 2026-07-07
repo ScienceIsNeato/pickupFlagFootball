@@ -223,6 +223,8 @@ export const formationAttempts = pgTable("formation_attempts", {
   index("idx_attempt_open_close").on(t.status, t.interestClosesAt),
   // catchment membership is probed with array-contains during fan-out
   index("idx_attempt_catchment").using("gin", t.catchmentCells),
+  // same bound as games.recur_dow — the value is copied there when the game forms
+  check("formation_attempts_recur_dow_check", sql`${t.recurDow} is null or ${t.recurDow} between 0 and 6`),
   // NO check that CONFIRMED implies scheduled_game_id: the engine claims the
   // attempt (OPEN→CONFIRMED) BEFORE inserting the game, inside one transaction
   // — and Postgres CHECKs are per-statement, not deferrable to commit, so such

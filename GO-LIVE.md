@@ -25,7 +25,8 @@ Everything you do in a browser, in order. Tailored to: **new GCP project**,
 4. 🤖 Tell Claude when the branch exists — it'll reset it to a clean schema
    built straight from the migrations, so production starts empty. (Or do it
    yourself against the prod URL: drop/recreate the `public` schema, then
-   `node scripts/migrate.mjs apply` + `... seed-demo-interest.ts --clean`.)
+   `node scripts/migrate.mjs apply` +
+   `node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts --clean`.)
 
 ## 2 · Google Cloud — create the project
 

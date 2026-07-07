@@ -75,6 +75,11 @@ node scripts/migrate.mjs apply    # uses DATABASE_URL_UNPOOLED
 # CI runs the same command each deploy.
 ```
 
+A database that predates the migration squash (already at the current schema,
+but whose `schema_migrations` lists the old numbered files) must NOT re-run the
+baseline — adopt it once with `node scripts/migrate.mjs baseline`, which marks
+the generated files applied without executing them.
+
 Optional bulk data (not in migrations): `node scripts/seed-zip-centroids.mjs`
 loads the Census ZIP centroids.
 

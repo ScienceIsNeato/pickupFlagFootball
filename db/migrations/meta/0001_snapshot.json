@@ -1,6 +1,6 @@
 {
-  "id": "d33f6a21-cc98-4273-9e1a-81ebf2a14b07",
-  "prevId": "326c4245-82e2-4025-a29e-28bc89d29a9a",
+  "id": "0c402dea-c89e-4538-aa9c-8f4abe379bec",
+  "prevId": "87afec39-3723-4085-a0ff-cacb83f8fec5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -815,7 +815,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "formation_attempts_recur_dow_check": {
+          "name": "formation_attempts_recur_dow_check",
+          "value": "\"formation_attempts\".\"recur_dow\" is null or \"formation_attempts\".\"recur_dow\" between 0 and 6"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.game_attendance": {
