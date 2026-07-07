@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     confirmedCount: games.confirmedCount, status: games.status,
     minPlayers: games.minPlayers, areaMinPlayers: areas.minPlayersToSchedule,
     pausedUntil: games.pausedUntil, pauseNote: games.pauseNote,
-    city: areas.displayCity, zip: areas.displayZip,
+    city: areas.displayCity, zip: areas.displayZip, timezone: areas.timezone,
     centerLat: areas.centerLat, centerLng: areas.centerLng,
   }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
     // Retired series still resolve here so a click on their (greyed) map badge
@@ -103,7 +103,7 @@ export async function GET(req: Request) {
   // radius reaches it), and the next-occurrence RSVP tallies for the popup.
   const occInputs = {
     id: best.id, isStanding: best.isStanding, recurDow: best.recurDow,
-    recurTime: best.recurTime, scheduledStart: String(best.scheduledStart),
+    recurTime: best.recurTime, scheduledStart: String(best.scheduledStart), timezone: best.timezone,
   };
   const [eligible, membership, myCap] = await Promise.all([
     reachableActiveGame(session.user.id, best.id),

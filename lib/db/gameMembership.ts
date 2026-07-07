@@ -8,15 +8,17 @@ export type GameOccurrenceInputs = {
   recurDow: number | null;
   recurTime: string | null;
   scheduledStart: string;
+  timezone: string; // the area's IANA zone — kickoffAtFor composes local kickoff
 };
 
 /** The game's occurrence inputs if it's active, regardless of distance — for
  *  RSVP, which only requires roster membership (checked by the caller). */
 export async function activeGame(gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
-    select id, is_standing as "isStanding", recur_dow as "recurDow",
-           recur_time as "recurTime", scheduled_start as "scheduledStart"
-    from games where id = ${gameId} and status = 'active' limit 1`)).rows as GameOccurrenceInputs[];
+    select g.id, g.is_standing as "isStanding", g.recur_dow as "recurDow",
+           g.recur_time as "recurTime", g.scheduled_start as "scheduledStart", a.timezone
+    from games g join areas a on a.id = g.area_id
+    where g.id = ${gameId} and g.status = 'active' limit 1`)).rows as GameOccurrenceInputs[];
   return rows[0] ?? null;
 }
 
@@ -26,7 +28,7 @@ export async function activeGame(gameId: string): Promise<GameOccurrenceInputs |
 export async function reachableActiveGame(userId: string, gameId: string): Promise<GameOccurrenceInputs | null> {
   const rows = (await db.execute(sql`
     select g.id, g.is_standing as "isStanding", g.recur_dow as "recurDow",
-           g.recur_time as "recurTime", g.scheduled_start as "scheduledStart"
+           g.recur_time as "recurTime", g.scheduled_start as "scheduledStart", a.timezone
     from games g
     join areas a on a.id = g.area_id
     join users u on u.id = ${userId}

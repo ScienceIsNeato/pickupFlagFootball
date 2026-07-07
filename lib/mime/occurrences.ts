@@ -1,6 +1,6 @@
 import { and, eq, lte, isNull, inArray, sql } from "drizzle-orm";
 import { games, gameOccurrences, gameRoster, notificationsSent } from "@/lib/db/schema";
-import { nextOccurrenceYMD } from "@/lib/datetime";
+import { nextOccurrenceYMD, zonedWallTimeToUtc } from "@/lib/datetime";
 import type { EngineDb } from "./engine";
 
 type OccNotifKind = "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
@@ -43,9 +43,10 @@ async function runOccurrenceSteps(db: EngineDb, now: Date, gameId?: string): Pro
 const only = (gameId: string | undefined) =>
   gameId ? [eq(gameOccurrences.gameId, gameId)] : [];
 
-/** kickoff datetime = the occurrence date at the recurring time of day. */
-function kickoffAt(date: string, recurTime: string): Date {
-  return new Date(`${date}T${recurTime}`);
+/** kickoff datetime = the occurrence date at the recurring time of day, in the
+ *  game's local timezone (not the server's — see zonedWallTimeToUtc). */
+function kickoffAt(date: string, recurTime: string, timeZone: string): Date {
+  return zonedWallTimeToUtc(date, recurTime, timeZone);
 }
 
 /** The next recurrence the poll opener should target: skip weeks already settled
@@ -53,7 +54,7 @@ function kickoffAt(date: string, recurTime: string): Date {
  *  doesn't block opening the poll for the next playable one. Uses the engine db
  *  (not gameMembership's module db) so it works against the test world too. */
 async function nextOpenableDate(
-  db: EngineDb, game: { game_id: string; recur_dow: number; recur_time: string; scheduled_start: string }, now: Date,
+  db: EngineDb, game: { game_id: string; recur_dow: number; recur_time: string; scheduled_start: string; timezone: string }, now: Date,
 ): Promise<string | null> {
   const occ = { isStanding: true, recurDow: game.recur_dow, scheduledStart: game.scheduled_start };
   let date = nextOccurrenceYMD(occ, now);
@@ -62,7 +63,7 @@ async function nextOpenableDate(
       .where(and(eq(gameOccurrences.gameId, game.game_id), eq(gameOccurrences.occurrenceDate, date)))
       .limit(1))[0];
     const off = settledOff && ["cancelled", "skipped", "played"].includes(settledOff.s);
-    if (!off && now < kickoffAt(date, game.recur_time)) return date; // playable + not started
+    if (!off && now < kickoffAt(date, game.recur_time, game.timezone)) return date; // playable + not started
     const after = new Date(`${date}T12:00:00`);
     after.setDate(after.getDate() + 1);
     const nextDate = nextOccurrenceYMD(occ, after);
@@ -79,7 +80,7 @@ async function nextOpenableDate(
 async function openDuePolls(db: EngineDb, now: Date, gameId?: string): Promise<void> {
   const filter = gameId ? sql` and g.id = ${gameId}` : sql``;
   const res = await db.execute(sql`
-    select g.id as game_id, g.recur_dow, g.recur_time, g.scheduled_start,
+    select g.id as game_id, g.recur_dow, g.recur_time, g.scheduled_start, a.timezone,
            extract(epoch from a.polling_start_offset) as offset_s,
            extract(epoch from a.polling_window_length) as window_s
     from games g join areas a on a.id = g.area_id
@@ -87,7 +88,7 @@ async function openDuePolls(db: EngineDb, now: Date, gameId?: string): Promise<v
   `);
   const rows = (((res as { rows?: unknown[] }).rows ?? []) as Array<{
     game_id: string; recur_dow: number | null; recur_time: string | null;
-    scheduled_start: string; offset_s: string; window_s: string;
+    scheduled_start: string; timezone: string; offset_s: string; window_s: string;
   }>);
 
   for (const g of rows) {
@@ -96,10 +97,10 @@ async function openDuePolls(db: EngineDb, now: Date, gameId?: string): Promise<v
     // skipped / already-started weeks — so a cancelled imminent week doesn't pin
     // the opener to a dead date and starve a later week whose window is due.
     const date = await nextOpenableDate(
-      db, { game_id: g.game_id, recur_dow: g.recur_dow, recur_time: g.recur_time, scheduled_start: g.scheduled_start }, now,
+      db, { game_id: g.game_id, recur_dow: g.recur_dow, recur_time: g.recur_time, scheduled_start: g.scheduled_start, timezone: g.timezone }, now,
     );
     if (!date) continue;
-    const kickoff = kickoffAt(date, g.recur_time);
+    const kickoff = kickoffAt(date, g.recur_time, g.timezone);
     const pollOpens = new Date(kickoff.getTime() - Number(g.offset_s) * 1000);
     const pollCloses = new Date(pollOpens.getTime() + Number(g.window_s) * 1000);
     if (now < pollOpens || now >= kickoff) continue; // not time yet / already kicked off

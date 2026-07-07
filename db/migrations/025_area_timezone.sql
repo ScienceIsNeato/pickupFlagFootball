@@ -1,0 +1,11 @@
+-- IANA timezone per area, so the occurrence engine composes each week's kickoff
+-- and poll windows in the game's LOCAL time instead of the server's (UTC on
+-- Cloud Run). Without this, a "6pm" recurring game's poll opens/closes and
+-- kickoff fire at 6pm UTC — hours early and sometimes a day off — for any
+-- non-UTC market.
+--
+-- Default 'America/Chicago' covers the launch market (Iowa, US Central); new
+-- areas get their precise zone from the centroid via tz-lookup in ensureArea,
+-- and scripts/backfill-area-timezone.mjs recomputes any existing rows.
+-- Idempotent for the pglite test harness that replays migrations on a fresh DB.
+ALTER TABLE areas ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'America/Chicago';

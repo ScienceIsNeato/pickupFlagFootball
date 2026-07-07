@@ -11,21 +11,23 @@ import type { EngineDb } from "@/lib/mime/engine";
 
 const h3 = (lat: number, lng: number) => BigInt("0x" + latLngToCell(lat, lng, 7));
 
-// A standing game kicking off Sat 2026-07-04 10:00 (recur_dow 6). With the
-// defaults (48h offset, 24h window): poll opens Thu 07-02 10:00, closes Fri
-// 07-03 10:00. Local-time Dates throughout (matches the engine's kickoff calc).
-const KICK = "2026-07-04T10:00:00";
-const BEFORE_OPEN = new Date("2026-07-01T09:00:00");
-const POLL_OPEN = new Date("2026-07-02T12:00:00");
-const AFTER_CLOSE = new Date("2026-07-03T12:00:00");
-const AFTER_KICK = new Date("2026-07-04T11:00:00");
+// A standing game kicking off Sat 2026-07-04 10:00 (recur_dow 6). The area is
+// seeded in UTC (below), so the engine composes kickoff at 10:00 UTC; with the
+// defaults (48h offset, 24h window) the poll opens Thu 07-02 10:00Z, closes Fri
+// 07-03 10:00Z. All `now` constants are explicit UTC so the test is independent
+// of the machine's own timezone (that's the whole point of the tz fix).
+const KICK = "2026-07-04T10:00:00Z";
+const BEFORE_OPEN = new Date("2026-07-01T09:00:00Z");
+const POLL_OPEN = new Date("2026-07-02T12:00:00Z");
+const AFTER_CLOSE = new Date("2026-07-03T12:00:00Z");
+const AFTER_KICK = new Date("2026-07-04T11:00:00Z");
 
 async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number, minPlayers?: number) {
   const [act] = await db.insert(activityTypes)
     .values({ slug: `ff-${lat}-${lng}`, displayName: "Flag football" })
     .returning({ id: activityTypes.id });
   const [area] = await db.insert(areas).values({
-    activityTypeId: act.id, h3Cell: h3(lat, lng), centerLat: lat, centerLng: lng,
+    activityTypeId: act.id, h3Cell: h3(lat, lng), centerLat: lat, centerLng: lng, timezone: "UTC",
   }).returning({ id: areas.id });
   const [game] = await db.insert(games).values({
     activityTypeId: act.id, areaId: area.id, placeText: "The Field",

@@ -121,6 +121,11 @@ export const areas = pgTable("areas", {
   displayZip:     text("display_zip"),
   centerLat:      doublePrecision("center_lat").notNull(),
   centerLng:      doublePrecision("center_lng").notNull(),
+  // IANA zone (migration 025), from the centroid via tz-lookup in ensureArea.
+  // The occurrence engine composes each week's kickoff/poll windows in this zone
+  // so a "6pm" game fires at 6pm local, not 6pm UTC. Defaults to the launch
+  // market (US Central) for pre-025 rows; backfill script recomputes them.
+  timezone:       text("timezone").notNull().default("America/Chicago"),
   status:              areaStatusEnum("status").notNull().default("DORMANT"),
   stallCount:          integer("stall_count").notNull().default(0),
   lastRoundAt:         timestamp("last_round_at", { withTimezone: true }),
