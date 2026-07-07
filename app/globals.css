@@ -175,7 +175,9 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* Floating "propose a game" button — the discoverable, touch-friendly trigger
    (right-click / long-press still work). Bottom-center, thumb-reachable. */
 .map-propose-btn {
-  position: absolute; z-index: 6; left: 50%; bottom: 20px; transform: translateX(-50%);
+  /* Sits above the fixed .app-foot (z-index 30, ~40px tall) — clear of it and
+     of the bottom-right zoom control. */
+  position: fixed; z-index: 31; left: 50%; bottom: 56px; transform: translateX(-50%);
   padding: 12px 20px; border: none; border-radius: 999px; cursor: pointer;
   font-family: var(--font-barlow), sans-serif; font-size: 15px; font-weight: 700; white-space: nowrap;
   color: #fff; background: var(--green);
@@ -184,7 +186,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-propose-btn:hover { filter: brightness(1.06); }
 .map-propose-btn:active { transform: translateX(-50%) scale(0.97); }
 @media (max-width: 560px) {
-  .map-propose-btn { bottom: 16px; font-size: 14px; padding: 12px 18px; }
+  .map-propose-btn { bottom: 52px; font-size: 14px; padding: 12px 18px; }
 }
 
 .map-legend {
