@@ -1,5 +1,7 @@
 "use client";
 
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+
 /**
  * Last-resort boundary for a crash in the ROOT layout itself — it replaces the
  * whole document, so it must render its own <html>/<body> and can't rely on any
@@ -18,8 +20,8 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
           <h1 style={{ fontSize: 22, marginBottom: 12 }}>something went wrong</h1>
           <p style={{ color: "#cdd6d0", lineHeight: 1.6, marginBottom: 20 }}>
             the site hit an unexpected error. try again, or email{" "}
-            <a href="mailto:support@pickupflagfootball.com" style={{ color: "#5b9452" }}>
-              support@pickupflagfootball.com
+            <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#5b9452" }}>
+              {SUPPORT_EMAIL}
             </a>.
           </p>
           <button type="button" onClick={reset} style={{
