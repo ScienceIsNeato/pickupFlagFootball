@@ -7,6 +7,7 @@ import { users, gameRoster, games, areas, areaCaptains } from "@/lib/db/schema";
 import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
+import { ChangeEmail } from "@/components/ChangeEmail";
 import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
@@ -19,6 +20,7 @@ export default async function AccountPage() {
 
   const [u] = await db
     .select({
+      email: users.email, emailVerified: users.emailVerified, passwordHash: users.passwordHash,
       displayName: users.displayName,
       addressLine1: users.addressLine1, addressLine2: users.addressLine2,
       city: users.city, state: users.state, zip: users.zip,
@@ -29,6 +31,7 @@ export default async function AccountPage() {
     })
     .from(users).where(eq(users.id, uid)).limit(1);
   const me = u ?? {
+    email: session.user.email ?? "", emailVerified: null, passwordHash: null,
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
     emailOptIn: true, donationStatus: "unset" as const, stripeSubscriptionId: null,
   };
@@ -60,7 +63,7 @@ export default async function AccountPage() {
     <main className="reg account">
       <Link href="/play" className="back">&larr; find a game</Link>
       <h1 className="reg-h">your account</h1>
-      <p className="reg-blurb">signed in as <strong>{session.user.email}</strong>.</p>
+      <ChangeEmail email={me.email} verified={me.emailVerified != null} canChange={me.passwordHash != null} />
 
       <AccountForm>
       <div className="account-grid">

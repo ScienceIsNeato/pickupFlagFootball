@@ -66,8 +66,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.uid && session.user) session.user.id = token.uid as string;
       const uid = session.user?.id;
       if (uid) {
-        const [u] = await db.select({ id: users.id }).from(users).where(eq(users.id, uid)).limit(1);
+        const [u] = await db.select({ id: users.id, email: users.email, name: users.displayName })
+          .from(users).where(eq(users.id, uid)).limit(1);
         if (!u) return { ...session, user: undefined } as unknown as typeof session;
+        // Reflect the live DB email/name (same query, no extra round-trip) so a
+        // change-email or display-name edit shows immediately everywhere that
+        // reads the session (e.g. AccountMenu), instead of the stale value baked
+        // into the JWT at login.
+        if (session.user) {
+          session.user.email = u.email;
+          // null (not undefined) when the display name was cleared, so the
+          // session reflects that instead of keeping the stale JWT value.
+          session.user.name = u.name ?? null;
+        }
       }
       return session;
     },
