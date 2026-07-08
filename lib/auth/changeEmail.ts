@@ -41,18 +41,24 @@ export async function changeEmail(newEmailRaw: string): Promise<ChangeEmailResul
   if (!isEmailConfigured()) return { ok: false, error: "email isn't set up yet — try again later" };
 
   const rawToken = newToken();
+  const mail = buildVerificationEmail(me.name, APP_BASE_URL, rawToken);
+  // SEND FIRST, then persist. If the send fails, the account is untouched — the
+  // user keeps their working (old) email instead of being stranded on an
+  // unverified new one with no link (which would be strictly worse than the
+  // typo state this feature fixes). If the persist then fails (unique-constraint
+  // race), the only side effect is a confirm email to an address that wasn't
+  // claimed — its token was never stored, so the link just no-ops.
   try {
+    await sendEmail({ to: newEmail, toName: me.name, ...mail });
     await db.update(users).set({
       email: newEmail,
       emailVerified: null,
       verificationToken: hashToken(rawToken),
       updatedAt: new Date(),
     }).where(eq(users.id, uid));
-    const mail = buildVerificationEmail(me.name, APP_BASE_URL, rawToken);
-    await sendEmail({ to: newEmail, toName: me.name, ...mail });
   } catch (e) {
-    // Unique-constraint race or a transient send failure — log the class only
-    // (payloads can echo the address) and surface a generic, actionable error.
+    // Log the class only (payloads can echo the address) and surface a generic,
+    // actionable error. On send failure the DB was never touched.
     console.error("[email] change-email failed:", e instanceof Error ? e.name : "unknown error");
     return { ok: false, error: "couldn't update your email — try again in a moment" };
   }
