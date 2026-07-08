@@ -18,6 +18,10 @@ test("a placeholder anywhere in the skin fails the parse (build/server dies)", (
   const doctored2 = structuredClone(raw) as { footer: { note: string } };
   doctored2.footer.note = "TODO: write this";
   assert.throws(() => SkinSchema.parse(doctored2), /placeholder/i, "TODO rejected");
+
+  const doctored3 = structuredClone(raw) as { footer: { note: string } };
+  doctored3.footer.note = "TO-DO: write this";
+  assert.throws(() => SkinSchema.parse(doctored3), /placeholder/i, "TO-DO rejected");
 });
 
 test("only the subscribe method may omit its url", () => {

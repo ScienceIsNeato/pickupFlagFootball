@@ -93,7 +93,7 @@ export const SkinSchema = z.object({
   // so a leftover REPLACE_ME / CHANGEME / TO-DO anywhere in the config fails the
   // build and the server start instead of silently rendering a dead link.
   .superRefine((skin, ctx) => {
-    const hit = JSON.stringify(skin).match(/REPLACE[_-]?ME|CHANGE[_-]?ME|TODO/i);
+    const hit = JSON.stringify(skin).match(/REPLACE[_-]?ME|CHANGE[_-]?ME|TO[_-]?DO/i);
     if (hit) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
