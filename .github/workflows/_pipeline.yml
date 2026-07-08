@@ -16,7 +16,6 @@ on:
       stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
-      sentry_dsn_secret:            { type: string, required: false, default: "" }  # …for SENTRY_DSN (error tracking); unset = Sentry off
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -85,8 +84,16 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
       - name: Build image
         run: |
-          docker build --platform linux/amd64 \
+          # Pull the Sentry source-map upload token from Secret Manager if it
+          # exists; tolerate its absence so builds work before it's created (the
+          # build then just skips the upload). Passed as a BuildKit secret so it
+          # never lands in an image layer.
+          SENTRY_AUTH_TOKEN="$(gcloud secrets versions access latest \
+            --secret=pff-sentry-auth-token --project="${{ env.PROJECT_ID }}" 2>/dev/null || true)"
+          export SENTRY_AUTH_TOKEN
+          DOCKER_BUILDKIT=1 docker build --platform linux/amd64 \
             --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${{ env.NEXT_PUBLIC_SUPPORT_EMAIL }}" \
+            --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             .
       - name: Push image
@@ -162,15 +169,6 @@ jobs:
           gcloud run services update ${{ inputs.service_name }} \
             --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
             --update-secrets="SLACK_WEBHOOK_URL=${{ inputs.slack_webhook_secret }}:latest"
-      # Same additive pattern for Sentry: bind the DSN when configured, no-op otherwise
-      # (the app only initializes Sentry when SENTRY_DSN is present).
-      - name: Bind Sentry DSN (optional)
-        if: inputs.sentry_dsn_secret != ''
-        run: |
-          gcloud run services update ${{ inputs.service_name }} \
-            --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
-            --update-env-vars="SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
-            --update-secrets="SENTRY_DSN=${{ inputs.sentry_dsn_secret }}:latest"
       - name: Verify deployment
         run: |
           URL=$(gcloud run services describe ${{ inputs.service_name }} \

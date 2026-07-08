@@ -16,40 +16,21 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Sentry build wrapper: uploads source maps so stack traces map to TS source.
+// Upload only happens when SENTRY_AUTH_TOKEN is present (locally via the
+// gitignored .env.sentry-build-plugin; in CI via the token pulled from Secret
+// Manager and mounted into the Docker build). Without the token the build still
+// succeeds — it just skips the upload.
 export default withSentryConfig(nextConfig, {
-  // For all available options, see:
-  // https://www.npmjs.com/package/@sentry/webpack-plugin#options
-
   org: "william-martin-11",
-
   project: "mime-ff",
-
-  // Only print logs for uploading source maps in CI
+  // Quiet locally; verbose in CI so an upload problem is visible in the logs.
   silent: !process.env.CI,
-
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-  // Upload a larger set of source maps for prettier stack traces (increases build time)
+  // Upload the wider client source-map set for prettier browser stack traces.
   widenClientFileUpload: true,
-
-  // Uncomment to route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  // tunnelRoute: "/monitoring",
-
   webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
-
-    // Tree-shaking options for reducing bundle size
-    treeshake: {
-      // Automatically tree-shake Sentry logger statements to reduce bundle size
-      removeDebugLogging: true,
-    },
+    // Tree-shake Sentry's debug logging out of the bundle.
+    treeshake: { removeDebugLogging: true },
+    // (automaticVercelMonitors dropped — this deploys to Cloud Run, not Vercel.)
   },
 });
