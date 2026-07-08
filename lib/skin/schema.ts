@@ -50,10 +50,15 @@ export const SkinSchema = z.object({
         tag: z.string().optional(), // small badge, e.g. "suggested"
         desc: z.string(),
         cta: z.string(),
-        url: z.string(), // external (http…) opens in a new tab; internal (/…) is a route
-        // "subscribe" → render an integrated Stripe Checkout button instead of a
-        // link (falls back to `url` until Stripe is configured).
+        // external (http…) opens in a new tab; internal (/…) is a route.
+        // Optional ONLY for action:"subscribe" (integrated Stripe Checkout is
+        // the real path there; the donate page throws if neither is available).
+        url: z.string().optional(),
+        // "subscribe" → render an integrated Stripe Checkout button instead of
+        // a link (an explicit `url` is an optional fallback).
         action: z.enum(["subscribe"]).optional(),
+      }).refine((m) => m.action === "subscribe" || !!m.url, {
+        message: "donation method needs a url (only action:\"subscribe\" may omit it)",
       })
     ),
   }),
@@ -83,6 +88,18 @@ export const SkinSchema = z.object({
     heading: z.string(),
     updated: z.string(),
   }),
-});
+})
+  // Placeholders must never ship. The skin is parsed at module load (lib/skin),
+  // so a leftover REPLACE_ME / CHANGEME / TO-DO anywhere in the config fails the
+  // build and the server start instead of silently rendering a dead link.
+  .superRefine((skin, ctx) => {
+    const hit = JSON.stringify(skin).match(/REPLACE[_-]?ME|CHANGE[_-]?ME|TO[_-]?DO/i);
+    if (hit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `skin contains the placeholder "${hit[0]}" — fill in the real value before shipping`,
+      });
+    }
+  });
 
 export type Skin = z.infer<typeof SkinSchema>;

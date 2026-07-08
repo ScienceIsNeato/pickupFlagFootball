@@ -106,15 +106,14 @@
         "name": "$5 / month",
         "tag": "suggested",
         "desc": "the soft ask. if this app is managing your weekly game, a fiver a month keeps it alive. cancel anytime, and nothing locks if you don't.",
-        "cta": "subscribe ↗",
-        "url": "https://buy.stripe.com/REPLACE_ME",
+        "cta": "subscribe",
         "action": "subscribe"
       },
       {
         "name": "one-time tip",
         "desc": "rather not commit? throw in whatever, whenever. a quick one-tap thanks if that's more your speed.",
         "cta": "buy us a coffee ↗",
-        "url": "https://buymeacoffee.com/REPLACE_ME"
+        "url": "https://buymeacoffee.com/pickupFlagFootball"
       },
       {
         "name": "just show up",
