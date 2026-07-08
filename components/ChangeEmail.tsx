@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { changeEmail } from "@/lib/auth/changeEmail";
 
 /** Self-serve email change on the account page. Swaps the address and sends a
  *  confirm link to the new one (the account stays gated until confirmed). Lives
  *  outside the main "save changes" form — its own action. */
 export function ChangeEmail({ email, verified, canChange }: { email: string; verified: boolean; canChange: boolean }) {
+  const { update } = useSession();
   const [open, setOpen] = useState(false);
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,6 +23,10 @@ export function ChangeEmail({ email, verified, canChange }: { email: string; ver
       if (!r.ok) { setError(r.error); setBusy(false); return; }
       setSentTo(next.toLowerCase().trim());
       setOpen(false); setNext(""); setBusy(false);
+      // Force the client session to refetch now (it otherwise waits for window
+      // focus/poll) so the avatar's email reflects the change immediately — the
+      // server session callback reads it live from the DB.
+      void update();
     } catch {
       setError("something went wrong — please try again"); setBusy(false);
     }
