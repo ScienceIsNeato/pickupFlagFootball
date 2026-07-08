@@ -149,6 +149,8 @@ a { color: var(--link); text-decoration: none; }
   background: rgba(70, 137, 68, 0.15); color: #7fd07a; border: 1px solid rgba(70, 137, 68, 0.35);
   border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;
 }
+.acct-unverified { color: #f4c430; }
+.acct-email-form { max-width: 360px; margin: 4px 0 16px; }
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
 .auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .auth-form input {
