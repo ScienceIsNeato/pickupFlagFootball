@@ -24,6 +24,7 @@ export function SiteFooter() {
           <div className="foot-h">the project</div>
           <a href={skin.footer.githubUrl}>github</a>
           <Link href="/privacy">privacy</Link>
+          <Link href="/terms">terms</Link>
         </div>
       </div>
       <div className="foot-bar">{skin.footer.note}</div>

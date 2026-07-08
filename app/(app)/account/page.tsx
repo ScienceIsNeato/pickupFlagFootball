@@ -145,7 +145,7 @@ export default async function AccountPage() {
             <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
             <label>
               street address
-              <input type="text" name="address_line1" placeholder="1806 Brown Deer Trail"
+              <input type="text" name="address_line1" placeholder="123 Main St"
                 autoComplete="address-line1" defaultValue={me.addressLine1 ?? ""} />
             </label>
             <label>

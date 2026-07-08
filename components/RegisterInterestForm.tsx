@@ -64,6 +64,11 @@ export function RegisterInterestForm() {
         {/* Signup mode: requires a ZIP before completing Google, then createMember. */}
         <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
       </div>
+      <p className="reg-hint">
+        signing up - with google or the form below - confirms you&apos;re 18 or
+        older and agree to the <Link href="/terms">terms of service</Link> and{" "}
+        <Link href="/privacy">privacy policy</Link>.
+      </p>
       <div className="auth-or"><span>or</span></div>
 
       {error && <div className="auth-error">{error}</div>}
@@ -91,7 +96,7 @@ export function RegisterInterestForm() {
       <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
       <label>
         street address
-        <input type="text" name="address_line1" placeholder="1806 Brown Deer Trail" autoComplete="address-line1" />
+        <input type="text" name="address_line1" placeholder="123 Main St" autoComplete="address-line1" />
       </label>
       <label>
         apt / suite / unit
@@ -110,6 +115,12 @@ export function RegisterInterestForm() {
       <p className="reg-hint">
         we only use your address to measure how far games are from you. we never
         show it to anyone or sell it - see our <Link href="/privacy">privacy page</Link>.
+      </p>
+      <p className="reg-hint">
+        creating an account - here or with google above - confirms you&apos;re 18
+        or older and that you agree to the <Link href="/terms">terms of service</Link>,
+        including its assumption of risk and release of liability, and the{" "}
+        <Link href="/privacy">privacy policy</Link>.
       </p>
       <button type="submit" className="btn-green" disabled={busy}>
         {busy ? "…" : "count me in"}

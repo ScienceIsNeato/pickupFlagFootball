@@ -77,6 +77,12 @@ export const SkinSchema = z.object({
     heading: z.string(),
     updated: z.string(),
   }),
+  terms: z.object({
+    seoTitle: z.string(),
+    seoDescription: z.string(),
+    heading: z.string(),
+    updated: z.string(),
+  }),
 });
 
 export type Skin = z.infer<typeof SkinSchema>;

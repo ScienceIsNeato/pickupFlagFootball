@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Fixed the recurring database drift problem for good: one source of truth now, with a gate that fails the build if things ever de-sync. Along the way it surfaced a hidden bug that would have broken game scheduling in production.",
-    "direction": "Land this, rebuild the dev database clean from the new setup, then the last launch blocker: a terms-of-service / liability waiver",
-    "last_update": "2026-07-07T23:10:00Z"
+    "status": "Last launch blocker: wrote the terms of service - plain-English liability waiver, 18+ requirement, and a you-agree line at signup. Also swapped Will's real home address out of the signup form's example text.",
+    "direction": "Get it reviewed and merged - that's the launch-blocker list done; then circle back on the smaller pre-launch nice-to-haves",
+    "last_update": "2026-07-08T04:15:00Z"
   }
 }
