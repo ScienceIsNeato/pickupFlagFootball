@@ -163,7 +163,7 @@ export function ProposeModal({
           <input name="place_street" value={street}
             onChange={(e) => setStreet(e.target.value)}
             onBlur={() => setTouched((t) => ({ ...t, street: true }))}
-            placeholder="1806 Brown Deer Trail / Morrison Park" autoComplete="off" />
+            placeholder="123 Main St / Morrison Park" autoComplete="off" />
           {show("street") && <span className="field-err">{errs.street}</span>}
         </label>
         <div className="reg-row">

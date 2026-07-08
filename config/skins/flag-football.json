@@ -79,7 +79,7 @@
     },
     {
       "q": "what do you do with my info?",
-      "aHtml": "as little as possible. email so we can tell you a game's forming, a display name (a username is fine - no real name needed) so others know who's coming, and your zip to group you with people nearby. never your street address. full details on the <a href=\"privacy.html\">privacy page</a>."
+      "aHtml": "as little as possible. email so we can tell you a game's forming, a display name (a username is fine - no real name needed) so others know who's coming, and your zip to group you with people nearby. never your street address. full details on the <a href=\"/privacy\">privacy page</a>."
     },
     {
       "q": "how much does this cost?",
@@ -139,6 +139,12 @@
     "seoTitle": "privacy · MIME-FF",
     "seoDescription": "what we collect, why, and what we don't do with it.",
     "heading": "privacy",
+    "updated": "july 2026"
+  },
+  "terms": {
+    "seoTitle": "terms · MIME-FF",
+    "seoDescription": "the deal: we connect players, you play at your own risk.",
+    "heading": "terms of service",
     "updated": "july 2026"
   }
 }

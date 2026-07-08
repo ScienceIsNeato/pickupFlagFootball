@@ -57,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <span className="app-foot-sep">·</span>
         <Link href="/faq">faq</Link>
         <Link href="/privacy">privacy</Link>
+        <Link href="/terms">terms</Link>
         <a href={skin.footer.githubUrl} target="_blank" rel="noopener noreferrer">github</a>
       </footer>
     </>
