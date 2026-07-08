@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Launch blockers are DONE - terms of service merged. Now adding error tracking so we actually hear about it when something breaks in production.",
-    "direction": "Land error tracking, then remaining pre-launch odds and ends: rate limiting, donation links, PO box",
-    "last_update": "2026-07-08T04:45:00Z"
+    "status": "Killed the placeholder-link problem for good: the coffee-tip link is real now, and any leftover fill-me-in text anywhere in the site copy kills the build instead of quietly shipping a dead link. Also found and fixed the donate page showing the broken subscribe link on the live site.",
+    "direction": "Land this, then rate limiting and the PO box are what's left before launch",
+    "last_update": "2026-07-08T05:30:00Z"
   }
 }
