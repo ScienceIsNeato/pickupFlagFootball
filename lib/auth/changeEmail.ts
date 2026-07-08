@@ -49,7 +49,13 @@ export async function changeEmail(newEmailRaw: string): Promise<ChangeEmailResul
   // race), the only side effect is a confirm email to an address that wasn't
   // claimed — its token was never stored, so the link just no-ops.
   try {
-    await sendEmail({ to: newEmail, toName: me.name, ...mail });
+    // sendEmail returns false (doesn't throw) when the transport declines — treat
+    // that as failure too, so a silent decline can't slip through to the update.
+    const delivered = await sendEmail({ to: newEmail, toName: me.name, ...mail });
+    if (!delivered) {
+      console.error("[email] change-email not accepted by transport");
+      return { ok: false, error: "couldn't send the confirmation — try again in a moment" };
+    }
     await db.update(users).set({
       email: newEmail,
       emailVerified: null,
