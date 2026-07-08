@@ -35,3 +35,6 @@ tests/e2e/.features-gen/
 tests/e2e/.playwright-report/
 tests/e2e/report/output/
 tests/e2e/test-results/
+
+# Sentry Config File
+.env.sentry-build-plugin
