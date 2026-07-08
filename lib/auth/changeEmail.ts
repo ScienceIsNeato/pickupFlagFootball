@@ -67,6 +67,10 @@ export async function changeEmail(newEmailRaw: string): Promise<ChangeEmailResul
       email: newEmail,
       emailVerified: null,
       verificationToken: hashToken(rawToken),
+      // Invalidate any in-flight password reset: it was sent to the OLD address,
+      // which no longer owns this account after the switch.
+      passwordResetToken: null,
+      passwordResetExpires: null,
       updatedAt: new Date(),
     }).where(eq(users.id, uid));
   } catch (e) {

@@ -75,7 +75,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // into the JWT at login.
         if (session.user) {
           session.user.email = u.email;
-          session.user.name = u.name ?? session.user.name;
+          // null (not undefined) when the display name was cleared, so the
+          // session reflects that instead of keeping the stale JWT value.
+          session.user.name = u.name ?? null;
         }
       }
       return session;
