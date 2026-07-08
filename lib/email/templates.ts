@@ -94,6 +94,23 @@ export function buildVerificationEmail(
   };
 }
 
+/** Reset-your-password email. The link carries the single-use reset token; the
+ *  page it lands on lets the user set a new password. Sent only in response to a
+ *  reset request, so it's transactional (no unsubscribe footer). */
+export function buildPasswordResetEmail(
+  displayName: string | null, appBaseUrl: string, token: string,
+): { subject: string; htmlContent: string; textContent: string } {
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const ctaUrl = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+  const greeting = `hey ${displayName ?? "there"},`;
+  const intro = `someone asked to reset the password for this email. click below to set a new one - the link is good for one hour. if it wasn't you, you can ignore this and your password stays the same.`;
+  return {
+    subject: `reset your password · ${skin.brandName}`,
+    htmlContent: layout({ title: "reset your password", intro, cta: "set a new password", ctaUrl, greeting, footer: null, base }),
+    textContent: `${greeting}\n\n${intro}\n\nset a new password: ${ctaUrl}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
+  };
+}
+
 /** Build subject + HTML + text for one notification email. */
 export function buildNotificationEmail(
   kind: NotifKind,

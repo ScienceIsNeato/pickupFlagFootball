@@ -15,6 +15,7 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState<string | undefined>(undefined);
+  const [notice, setNotice] = useState<string | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,15 +26,20 @@ export function AccountMenu() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  // middleware bounces gated routes to /?signin=1&next=… — auto-open the modal
+  // middleware bounces gated routes to /?signin=1&next=… — auto-open the modal.
+  // /?reset=1 arrives after a completed password reset — same modal, plus a
+  // "password updated" notice so the user knows to log in with the new one.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("signin") === "1") {
+    const signin = p.get("signin") === "1";
+    const reset = p.get("reset") === "1";
+    if (signin || reset) {
       const next = p.get("next");
       setCallbackUrl(next && /^\/(?![/\\])/.test(next) ? next : undefined);
+      if (reset) setNotice("password updated — sign in with your new password.");
       setAuthOpen(true);
       const url = new URL(window.location.href);
-      url.searchParams.delete("signin"); url.searchParams.delete("next");
+      url.searchParams.delete("signin"); url.searchParams.delete("next"); url.searchParams.delete("reset");
       window.history.replaceState({}, "", url);
     }
   }, []);
@@ -78,7 +84,7 @@ export function AccountMenu() {
       {/* Mounted whenever the modal is open and we're not signed in — independent
           of the transient "loading" status, so it isn't remounted mid-login. */}
       {authOpen && !session?.user && (
-        <AuthModal callbackUrl={callbackUrl} onClose={() => setAuthOpen(false)} />
+        <AuthModal callbackUrl={callbackUrl} notice={notice} onClose={() => { setAuthOpen(false); setNotice(undefined); }} />
       )}
     </div>
   );

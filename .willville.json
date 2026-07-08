@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Did a full sweep for spots where users get stuck or confused before we open to everyone. Found a bunch; now fixing them one at a time. First up: email confirmation was silently breaking for some people because spam-filter link scanners were using up the one-time confirm link before the person could click it.",
-    "direction": "Working down the list - password reset, friendlier error pages, letting people fix a mistyped email, and a way back in after opting out",
-    "last_update": "2026-07-08T07:30:00Z"
+    "status": "Added password reset - forgot-password link, reset email, set-a-new-password page. Before this, anyone who forgot their password was locked out for good. Also a friendlier login hint for people who signed up with Google.",
+    "direction": "Next up: friendlier 404/error pages, letting people fix a mistyped email, and a way back after opting out of an area",
+    "last_update": "2026-07-08T08:30:00Z"
   }
 }

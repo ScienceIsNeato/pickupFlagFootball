@@ -109,6 +109,10 @@ export const users = pgTable("users", {
   passwordHash:     text("password_hash"),
   emailVerified:    timestamp("email_verified", { withTimezone: true }),
   verificationToken: text("verification_token"), // single-use confirm-email secret
+  // single-use password-reset secret (hashed) + its expiry. Both cleared once
+  // the reset completes; the token page rejects an expired or missing pair.
+  passwordResetToken:   text("password_reset_token"),
+  passwordResetExpires: timestamp("password_reset_expires", { withTimezone: true }),
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
   donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
@@ -129,6 +133,7 @@ export const users = pgTable("users", {
   index("idx_users_h3_r8").on(t.h3R8),
   index("idx_users_zip").on(t.zip),
   index("idx_users_verification_token").on(t.verificationToken).where(sql`${t.verificationToken} is not null`),
+  index("idx_users_password_reset_token").on(t.passwordResetToken).where(sql`${t.passwordResetToken} is not null`),
 ]);
 
 export type User = typeof users.$inferSelect;
