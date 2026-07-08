@@ -35,9 +35,33 @@ When("I click the confirm link in my email", async ({ page, world }) => {
     const mail = await waitForEmailTo(world.email!);
     world.confirmLink = extractConfirmLink(mail.html);
   }
+  // The email link is a GET that shows a confirm button — it must NOT verify on
+  // its own (mail-scanner safety). Only the button's POST confirms.
   await page.goto(world.confirmLink);
+  await page.getByRole("button", { name: "confirm my email" }).click();
+  // Explicit success page, then the signed-up (already logged-in) device can
+  // head to the map.
+  await expect(page.getByRole("heading", { name: /email confirmed/i })).toBeVisible({ timeout: 15000 });
+  // main's CTA, not the nav's "find a game" link (same text)
+  await page.locator("main a.btn-green").click();
   await page.waitForURL("**/play", { timeout: 15000 });
-  // Confirmed: back on the map with the unconfirmed banner gone.
   await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   await expect(page.locator(".unverified-banner")).toHaveCount(0);
+});
+
+When("a mail scanner opens the confirm link", async ({ page, world }) => {
+  if (!world.confirmLink) {
+    const mail = await waitForEmailTo(world.email!);
+    world.confirmLink = extractConfirmLink(mail.html);
+  }
+  // Simulate a link-scanner / prefetch: GET the URL, never click the button.
+  await page.goto(world.confirmLink);
+});
+
+Then("the confirm link still works for me", async ({ page }) => {
+  // The scanner's GET must not have consumed the single-use token: the confirm
+  // button is still present, and clicking it now succeeds.
+  await expect(page.getByRole("button", { name: "confirm my email" })).toBeVisible();
+  await page.getByRole("button", { name: "confirm my email" }).click();
+  await expect(page.getByRole("heading", { name: /email confirmed/i })).toBeVisible({ timeout: 15000 });
 });

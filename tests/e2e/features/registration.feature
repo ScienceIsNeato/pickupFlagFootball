@@ -10,6 +10,11 @@ Feature: Registration & email confirmation
     Given I register as "Test Player" with email "confirm@example.com" password "hunter2pass" in ZIP "78701"
     When I click the confirm link in my email
 
+  Scenario: a mail scanner can't burn my confirm token
+    Given I register as "Scan Ner" with email "scanner@example.com" password "hunter2pass" in ZIP "78701"
+    When a mail scanner opens the confirm link
+    Then the confirm link still works for me
+
   Scenario: a stale or used confirm link
     When I open an invalid confirm link
 
