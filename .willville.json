@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Added password reset - forgot-password link, reset email, set-a-new-password page. Before this, anyone who forgot their password was locked out for good. Also a friendlier login hint for people who signed up with Google.",
-    "direction": "Next up: friendlier 404/error pages, letting people fix a mistyped email, and a way back after opting out of an area",
-    "last_update": "2026-07-08T08:30:00Z"
+    "status": "Added friendly pages for when something goes wrong - a proper 'page not found' and a graceful 'something broke, try again' instead of the ugly raw error screen, each with a way back home and a support email.",
+    "direction": "Next: let people fix a mistyped email address, and a way back in after they've opted out of an area",
+    "last_update": "2026-07-08T09:15:00Z"
   }
 }
