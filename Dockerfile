@@ -17,6 +17,14 @@ COPY . .
 # present here (not just at runtime). Passed via --build-arg from the workflow.
 ARG NEXT_PUBLIC_SUPPORT_EMAIL
 ENV NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL}
+# Sentry environment label for the browser SDK (inlined at build — the browser
+# has no runtime env). Server/edge get theirs at runtime via SENTRY_ENVIRONMENT.
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
+# Surfaces Sentry's source-map upload logs during the CI build (withSentryConfig
+# is silent unless CI is set); harmless when unset for local docker builds.
+ARG CI
+ENV CI=${CI}
 ENV NEXT_TELEMETRY_DISABLED=1
 # The DB clients only check DATABASE_URL is non-empty at import (the pool is lazy
 # — no connection is opened at build time), and `next build` imports route modules

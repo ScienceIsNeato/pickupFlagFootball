@@ -93,6 +93,8 @@ jobs:
           export SENTRY_AUTH_TOKEN
           DOCKER_BUILDKIT=1 docker build --platform linux/amd64 \
             --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${{ env.NEXT_PUBLIC_SUPPORT_EMAIL }}" \
+            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT="${{ inputs.environment }}" \
+            --build-arg CI=true \
             --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             .
@@ -157,7 +159,7 @@ jobs:
           gcloud run deploy ${{ inputs.service_name }} \
             --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
-            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }};SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
