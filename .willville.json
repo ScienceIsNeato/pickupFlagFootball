@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Last launch blocker: wrote the terms of service - plain-English liability waiver, 18+ requirement, and a you-agree line at signup. Also swapped Will's real home address out of the signup form's example text.",
-    "direction": "Get it reviewed and merged - that's the launch-blocker list done; then circle back on the smaller pre-launch nice-to-haves",
-    "last_update": "2026-07-08T04:15:00Z"
+    "status": "Launch blockers are DONE - terms of service merged. Now adding error tracking so we actually hear about it when something breaks in production.",
+    "direction": "Land error tracking, then remaining pre-launch odds and ends: rate limiting, donation links, PO box",
+    "last_update": "2026-07-08T04:45:00Z"
   }
 }

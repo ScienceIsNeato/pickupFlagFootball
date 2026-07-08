@@ -24,6 +24,7 @@ jobs:
       stripe_webhook_secret_secret: pff-stripe-webhook-secret
       stripe_price_id: price_1Tmqd97dX3bjywYI5k8NaeTU     # live-mode price
       slack_webhook_secret: pff-slack-webhook-url         # → #mime-ff-activity-feed-prod
+      # sentry_dsn_secret: pff-sentry-dsn                  # uncomment once the secret exists (Sentry on)
       run_e2e: true             # full Playwright gate before prod
       min_instances: "1"
     secrets: inherit

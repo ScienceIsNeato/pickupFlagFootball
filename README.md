@@ -56,6 +56,9 @@ preview); `--status` / `--logs` / `--stop` manage it.
 - `APP_BASE_URL` — optional; absolute base for links in emails (default the prod URL).
 - `EMAIL_OUTBOX_PATH` — optional; appends every outgoing email to this file for
   local inspection without a real key.
+- `SENTRY_DSN` — optional; server-side error tracking via Sentry. Unset = a
+  no-op (dev/CI/e2e report nothing). `SENTRY_ENVIRONMENT` labels the env
+  (defaults to "production").
 
 ## What's here
 
