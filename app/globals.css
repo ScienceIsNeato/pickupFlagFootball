@@ -145,6 +145,10 @@ a { color: var(--link); text-decoration: none; }
   background: rgba(226, 72, 63, 0.15); color: #ff8b84; border: 1px solid rgba(226, 72, 63, 0.3);
   border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;
 }
+.auth-notice {
+  background: rgba(70, 137, 68, 0.15); color: #7fd07a; border: 1px solid rgba(70, 137, 68, 0.35);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;
+}
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
 .auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .auth-form input {

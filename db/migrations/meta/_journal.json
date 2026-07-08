@@ -15,6 +15,13 @@
       "when": 1783466508087,
       "tag": "0001_seed_activity_types",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783494061226,
+      "tag": "0002_password_reset",
+      "breakpoints": true
     }
   ]
 }

@@ -5,11 +5,17 @@
 # How: on the local e2e Postgres, build two scratch databases —
 #   drift_migrated : node scripts/migrate.mjs apply   (the prod bootstrap path)
 #   drift_pushed   : drizzle-kit push                 (the ORM, verbatim)
-# — then diff their normalized pg_dump schemas. Any difference means someone
-# changed lib/db/schema.ts without regenerating migrations (npm run db:generate)
-# or hand-edited a migration. Runs inside tests/e2e/run.sh and standalone via
-# `npm run db:check`. pg_dump runs inside the container so client/server
-# versions always match.
+# — then compare a normalized, name-sorted fingerprint of each (columns +
+# constraints + indexes from the catalogs). Any difference means someone changed
+# lib/db/schema.ts without regenerating migrations (npm run db:generate) or
+# hand-edited a migration.
+#
+# Why catalogs sorted by name, not pg_dump: `ALTER TABLE ADD COLUMN` always
+# appends physically, so a column added anywhere but the end of the ORM table
+# would differ from the migrated DB in PHYSICAL ORDER only — semantically
+# irrelevant in Postgres. Sorting by name makes the gate insensitive to column
+# order while still catching real drift (a missing/renamed/retyped column,
+# constraint, or index). Runs inside tests/e2e/run.sh and via `npm run db:check`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,21 +40,31 @@ echo "  ▸ building drift_pushed via drizzle-kit push (the ORM)"
 DATABASE_URL="$BASE/drift_pushed" \
   npx drizzle-kit push --force >/dev/null
 
-# Dump inside the container (matching pg_dump version), normalized: schema only,
-# no owners/privileges/comments — just the DDL shape. The migration runner's own
-# bookkeeping table (schema_migrations) exists only on the migrated side, so
-# exclude it at dump time.
-dump() {
-  $COMPOSE exec -T postgres pg_dump --schema-only --no-owner --no-privileges \
-    --exclude-table=schema_migrations -U mimeff -d "$1" \
-    | grep -vE "^(--|SET |SELECT pg_catalog|\\\\)" | grep -v "^$"
+# Structural fingerprint: enums, columns, constraints, and indexes, each sorted
+# by name. schema_migrations (the runner's own bookkeeping table) exists only on
+# the migrated side, so exclude it everywhere.
+#
+# Columns use udt_name (not data_type) plus the type modifiers, so an enum-type
+# swap, an array element-type change, a varchar length, or a numeric precision
+# change is caught — data_type alone collapses all of those to 'USER-DEFINED' /
+# 'ARRAY' / 'character varying'. Enum label sets are fingerprinted separately
+# (they live in pg_enum, not in any column row).
+ENUMS="select t.typname||' = '||string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_type t join pg_enum e on e.enumtypid=t.oid join pg_namespace n on n.oid=t.typnamespace where n.nspname='public' group by t.typname order by 1;"
+COLS="select table_name||'.'||column_name||' '||udt_name||' null='||is_nullable||' len='||coalesce(character_maximum_length::text,'-')||' prec='||coalesce(numeric_precision::text,'-')||' scale='||coalesce(numeric_scale::text,'-')||' def='||coalesce(column_default,'-') from information_schema.columns where table_schema='public' and table_name<>'schema_migrations' order by 1;"
+CONS="select c.conrelid::regclass::text||' '||c.conname||' '||pg_get_constraintdef(c.oid) from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where n.nspname='public' and t.relname<>'schema_migrations' order by 1;"
+IDX="select indexdef from pg_indexes where schemaname='public' and tablename<>'schema_migrations' order by 1;"
+
+fingerprint() {
+  for q in "$ENUMS" "$COLS" "$CONS" "$IDX"; do
+    PGPASSWORD=mimeff psql "$BASE/$1" -tA -c "$q"
+  done
 }
 
 OUT_DIR="$(mktemp -d)"
-dump drift_migrated > "$OUT_DIR/migrated.sql"
-dump drift_pushed   > "$OUT_DIR/pushed.sql"
+fingerprint drift_migrated > "$OUT_DIR/migrated.txt"
+fingerprint drift_pushed   > "$OUT_DIR/pushed.txt"
 
-if diff -u "$OUT_DIR/migrated.sql" "$OUT_DIR/pushed.sql"; then
+if diff -u "$OUT_DIR/migrated.txt" "$OUT_DIR/pushed.txt"; then
   echo "  ✓ no drift: migrations ≡ lib/db/schema.ts"
 else
   echo ""

@@ -9,7 +9,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 /** Sign-IN only. Account creation lives at /show-interest (the one place that
  *  collects a location, so every account has an interest signal). This modal
  *  logs existing users in via password or Google. */
-export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callbackUrl?: string }) {
+export function AuthModal({ onClose, callbackUrl, notice }: { onClose: () => void; callbackUrl?: string; notice?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -36,7 +36,10 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
       // bad password), so a truthy `ok` does NOT mean auth succeeded — `error`
       // is the real signal. Navigating on `ok` alone bounced wrong logins to
       // /play → middleware → /?signin=1 (a flash with no error shown).
-      if (res?.error) { setError("wrong email or password"); setBusy(false); return; }
+      // A Google-registered account has no password, so its password login also
+      // fails here — point people at the Google button rather than leaving them
+      // stuck retyping a password they never set.
+      if (res?.error) { setError("wrong email or password — if you signed up with Google, use the Google button above"); setBusy(false); return; }
       if (res?.ok) { window.location.href = dest; return; }
       setError("something went wrong"); setBusy(false);
     } catch { setError("something went wrong"); setBusy(false); }
@@ -55,6 +58,7 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
 
         <div className="auth-or"><span>or</span></div>
 
+        {notice && !error && <div className="auth-notice">{notice}</div>}
         {error && <div className="auth-error">{error}</div>}
 
         <form className="auth-form" onSubmit={submit}>
@@ -69,6 +73,10 @@ export function AuthModal({ onClose, callbackUrl }: { onClose: () => void; callb
             {busy ? "…" : "log in"}
           </button>
         </form>
+
+        <p className="auth-switch">
+          <Link className="auth-link" onClick={onClose} href="/forgot-password">forgot your password?</Link>
+        </p>
 
         <p className="auth-switch">
           new here?{" "}
