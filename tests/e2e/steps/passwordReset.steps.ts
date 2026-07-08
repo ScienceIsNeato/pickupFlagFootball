@@ -18,8 +18,8 @@ When("I request a password reset for {string}", async ({ page }, email: string) 
   await expect(page.getByRole("heading", { name: "check your email" })).toBeVisible({ timeout: 10000 });
 });
 
-When("I open the reset link and set my password to {string}", async ({ page }, password: string) => {
-  const mail = await waitForEmailTo("rita@example.com");
+When("I open the reset link and set my password to {string}", async ({ page, world }, password: string) => {
+  const mail = await waitForEmailTo(world.email!);
   const link = extractButtonLink(mail.html, "set a new password");
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "set a new password" })).toBeVisible({ timeout: 10000 });

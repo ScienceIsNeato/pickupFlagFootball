@@ -11,10 +11,15 @@ export function ResetForm({ token }: { token: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError("");
-    const r = await completePasswordReset(token, password);
-    if (!r.ok) { setError(r.error); setBusy(false); return; }
-    // Password set — bounce to sign-in (the success banner is keyed off ?reset=1).
-    window.location.href = "/?signin=1&reset=1";
+    try {
+      const r = await completePasswordReset(token, password);
+      if (!r.ok) { setError(r.error); setBusy(false); return; }
+      // Password set — bounce to sign-in (the success banner is keyed off ?reset=1).
+      window.location.href = "/?signin=1&reset=1";
+    } catch {
+      // A thrown action (network/DB) must not leave the button stuck disabled.
+      setError("something went wrong — please try again"); setBusy(false);
+    }
   }
 
   return (

@@ -65,19 +65,23 @@ export async function completePasswordReset(token: string, password: string): Pr
   if (!/^[a-f0-9]{64}$/.test(token)) return { ok: false, error: "this reset link is invalid or has expired" };
   if (password.length < 8) return { ok: false, error: "password must be at least 8 characters" };
 
-  const [u] = await db.select({ id: users.id }).from(users)
-    .where(and(eq(users.passwordResetToken, hashToken(token)), gt(users.passwordResetExpires, new Date())))
-    .limit(1);
-  if (!u) return { ok: false, error: "this reset link is invalid or has expired" };
-
-  await db.update(users)
+  const passwordHash = await bcrypt.hash(password, 10);
+  // Single atomic check-and-consume: the WHERE (token hash + not expired) IS the
+  // authorization, so two concurrent requests can't both pass — the first nulls
+  // the token, the second matches 0 rows. Also clears any pending verification
+  // token, since the reset already marks the email verified (clicking the
+  // emailed link proves inbox control, same as the Google-login path).
+  const [u] = await db.update(users)
     .set({
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash,
       passwordResetToken: null,
       passwordResetExpires: null,
+      verificationToken: null,
       emailVerified: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(users.id, u.id));
+    .where(and(eq(users.passwordResetToken, hashToken(token)), gt(users.passwordResetExpires, new Date())))
+    .returning({ id: users.id });
+  if (!u) return { ok: false, error: "this reset link is invalid or has expired" };
   return { ok: true };
 }

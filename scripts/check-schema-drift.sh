@@ -40,15 +40,22 @@ echo "  ▸ building drift_pushed via drizzle-kit push (the ORM)"
 DATABASE_URL="$BASE/drift_pushed" \
   npx drizzle-kit push --force >/dev/null
 
-# Structural fingerprint: columns, constraints, and indexes, each sorted by name.
-# schema_migrations (the runner's own bookkeeping table) exists only on the
-# migrated side, so exclude it everywhere.
-COLS="select table_name||'.'||column_name||' '||data_type||' null='||is_nullable||' def='||coalesce(column_default,'-') from information_schema.columns where table_schema='public' and table_name<>'schema_migrations' order by 1;"
+# Structural fingerprint: enums, columns, constraints, and indexes, each sorted
+# by name. schema_migrations (the runner's own bookkeeping table) exists only on
+# the migrated side, so exclude it everywhere.
+#
+# Columns use udt_name (not data_type) plus the type modifiers, so an enum-type
+# swap, an array element-type change, a varchar length, or a numeric precision
+# change is caught — data_type alone collapses all of those to 'USER-DEFINED' /
+# 'ARRAY' / 'character varying'. Enum label sets are fingerprinted separately
+# (they live in pg_enum, not in any column row).
+ENUMS="select t.typname||' = '||string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_type t join pg_enum e on e.enumtypid=t.oid join pg_namespace n on n.oid=t.typnamespace where n.nspname='public' group by t.typname order by 1;"
+COLS="select table_name||'.'||column_name||' '||udt_name||' null='||is_nullable||' len='||coalesce(character_maximum_length::text,'-')||' prec='||coalesce(numeric_precision::text,'-')||' scale='||coalesce(numeric_scale::text,'-')||' def='||coalesce(column_default,'-') from information_schema.columns where table_schema='public' and table_name<>'schema_migrations' order by 1;"
 CONS="select c.conrelid::regclass::text||' '||c.conname||' '||pg_get_constraintdef(c.oid) from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where n.nspname='public' and t.relname<>'schema_migrations' order by 1;"
 IDX="select indexdef from pg_indexes where schemaname='public' and tablename<>'schema_migrations' order by 1;"
 
 fingerprint() {
-  for q in "$COLS" "$CONS" "$IDX"; do
+  for q in "$ENUMS" "$COLS" "$CONS" "$IDX"; do
     PGPASSWORD=mimeff psql "$BASE/$1" -tA -c "$q"
   done
 }

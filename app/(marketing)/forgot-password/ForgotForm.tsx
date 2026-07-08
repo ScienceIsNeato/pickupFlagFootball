@@ -12,11 +12,18 @@ export function ForgotForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    await requestPasswordReset(email);
-    // Always the same outcome regardless of whether the email has an account,
-    // so the page can't be used to probe who's registered.
-    setSent(true);
-    setBusy(false);
+    // Always show the same outcome regardless of whether the email has an
+    // account OR whether the request threw — otherwise a DB error would leak
+    // (via a stuck button / error) that this address behaves differently, and
+    // defeat the anti-enumeration guarantee.
+    try {
+      await requestPasswordReset(email);
+    } catch {
+      /* swallow — same generic outcome either way */
+    } finally {
+      setSent(true);
+      setBusy(false);
+    }
   }
 
   if (sent) {
@@ -28,7 +35,10 @@ export function ForgotForm() {
           to reset its password. it&apos;s good for one hour.
         </p>
         <p>
-          didn&apos;t get it? check spam, or <Link href="/forgot-password">try again</Link>.
+          didn&apos;t get it? check spam, or{" "}
+          {/* a client-side nav to the same route wouldn't reset this view — reset
+              state directly so the form comes back */}
+          <button type="button" className="auth-link" onClick={() => setSent(false)}>try again</button>.
           signed up with google?{" "}
           <Link href="/?signin=1">use the google button to sign in</Link> instead.
         </p>
