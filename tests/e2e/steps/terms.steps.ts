@@ -19,7 +19,10 @@ Then("I see the assumption of risk and release of liability", async ({ page }) =
 Then("the signup form says creating an account accepts the terms", async ({ page }) => {
   const form = page.locator("form.reg-form");
   await expect(form).toContainText("agree to the terms of service");
-  await expect(form.locator('a[href="/terms"]')).toBeVisible();
+  // one assent line per signup path: under the Google button AND above submit
+  await expect(form.locator('a[href="/terms"]')).toHaveCount(2);
+  await expect(form.locator('a[href="/terms"]').first()).toBeVisible();
+  await expect(form.locator('a[href="/terms"]').last()).toBeVisible();
   await expect(form.locator('a[href="/privacy"]').last()).toBeVisible();
 });
 
