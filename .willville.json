@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Killed the placeholder-link problem for good: the coffee-tip link is real now, and any leftover fill-me-in text anywhere in the site copy kills the build instead of quietly shipping a dead link. Also found and fixed the donate page showing the broken subscribe link on the live site.",
-    "direction": "Land this, then rate limiting and the PO box are what's left before launch",
-    "last_update": "2026-07-08T05:30:00Z"
+    "status": "Did a full sweep for spots where users get stuck or confused before we open to everyone. Found a bunch; now fixing them one at a time. First up: email confirmation was silently breaking for some people because spam-filter link scanners were using up the one-time confirm link before the person could click it.",
+    "direction": "Working down the list - password reset, friendlier error pages, letting people fix a mistyped email, and a way back in after opting out",
+    "last_update": "2026-07-08T07:30:00Z"
   }
 }
