@@ -22,10 +22,11 @@ Everything you do in a browser, in order. Tailored to: **new GCP project**,
    - **Pooled** toggle **ON** → copy it → this is **`DATABASE_URL`**. Paste it
      into a scratch note for now.
    - **Pooled** toggle **OFF** → copy it → this is **`DATABASE_URL_UNPOOLED`**.
-4. 🤖 Tell Claude when the branch exists — it'll wipe the demo seed data and set
-   up migration tracking on it so production starts clean. (Or do it yourself:
-   `node scripts/migrate.mjs baseline` + `... seed-demo-interest.ts --clean`
-   against the prod URL.)
+4. 🤖 Tell Claude when the branch exists — it'll reset it to a clean schema
+   built straight from the migrations, so production starts empty. (Or do it
+   yourself against the prod URL: drop/recreate the `public` schema, then
+   `node scripts/migrate.mjs apply` +
+   `node --env-file=.env.local --import tsx scripts/seed-demo-interest.ts --clean`.)
 
 ## 2 · Google Cloud — create the project
 

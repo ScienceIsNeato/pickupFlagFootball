@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
@@ -7,16 +7,15 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "@/lib/db/schema";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const DB_DIR = resolve(here, "../../../db");
-const SCHEMA_SQL = resolve(DB_DIR, "schema.sql");
-const MIGRATIONS_DIR = resolve(DB_DIR, "migrations");
+const MIGRATIONS_DIR = resolve(here, "../../../db/migrations");
 
 export type SimDb = PgliteDatabase<typeof schema>;
 
 /**
- * An embedded Postgres world: real PG16 (pglite/WASM) loaded from the canonical
- * db/schema.sql, so composite FKs, partial unique indexes, GIN, enums and CHECKs
- * are all exercised exactly as in prod. Hermetic — no network, no creds.
+ * An embedded Postgres world: real PG16 (pglite/WASM) built from db/migrations
+ * — the same generated files a fresh prod database runs — so composite FKs,
+ * partial unique indexes, enums and CHECKs are all exercised exactly as in
+ * prod. Hermetic — no network, no creds.
  */
 export class World {
   readonly pg: PGlite;
@@ -51,16 +50,11 @@ export class World {
       .onConflictDoNothing();
   }
 
-  /** Apply the canonical DDL + ordered migrations. gen_random_uuid() is core in
-   *  PG16, so the pgcrypto CREATE EXTENSION line is dropped (pglite has no
-   *  contrib by default). */
+  /** Apply the generated migrations in filename order — the exact files a
+   *  fresh prod database runs (schema + reference data). */
   private async loadSchema() {
-    const strip = (sql: string) => sql.replace(/CREATE EXTENSION IF NOT EXISTS pgcrypto;.*$/m, "");
-    await this.pg.exec(strip(readFileSync(SCHEMA_SQL, "utf8")));
-    if (existsSync(MIGRATIONS_DIR)) {
-      for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
-        await this.pg.exec(strip(readFileSync(resolve(MIGRATIONS_DIR, f), "utf8")));
-      }
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
+      await this.pg.exec(readFileSync(resolve(MIGRATIONS_DIR, f), "utf8"));
     }
   }
 

@@ -4,6 +4,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+// THE single source of truth for the database schema. To change it: edit this
+// file, then `npm run db:generate -- --name <change>` and commit the generated
+// migration (db/migrations, including meta/). Never hand-write migration SQL —
+// `npm run db:check` (run by the e2e suite too) fails if migrations and this
+// file disagree.
+
 // ── enums ──────────────────────────────────────────────────────────────────
 export const areaStatusEnum = pgEnum("area_status", [
   "DORMANT", "PRIMED", "IN_FORMATION", "SCHEDULED", "STALLED",
@@ -51,9 +57,9 @@ export const activityTypes = pgTable("activity_types", {
   nWarm:       integer("n_warm").notNull().default(5),
   pMin:        integer("p_min").notNull().default(6),
   sMin:        integer("s_min").notNull().default(1),
-  // Engine tunables — read by loadTunables (lib/mime/engine). Modeled here so the
-  // ORM schema is complete and drizzle-kit push (the e2e DB) builds them; without
-  // these the formation engine's loadTunables query fails against a pushed DB.
+  // Engine tunables — read by loadTunables (lib/mime/engine). This file is the
+  // schema's single source of truth (migrations are generated from it), so every
+  // column the engine queries must be modeled here.
   optionsCap:         integer("options_cap").notNull().default(6),
   suggestWindow:      interval("suggest_window").notNull().default("48 hours"),
   availWindow:        interval("avail_window").notNull().default("48 hours"),
@@ -64,7 +70,11 @@ export const activityTypes = pgTable("activity_types", {
   ignoreDecayWindows: integer("ignore_decay_windows").notNull().default(3),
   baseH3Res:   integer("base_h3_res").notNull().default(7),
   createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  check("chk_activity_s_min", sql`${t.sMin} > 0`),
+  // sane tunables: a zero/negative threshold would wedge the formation engine
+  check("activity_types_check", sql`${t.nSpark} > 0 and ${t.nWarm} >= 0 and ${t.pMin} > 0 and ${t.optionsCap} > 0 and ${t.restallInterest} >= 0 and ${t.restallDays} >= 0 and ${t.maxTimeRetries} >= 0 and ${t.baseH3Res} between 0 and 15 and ${t.perUserWeeklyCap} >= 0 and ${t.ignoreDecayWindows} >= 0`),
+]);
 
 export type ActivityType = typeof activityTypes.$inferSelect;
 
@@ -108,7 +118,18 @@ export const users = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // one user per Stripe customer — the webhook's customer→user mapping relies on it
+  uniqueIndex("uq_users_stripe_customer").on(t.stripeCustomerId),
+  check("chk_users_max_travel_km", sql`${t.maxTravelKm} > 0`),
+  check("users_home_lat_check", sql`${t.homeLat} between -90 and 90`),
+  check("users_home_lng_check", sql`${t.homeLng} between -180 and 180`),
+  // catchment fan-out probes by H3 cell; ZIP groups nearby users
+  index("idx_users_h3_r7").on(t.h3R7),
+  index("idx_users_h3_r8").on(t.h3R8),
+  index("idx_users_zip").on(t.zip),
+  index("idx_users_verification_token").on(t.verificationToken).where(sql`${t.verificationToken} is not null`),
+]);
 
 export type User = typeof users.$inferSelect;
 
@@ -140,6 +161,8 @@ export const areas = pgTable("areas", {
   createdAt:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_areas_activity_cell").on(t.activityTypeId, t.h3Cell),
+  check("areas_check", sql`${t.centerLat} between -90 and 90 and ${t.centerLng} between -180 and 180`),
+  index("idx_areas_status").on(t.activityTypeId, t.status),
 ]);
 
 export type Area = typeof areas.$inferSelect;
@@ -156,7 +179,9 @@ export const interestSignals = pgTable("interest_signals", {
   createdAt:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("uq_interest_user_area").on(t.activityTypeId, t.userId, t.areaId),
-  index("idx_interest_area_active").on(t.areaId),
+  // partial: only active signals feed counts/matching, and hot paths filter on it
+  index("idx_interest_area_active").on(t.areaId).where(sql`${t.active}`),
+  index("idx_interest_ring").on(t.activityTypeId, t.h3Base).where(sql`${t.active}`),
 ]);
 
 export type InterestSignal = typeof interestSignals.$inferSelect;
@@ -196,6 +221,16 @@ export const formationAttempts = pgTable("formation_attempts", {
   // lock path is ever bypassed.
   uniqueIndex("uq_attempt_area_number").on(t.areaId, t.attemptNumber),
   index("idx_attempt_open_close").on(t.status, t.interestClosesAt),
+  // catchment membership is probed with array-contains during fan-out
+  index("idx_attempt_catchment").using("gin", t.catchmentCells),
+  // same bound as games.recur_dow — the value is copied there when the game forms
+  check("formation_attempts_recur_dow_check", sql`${t.recurDow} is null or ${t.recurDow} between 0 and 6`),
+  // NO check that CONFIRMED implies scheduled_game_id: the engine claims the
+  // attempt (OPEN→CONFIRMED) BEFORE inserting the game, inside one transaction
+  // — and Postgres CHECKs are per-statement, not deferrable to commit, so such
+  // a check rejects the claim itself. (The original schema.sql had it; it would
+  // have 500'd the first engine-confirmed proposal in prod. The transaction in
+  // trigger/tick guarantees the invariant at every commit boundary instead.)
 ]);
 
 export type FormationAttempt = typeof formationAttempts.$inferSelect;
@@ -237,7 +272,13 @@ export const games = pgTable("games", {
   pausedUntil:     date("paused_until"),
   pauseNote:       text("pause_note"),
   createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // matches setMinPlayers' 2..60 API bound, so a direct DB write can't set a
+  // bar that makes a game impossible to hold or trivially always-on
+  check("games_min_players_range", sql`${t.minPlayers} is null or ${t.minPlayers} between 2 and 60`),
+  check("games_recur_dow_check", sql`${t.recurDow} is null or ${t.recurDow} between 0 and 6`),
+  index("idx_games_area").on(t.activityTypeId, t.areaId),
+]);
 
 export type Game = typeof games.$inferSelect;
 
@@ -252,6 +293,7 @@ export const gameRoster = pgTable("game_roster", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.gameId, t.userId] }),
+  check("game_roster_default_status_check", sql`${t.defaultStatus} in ('in','out')`),
 ]);
 
 // ── game_attendance ────────────────────────────────────────────────────────
@@ -265,6 +307,9 @@ export const gameAttendance = pgTable("game_attendance", {
   createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.gameId, t.userId, t.occurrenceDate] }),
+  check("game_attendance_status_check", sql`${t.status} in ('in','out')`),
+  // the tally counts who's in for a given occurrence
+  index("idx_game_attendance_occurrence").on(t.gameId, t.occurrenceDate).where(sql`${t.status} = 'in'`),
 ]);
 
 // ── game_occurrences ───────────────────────────────────────────────────────
@@ -309,6 +354,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   check("notif_one_parent", sql`(${t.attemptId} is not null) <> (${t.occurrenceId} is not null)`),
   uniqueIndex("uq_notif_attempt").on(t.userId, t.attemptId, t.kind, t.channel).where(sql`${t.attemptId} is not null`),
   uniqueIndex("uq_notif_occurrence").on(t.userId, t.occurrenceId, t.kind, t.channel).where(sql`${t.occurrenceId} is not null`),
+  // the cron flush scans claimed-but-unsent email rows
+  index("idx_notif_unsent").on(t.sentAt).where(sql`${t.emailedAt} is null and ${t.channel} = 'email'`),
+  index("idx_notif_user_week").on(t.userId, t.sentAt),
 ]);
 
 // ── area_captains ──────────────────────────────────────────────────────────

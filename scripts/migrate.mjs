@@ -2,26 +2,25 @@
 /**
  * Idempotent database migration runner.
  *
- * Applies every db/migrations/NNN_*.sql that hasn't run yet, in filename order,
+ * Applies every db/migrations/*.sql that hasn't run yet, in filename order,
  * tracked in a `schema_migrations` table so each runs exactly once. Called from
- * the deploy (scripts/deploy_app.sh) and Vercel's build, so merged schema
- * changes reach the database automatically — the gap that left prod stuck at a
- * pre-015 schema.
+ * the deploy (scripts/deploy_app.sh), so merged schema changes reach the
+ * database automatically.
+ *
+ * The migration files are GENERATED from lib/db/schema.ts (the single source
+ * of truth) with `npm run db:generate` — never hand-written. A brand-new
+ * database needs nothing else: `apply` from empty builds the whole schema
+ * (0000_baseline.sql) plus reference data. The e2e suite bootstraps its DB
+ * through this same path, so every e2e run proves a fresh bootstrap works.
  *
  * Usage:
  *   node scripts/migrate.mjs            apply pending migrations (default)
  *   node scripts/migrate.mjs status     list applied / pending, change nothing
  *   node scripts/migrate.mjs baseline   mark all present files applied WITHOUT
- *                                       running them — for adopting tracking on a
+ *                                       running them — one-time adoption for a
  *                                       database already at the latest schema
  *
  * Connection: DATABASE_URL_UNPOOLED (preferred for DDL) else DATABASE_URL.
- * No URL → no-op exit 0 (local dev without a DB shouldn't break the deploy).
- *
- * Note: db/schema.sql is the baseline snapshot; these numbered migrations are
- * increments on top of it. A brand-new database needs schema.sql applied first,
- * then `baseline` up to the snapshot point — this runner handles the ongoing
- * incremental case (the actual deploy gap).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";

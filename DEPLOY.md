@@ -65,15 +65,29 @@ for migrations), `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
 
 ## 5. First-time database
 
-The migration runner handles incremental migrations. A brand-new database also
-needs the baseline first:
+Nothing special: the migrations under `db/migrations` are generated from
+`lib/db/schema.ts` (the single source of truth) and build the entire schema —
+plus required reference data — from empty. A brand-new database just gets the
+normal runner:
 
 ```bash
-# against DATABASE_URL_UNPOOLED:
-psql "$DATABASE_URL_UNPOOLED" -f db/schema.sql      # baseline snapshot
-node scripts/migrate.mjs baseline                   # mark snapshot applied
-# CI then runs `node scripts/migrate.mjs apply` each deploy.
+node scripts/migrate.mjs apply    # uses DATABASE_URL_UNPOOLED
+# CI runs the same command each deploy.
 ```
+
+A database that predates the migration squash (already at the current schema,
+but whose `schema_migrations` lists the old numbered files) must NOT re-run the
+baseline — adopt it once with `node scripts/migrate.mjs baseline`, which marks
+the generated files applied without executing them.
+
+Optional bulk data (not in migrations): `node scripts/seed-zip-centroids.mjs`
+loads the Census ZIP centroids.
+
+To change the schema: edit `lib/db/schema.ts`, run
+`npm run db:generate -- --name <change>`, and commit the generated migration
+(including `db/migrations/meta/`). Never hand-write migration SQL —
+`npm run db:check` (also run by the e2e suite) fails the build if migrations
+and the ORM disagree.
 
 ## 6. Cron (replaces the old Vercel cron)
 

@@ -25,11 +25,11 @@ person, never their real point — and no name or account detail is ever exposed
 
 | Concern | Where | Today |
 |---|---|---|
-| User profile + location | [`db/schema.sql:76`](../../db/schema.sql) `users`, [`lib/db/schema.ts:48`](../../lib/db/schema.ts) | `city`, `zip`, snapped `home_lat/lng`, `h3_r5..r9`. **No street address by design.** |
+| User profile + location | [`lib/db/schema.ts`](../../lib/db/schema.ts) `users` | `city`, `zip`, snapped `home_lat/lng`, `h3_r5..r9`. **No street address by design.** |
 | Account form | [`app/(app)/account/page.tsx`](../../app/(app)/account/page.tsx) | Collects `displayName`, `city`, `zip` only |
 | ZIP → location | [`app/(app)/account/actions.ts`](../../app/(app)/account/actions.ts), [`lib/geo/zipLookup.ts`](../../lib/geo/zipLookup.ts) | `lookupZip()` → centroid → `cellsForPoint()` → H3 cells |
-| Interest | [`db/schema.sql:133`](../../db/schema.sql) `interest_signals` | `time_prefs time_slot[]` (positive prefs), `active` |
-| Time slots | [`db/schema.sql:17`](../../db/schema.sql) `time_slot` enum | 6 coarse slots: `weekday_am/midday/eve`, `weekend_am/midday/pm` |
+| Interest | [`lib/db/schema.ts`](../../lib/db/schema.ts) `interest_signals` | `time_prefs time_slot[]` (positive prefs), `active` |
+| Time slots | [`lib/db/schema.ts`](../../lib/db/schema.ts) `time_slot` enum | 6 coarse slots: `weekday_am/midday/eve`, `weekend_am/midday/pm` |
 | Map data | [`app/api/map/route.ts`](../../app/api/map/route.ts) | `GET /api/map?res=N` → `{cells:[{h3,lat,lng,count,hasGame}]}` aggregated per cell |
 | Map render | [`components/MapView.tsx`](../../components/MapView.tsx) | MapLibre GL + Canvas2D flags; cursor gravity radius `GR=120px`; flags belong to a cluster and pull toward cursor when within `GR` |
 
@@ -68,11 +68,11 @@ New/changed fields on the setup + account forms:
 4. **Availability / blackouts** — mark days/times you are *not* available. Anyone blacked-out for the
    active time context is excluded from interest counts and dropped from the probe.
 
-> **Privacy tension to settle (Open Decision A).** The schema today is emphatic: *"NO PII … we NEVER store a
-> street address"* ([`db/schema.sql:8`](../../db/schema.sql)). Collecting an address means we now hold a precise
-> home point. Recommendation: store the **precise** `home_lat/lng` for matching math only, never serve it to the
-> client; the map always renders a **jittered** point (see §7). Optionally don't persist the raw address string at
-> all — geocode it on submit, keep lat/lng, discard the text. This keeps "no street address at rest" mostly true.
+> **Privacy tension (Open Decision A — since settled).** The original schema was emphatic ("NO PII … we NEVER
+> store a street address"); today [`lib/db/schema.ts`](../../lib/db/schema.ts) does persist optional, user-supplied
+> `address_line1/2` — server-only, used to geocode a precise home point, never served to any client. The precise
+> `home_lat/lng` is for matching math only; the map always renders a **jittered** point (see §7). A stricter
+> variant remains open: geocode on submit, keep lat/lng, discard the address text.
 
 ---
 
