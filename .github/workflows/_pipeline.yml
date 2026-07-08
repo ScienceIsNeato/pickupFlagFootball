@@ -16,6 +16,7 @@ on:
       stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
+      sentry_dsn_secret:            { type: string, required: false, default: "" }  # …for SENTRY_DSN (error tracking); unset = Sentry off
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -161,6 +162,15 @@ jobs:
           gcloud run services update ${{ inputs.service_name }} \
             --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
             --update-secrets="SLACK_WEBHOOK_URL=${{ inputs.slack_webhook_secret }}:latest"
+      # Same additive pattern for Sentry: bind the DSN when configured, no-op otherwise
+      # (the app only initializes Sentry when SENTRY_DSN is present).
+      - name: Bind Sentry DSN (optional)
+        if: inputs.sentry_dsn_secret != ''
+        run: |
+          gcloud run services update ${{ inputs.service_name }} \
+            --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
+            --update-env-vars="SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
+            --update-secrets="SENTRY_DSN=${{ inputs.sentry_dsn_secret }}:latest"
       - name: Verify deployment
         run: |
           URL=$(gcloud run services describe ${{ inputs.service_name }} \

@@ -63,6 +63,11 @@ Secrets needed: `DATABASE_URL` (Neon pooled), `DATABASE_URL_UNPOOLED` (Neon dire
 for migrations), `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
 `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `BREVO_API_KEY`.
 
+Optional: `pff-sentry-dsn` (SENTRY_DSN) turns on server-side error tracking —
+create a project at sentry.io, store its DSN in the secret, and uncomment
+`sentry_dsn_secret` in deploy-dev.yml / deploy-prod.yml. Without it the Sentry
+layer is a complete no-op.
+
 ## 5. First-time database
 
 Nothing special: the migrations under `db/migrations` are generated from
