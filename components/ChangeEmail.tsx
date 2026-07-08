@@ -6,7 +6,7 @@ import { changeEmail } from "@/lib/auth/changeEmail";
 /** Self-serve email change on the account page. Swaps the address and sends a
  *  confirm link to the new one (the account stays gated until confirmed). Lives
  *  outside the main "save changes" form — its own action. */
-export function ChangeEmail({ email, verified }: { email: string; verified: boolean }) {
+export function ChangeEmail({ email, verified, canChange }: { email: string; verified: boolean; canChange: boolean }) {
   const [open, setOpen] = useState(false);
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,6 +31,18 @@ export function ChangeEmail({ email, verified }: { email: string; verified: bool
       <p className="reg-blurb">
         we sent a confirmation to <strong>{sentTo}</strong> — click the link in it
         to finish the switch. until then you can still sign in with that address.
+      </p>
+    );
+  }
+
+  // Google accounts sign in by matching their Google email, so it can't be
+  // changed here — show the address, no change control (the action rejects it
+  // too, defensively).
+  if (!canChange) {
+    return (
+      <p className="reg-blurb">
+        signed in as <strong>{email}</strong>
+        <span className="acct-unverified"> · via google (email managed by google)</span>
       </p>
     );
   }

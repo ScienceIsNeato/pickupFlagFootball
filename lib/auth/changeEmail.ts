@@ -29,9 +29,16 @@ export async function changeEmail(newEmailRaw: string): Promise<ChangeEmailResul
   const newEmail = newEmailRaw.toLowerCase().trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) return { ok: false, error: "enter a valid email address" };
 
-  const [me] = await db.select({ email: users.email, name: users.displayName })
+  const [me] = await db.select({ email: users.email, name: users.displayName, passwordHash: users.passwordHash })
     .from(users).where(eq(users.id, uid)).limit(1);
   if (!me) return { ok: false, error: "account not found" };
+  // A password-less (Google) account signs in by matching its Google email
+  // against users.email — changing that email would break Google sign-in with no
+  // password to fall back on, stranding them. (Google emails come verified, so
+  // there's no typo to fix here anyway.)
+  if (!me.passwordHash) {
+    return { ok: false, error: "your account signs in with google, so its email is managed there and can't be changed here" };
+  }
   if (me.email === newEmail) return { ok: false, error: "that's already your email" };
 
   const [other] = await db.select({ id: users.id }).from(users)
