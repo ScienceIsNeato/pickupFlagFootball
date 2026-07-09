@@ -37,6 +37,29 @@ test("proposal email carries the details + Interested/Not-Interested buttons", (
   assert.ok(mail.textContent.includes(inUrl), "text carries the interested link");
 });
 
+test("series-paused email shows the venue, resume date, and captain's note", () => {
+  const mail = buildNotificationEmail("SERIES_PAUSED", {
+    displayName: "Sam", appBaseUrl: "https://app.test", footer: null,
+    details: { place: "Republic Square, Austin 78701", when: "back around Monday, Aug 3" },
+    note: "field's under construction until august",
+  });
+  assert.match(mail.htmlContent, /Republic Square/, "shows the venue");
+  assert.match(mail.htmlContent, /back around Monday, Aug 3/, "shows the resume date");
+  assert.match(mail.htmlContent, /under construction/, "shows the captain's note (html)");
+  assert.match(mail.textContent, /under construction/, "shows the captain's note (text)");
+  assert.match(mail.htmlContent, /on pause/i, "titled as a pause");
+});
+
+test("series-retired email shows the venue and no upcoming time", () => {
+  const mail = buildNotificationEmail("SERIES_RETIRED", {
+    displayName: "Sam", appBaseUrl: "https://app.test", footer: null,
+    details: { place: "Republic Square, Austin 78701" },
+  });
+  assert.match(mail.htmlContent, /Republic Square/, "shows the venue");
+  assert.match(mail.htmlContent, /wrapped up|retired|won't run/i, "reads as an ending");
+  assert.ok(!/>when<\/p>/.test(mail.htmlContent), "no 'when' block for a retired game");
+});
+
 test("game-on email carries the spot, time, and roster", () => {
   const mail = buildNotificationEmail("GAME_ON", {
     displayName: "Sam", appBaseUrl: "https://app.test", footer: null,

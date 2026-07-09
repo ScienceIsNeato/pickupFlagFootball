@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedCaptain, markEmailVerified } from "../support/db";
+import { seedCaptain, markEmailVerified, seedRosterMemberUser } from "../support/db";
 import { registerViaUi } from "../support/flows";
+import { clearMailpit, waitForEmailTo } from "../support/mailpit";
 
 // Reuses the "established weekly game near me" Given + "I open the game on the
 // map" When from games.steps.ts (steps are registered globally).
@@ -19,6 +20,17 @@ Given(
     await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   },
 );
+
+Given("a teammate {string} at {string} is on the roster", async ({ world }, name: string, email: string) => {
+  await seedRosterMemberUser(world.game!.gameId!, email, name);
+  await clearMailpit(); // isolate the pause email the later tick will flush
+});
+
+Then("the teammate gets the pause email", async () => {
+  const mail = await waitForEmailTo("teammate@example.com");
+  expect(mail.subject.toLowerCase()).toMatch(/pause/);
+  expect(mail.html).toMatch(/summer break/i); // the captain's note rides along
+});
 
 When("I pause the series", async ({ page }) => {
   await page.getByRole("button", { name: "pause series" }).click(); // opens the pause dialog

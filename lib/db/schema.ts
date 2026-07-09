@@ -33,6 +33,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "GAME_PROPOSED", "GAME_ON", "STALLED_NOTICE",
   // weekly occurrence poll
   "POLL_ASK", "WEEK_ON", "WEEK_OFF",
+  // series lifecycle: a captain pauses or retires the standing game (game-parented)
+  "SERIES_PAUSED", "SERIES_RETIRED",
 ]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["push", "email"]);
 // Self-declared donation preference. Drives the (Phase 6) email donation footer:
@@ -356,7 +358,10 @@ export const notificationsSent = pgTable("notifications_sent", {
   // exactly-once) but not yet sent — the cron flush sends these and stamps it.
   emailedAt: timestamp("emailed_at", { withTimezone: true }),
 }, (t) => [
-  check("notif_one_parent", sql`(${t.attemptId} is not null) <> (${t.occurrenceId} is not null)`),
+  // At most one of attempt/occurrence (they're mutually exclusive parents), and
+  // at least one parent overall — attempt (formation), occurrence (weekly poll),
+  // or game (series-level pause/retire notices, which have neither).
+  check("notif_one_parent", sql`num_nonnulls(${t.attemptId}, ${t.occurrenceId}) <= 1 and num_nonnulls(${t.attemptId}, ${t.occurrenceId}, ${t.gameId}) >= 1`),
   uniqueIndex("uq_notif_attempt").on(t.userId, t.attemptId, t.kind, t.channel).where(sql`${t.attemptId} is not null`),
   uniqueIndex("uq_notif_occurrence").on(t.userId, t.occurrenceId, t.kind, t.channel).where(sql`${t.occurrenceId} is not null`),
   // the cron flush scans claimed-but-unsent email rows

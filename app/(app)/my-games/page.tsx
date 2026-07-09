@@ -55,6 +55,7 @@ export default async function UpcomingGamesPage() {
         id: games.id, areaId: games.areaId, placeText: games.placeText, status: games.status,
         scheduledStart: games.scheduledStart, isStanding: games.isStanding,
         recurDow: games.recurDow, recurTime: games.recurTime, color: games.color,
+        pausedUntil: games.pausedUntil, pauseNote: games.pauseNote,
         city: areas.displayCity, zip: areas.displayZip, timezone: areas.timezone,
       }).from(games).innerJoin(areas, eq(areas.id, games.areaId))
         .where(and(inArray(games.id, rosterIds), inArray(games.status, ["active", "paused"])))
@@ -138,6 +139,7 @@ export default async function UpcomingGamesPage() {
                 {rosterGames.map((g) => {
                   const def = defaultByGame.get(g.id) ?? "in";
                   const color = g.color ?? gameColor(g.id);
+                  const paused = g.status === "paused";
                   return (
                     <li key={g.id} className="mine-card">
                       <div className="mine-card-top">
@@ -147,12 +149,23 @@ export default async function UpcomingGamesPage() {
                           <div className="mine-card-meta">{g.city ?? ""}{g.zip ? ` ${g.zip}` : ""} · {weeklyTime(g)}</div>
                         </div>
                       </div>
-                      <form action={setSiteDefault} className="mine-pref">
-                        <input type="hidden" name="gameId" value={g.id} />
-                        <span className="mine-pref-label">by default i&apos;ll</span>
-                        <button type="submit" name="default" value="in" className="rsvp-btn rsvp-in" {...(def === "in" ? { "data-active": true } : {})}>usually come</button>
-                        <button type="submit" name="default" value="out" className="rsvp-btn rsvp-out" {...(def === "out" ? { "data-active": true } : {})}>usually won&apos;t</button>
-                      </form>
+                      {paused ? (
+                        // Paused series have no upcoming games; explain why instead of
+                        // showing an RSVP form that does nothing.
+                        <div className="mine-paused">
+                          <span className="mine-paused-pill">
+                            paused{g.pausedUntil ? ` · back by ${fmtDate(g.pausedUntil)}` : ""}
+                          </span>
+                          {g.pauseNote ? <p className="mine-paused-note">{g.pauseNote}</p> : null}
+                        </div>
+                      ) : (
+                        <form action={setSiteDefault} className="mine-pref">
+                          <input type="hidden" name="gameId" value={g.id} />
+                          <span className="mine-pref-label">by default i&apos;ll</span>
+                          <button type="submit" name="default" value="in" className="rsvp-btn rsvp-in" {...(def === "in" ? { "data-active": true } : {})}>usually come</button>
+                          <button type="submit" name="default" value="out" className="rsvp-btn rsvp-out" {...(def === "out" ? { "data-active": true } : {})}>usually won&apos;t</button>
+                        </form>
+                      )}
                     </li>
                   );
                 })}

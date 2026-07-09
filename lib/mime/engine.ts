@@ -13,7 +13,9 @@ import { notifyResolve, type ResolveOutcome } from "@/lib/slack";
  *  neon-http in prod and pglite in the sim. */
 export type EngineDb = PgDatabase<never, typeof schema>;
 
-type NotifKind = "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE";
+// Kinds the enqueue ledger accepts: the formation notices resolveAttempt sends,
+// plus the game-parented series notices (pause/retire) from the captain actions.
+type NotifKind = "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE" | "SERIES_PAUSED" | "SERIES_RETIRED";
 
 /** Effective tunables = activity_types row values layered with per-area overrides.
  *  Only p_min still drives the (now single-window) formation; the rest are loaded
@@ -167,12 +169,14 @@ export async function catchmentUsers(
  *  channel) makes it exactly-once; the cron flush turns these into real emails. */
 export async function enqueue(
   db: EngineDb,
-  items: Array<{ userId: string; attemptId: string; gameId?: string; kind: NotifKind }>,
+  // attemptId is optional: formation notices carry an attempt, but series-level
+  // notices (pause/retire) are game-parented with no attempt or occurrence.
+  items: Array<{ userId: string; attemptId?: string; gameId?: string; kind: NotifKind }>,
   now: Date,
 ) {
   if (!items.length) return;
   await db.insert(notificationsSent).values(items.map((i) => ({
-    userId: i.userId, attemptId: i.attemptId, gameId: i.gameId ?? null,
+    userId: i.userId, attemptId: i.attemptId ?? null, gameId: i.gameId ?? null,
     kind: i.kind, channel: "email" as const, sentAt: now,
   }))).onConflictDoNothing();
 }

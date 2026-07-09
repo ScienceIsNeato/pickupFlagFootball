@@ -4,7 +4,9 @@ import type { DonationFooter } from "./donationFooter";
 export type NotifKind =
   | "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE"
   // weekly occurrence poll
-  | "POLL_ASK" | "WEEK_ON" | "WEEK_OFF";
+  | "POLL_ASK" | "WEEK_ON" | "WEEK_OFF"
+  // series lifecycle: captain paused or retired the standing game
+  | "SERIES_PAUSED" | "SERIES_RETIRED";
 
 type Copy = { subject: string; title: string; intro: string; cta: string; path: string };
 
@@ -16,6 +18,8 @@ const COPY: Record<NotifKind, Copy> = {
   POLL_ASK:       { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
   WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in - this week's game is on. here's the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
   WEEK_OFF:       { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week - and you can still rally folks.", cta: "see your games", path: "/my-games" },
+  SERIES_PAUSED:  { subject: "your weekly game is paused", title: "your game's on pause", intro: "a captain paused your weekly game for now - no polls or games until it's back. here's the spot and when to expect it.", cta: "see your games", path: "/my-games" },
+  SERIES_RETIRED: { subject: "your weekly game has ended", title: "your game has wrapped up", intro: "a captain retired this weekly game, so it won't run anymore. thanks for playing - you're back in the pool for other games near you.", cta: "find another game", path: "/play" },
 };
 
 function esc(s: string): string {
@@ -23,19 +27,24 @@ function esc(s: string): string {
 }
 
 type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
-type Details = { place: string; when: string };
+type Details = { place: string; when?: string };
 type Roster = { count: number; names: string[] };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster; unsubscribeUrl?: string; footerReason?: string }): string {
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster; unsubscribeUrl?: string; footerReason?: string; note?: string }): string {
   // The proposal's spot + time, shown right in the email so the recipient can
-  // decide without clicking through.
+  // decide without clicking through. "when" is optional (a retire notice has no
+  // upcoming time).
   const detailsHtml = p.details
     ? `<table role="presentation" cellspacing="0" cellpadding="0" style="background:#1a2c25; border-radius:10px; margin:0 0 18px; width:100%;"><tr><td style="padding:14px 16px;">
         <p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">where</p>
-        <p style="margin:0 0 12px; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.place)}</p>
-        <p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">when</p>
-        <p style="margin:0; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.when)}</p>
+        <p style="margin:0${p.details.when ? " 0 12px" : ""}; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.place)}</p>
+        ${p.details.when ? `<p style="margin:0 0 4px; color:#9fb39a; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;">when</p>
+        <p style="margin:0; color:#ffffff; font-size:15px; line-height:1.4;">${esc(p.details.when)}</p>` : ""}
       </td></tr></table>`
+    : "";
+  // A captain's freeform note (pause reason), shown as a quote.
+  const noteHtml = p.note
+    ? `<p style="margin:0 0 18px; padding:10px 14px; border-left:3px solid #468944; background:#12211c; color:#cdd6d0; font-size:14px; line-height:1.5;">${esc(p.note)}</p>`
     : "";
   // Who said they're in, for the "game on" email.
   const rosterHtml = p.roster
@@ -63,6 +72,7 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 8px;">${esc(p.greeting)}</p>
       <p style="color:#cdd6d0; font-size:15px; line-height:1.6; margin:0 0 18px;">${esc(p.intro)}</p>
       ${detailsHtml}
+      ${noteHtml}
       ${rosterHtml}
       <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
       ${buttonsHtml}
@@ -147,6 +157,8 @@ export function buildNotificationEmail(
     roster?: Roster;
     // one-click unsubscribe link (footer + text). Set for bulk notification mail.
     unsubscribeUrl?: string;
+    // captain's freeform note, shown on the SERIES_PAUSED email.
+    note?: string;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -162,15 +174,16 @@ export function buildNotificationEmail(
   const buttons = opts.buttons ? { inUrl: opts.buttons.inUrl, outUrl: opts.buttons.outUrl, ...labels } : undefined;
 
   const footerLine = opts.footer ? `\n\n${opts.footer.text}${opts.footer.donateUrl ? ` ${base}${opts.footer.donateUrl}` : ""}` : "";
-  const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}\nwhen: ${opts.details.when}` : "";
+  const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}${opts.details.when ? `\nwhen: ${opts.details.when}` : ""}` : "";
+  const noteLine = opts.note ? `\n\n"${opts.note}"` : "";
   const rosterLine = opts.roster ? `\n\n${opts.roster.count} planning to play: ${opts.roster.names.join(", ") || "—"}` : "";
   const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";
   const unsubLine = opts.unsubscribeUrl ? `\nunsubscribe: ${opts.unsubscribeUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
+  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${noteLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster, unsubscribeUrl: opts.unsubscribeUrl }),
+    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster, unsubscribeUrl: opts.unsubscribeUrl, note: opts.note }),
     textContent,
   };
 }
