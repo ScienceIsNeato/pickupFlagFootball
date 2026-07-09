@@ -12,6 +12,12 @@ Feature: Not interested in a proposal
     When I say I'm interested after all
     Then the proposal shows I'm in
 
+  Scenario: I can rejoin an area I opted out of, from my account
+    Given I am a confirmed player "Ray Join" with email "rayjoin@example.com" in ZIP "78701"
+    And I have opted out of my area
+    When I open my account page
+    Then I see the area I opted out of and can rejoin it
+
   Scenario: a player says not interested from the proposal email link
     Given I am a confirmed player "Em Out" with email "emout@example.com" in ZIP "78701"
     And a neighbor proposes a game near me, asking me in

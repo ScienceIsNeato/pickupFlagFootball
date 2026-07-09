@@ -54,7 +54,7 @@ export default async function DeclinePage({
       <p>
         we&apos;ll stop counting you toward - and stop emailing you about - games forming at{" "}
         <strong>{where}</strong>. you&apos;ll still hear about other games near you, and you can
-        change your mind from the site&apos;s popup on the map.
+        change your mind anytime from your <Link href="/account">account</Link>.
       </p>
       <form action={applyDecline}>
         <input type="hidden" name="t" value={t} />
