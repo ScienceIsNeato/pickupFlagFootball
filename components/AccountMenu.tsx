@@ -28,6 +28,12 @@ export function AccountMenu() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
+  // Close the (signed-in only) invite modal if the session drops — otherwise its
+  // state lingers and it would reappear on the next sign-in.
+  useEffect(() => {
+    if (!session?.user) setInviteOpen(false);
+  }, [session?.user]);
+
   // middleware bounces gated routes to /?signin=1&next=… — auto-open the modal.
   // /?reset=1 arrives after a completed password reset — same modal, plus a
   // "password updated" notice so the user knows to log in with the new one.

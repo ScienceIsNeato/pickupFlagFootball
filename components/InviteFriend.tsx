@@ -14,11 +14,15 @@ export function InviteFriend({ onClose }: { onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null);
   useFocusTrap(cardRef);
 
+  // Don't let Escape / overlay / × dismiss the modal mid-send — closing then
+  // would hide a successful send and invite a duplicate.
+  const close = () => { if (!busy) onClose(); };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,9 +37,9 @@ export function InviteFriend({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="auth-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="auth-overlay" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div ref={cardRef} className="auth-card" role="dialog" aria-modal="true" aria-label="invite a friend">
-        <button className="auth-close" onClick={onClose} aria-label="close">×</button>
+        <button className="auth-close" onClick={close} aria-label="close">×</button>
         {sentTo ? (
           <>
             <h2 className="auth-title">invite sent</h2>
