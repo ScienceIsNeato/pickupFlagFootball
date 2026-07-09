@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,6 +9,7 @@ import { games, areas, areaCaptains, gameOccurrences, gameRoster } from "@/lib/d
 import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { retireEligibility } from "@/lib/games/retireEligibility";
 import { runOccurrence } from "@/lib/mime/trigger";
+import { enqueue, type EngineDb } from "@/lib/mime/engine";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 import { kickoffAtFor } from "@/lib/datetime";
 
@@ -19,7 +20,7 @@ export type CaptainResult = { ok: true } | { ok: false; error: string };
 type SeriesStatus = "active" | "paused" | "retired";
 type Game = { areaId: string; status: SeriesStatus; recurDow: number | null; recurTime: string | null; scheduledStart: Date; timezone: string };
 
-async function asCaptain(gameId: string): Promise<{ ok: false; error: string } | { ok: true; game: Game }> {
+async function asCaptain(gameId: string): Promise<{ ok: false; error: string } | { ok: true; game: Game; uid: string }> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "sign in first" };
   const uid = session.user.id;
@@ -31,7 +32,7 @@ async function asCaptain(gameId: string): Promise<{ ok: false; error: string } |
   const [cap] = await db.select({ u: areaCaptains.userId }).from(areaCaptains)
     .where(and(eq(areaCaptains.areaId, g.areaId), eq(areaCaptains.userId, uid))).limit(1);
   if (!cap) return { ok: false, error: "only a captain can do that" };
-  return { ok: true, game: g };
+  return { ok: true, game: g, uid };
 }
 
 // Valid series transitions (retired is terminal).
@@ -48,6 +49,7 @@ async function setSeriesStatus(
 ): Promise<CaptainResult> {
   const c = await asCaptain(gameId);
   if (!c.ok) return c;
+  const actorId = c.uid; // the captain doing this — don't notify them of their own action
   if (c.game.status === status) return { ok: true }; // idempotent no-op
   if (!ALLOWED[c.game.status].includes(status)) {
     return { ok: false, error: `can't move a ${c.game.status} series to ${status}` };
@@ -81,6 +83,20 @@ async function setSeriesStatus(
           inArray(gameOccurrences.status, ["pending", "polling", "tallying", "scheduled", "skipped", "notifying", "awaiting_game"]),
         ));
     }
+    // Tell the roster their game changed state — otherwise it just goes quiet on
+    // them and looks broken. ONLY for pause/retire (a resume→active must not send
+    // a "game ended" notice). Enqueue BEFORE a retire deletes the roster; exclude
+    // the acting captain (they know — they just did it). Game-parented; one per
+    // real transition (the status guard at the top prevents re-enqueue).
+    if (status === "paused" || status === "retired") {
+      const roster = await tx.select({ userId: gameRoster.userId }).from(gameRoster)
+        .where(and(eq(gameRoster.gameId, gameId), ne(gameRoster.userId, actorId)));
+      await enqueue(tx as unknown as EngineDb, roster.map((m) => ({
+        userId: m.userId, gameId,
+        kind: status === "paused" ? ("SERIES_PAUSED" as const) : ("SERIES_RETIRED" as const),
+      })), new Date());
+    }
+
     // Retiring is permanent — release the roster back to the free-interest pool.
     // Members keep their interest signals (so they still court games near home);
     // they're just no longer claimed by this dead game. (Pause keeps the roster so

@@ -36,6 +36,23 @@ export async function markEmailVerified(email: string): Promise<void> {
   await pool.query("UPDATE users SET email_verified = now() WHERE lower(email) = lower($1)", [email]);
 }
 
+/** Create a minimal verified user and put them on a game's roster — a teammate
+ *  who isn't the browser's session user (for notify-the-roster scenarios). */
+export async function seedRosterMemberUser(gameId: string, email: string, name: string): Promise<void> {
+  const { rows } = await pool.query(
+    `INSERT INTO users (email, display_name, zip, home_lat, home_lng, email_verified)
+     VALUES ($1, $2, '78701', 30.27, -97.74, now())
+     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, email_verified = now()
+     RETURNING id`,
+    [email, name],
+  );
+  await pool.query(
+    `INSERT INTO game_roster (game_id, user_id, default_status) VALUES ($1, $2, 'in')
+     ON CONFLICT (game_id, user_id) DO NOTHING`,
+    [gameId, rows[0].id],
+  );
+}
+
 /** Opt a user out of their own area (the email "not interested in this site"
  *  case) so the account-page re-entry UI has something to show. */
 export async function seedAreaOptout(email: string): Promise<void> {

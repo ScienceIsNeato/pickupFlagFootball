@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Knocked out a few smaller confusing spots: a support/contact link in the footers, fixed a session-timeout that dumped people on an ugly raw login page, and corrected a FAQ that mentioned a captain feature ('off season') that doesn't exist.",
-    "direction": "Next: tell members when a captain pauses or retires their game (right now it just goes quiet on them)",
-    "last_update": "2026-07-08T14:00:00Z"
+    "status": "Members now get told when a captain pauses or retires their game - an email with the reason and when it's back, plus a clear 'paused, back by DATE' badge on their games list. Before this the game just went silent and looked broken.",
+    "direction": "That's the pause/retire gap closed. Next: the high-value Tier 3 items - link previews for sharing, and a couple of small map/registration dead-ends",
+    "last_update": "2026-07-08T15:00:00Z"
   }
 }

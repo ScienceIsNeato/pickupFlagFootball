@@ -662,6 +662,13 @@ section h2::after {
 /* per-site default pref toggle */
 .mine-pref { margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mine-pref-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.mine-paused { margin-top: 10px; }
+.mine-paused-pill {
+  display: inline-block; font-size: 12px; font-weight: 600; color: #f4c430;
+  background: rgba(244, 196, 48, 0.12); border: 1px solid rgba(244, 196, 48, 0.3);
+  border-radius: 999px; padding: 3px 10px;
+}
+.mine-paused-note { font-size: 12px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
 /* a single occurrence row (upcoming override / past result) */
 .mine-occ { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 10px; background: rgba(0,0,0,.22); border: 1px solid var(--border); border-radius: 8px; }

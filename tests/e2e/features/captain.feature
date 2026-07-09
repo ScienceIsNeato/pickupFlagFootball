@@ -9,6 +9,18 @@ Feature: Captain controls
     When I resume the series
     Then the game is running again
 
+  Scenario: pausing the series notifies the roster
+    Given an established weekly game near me
+    And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
+    And a teammate "Tee Mate" at "teammate@example.com" is on the roster
+    When I open the game on the map
+    And I pause the series
+    And the engine ticks
+    Then the roster member "teammate@example.com" gets the pause email
+    When I resume the series
+    And the engine ticks
+    Then the roster member "teammate@example.com" gets no "game ended" email
+
   Scenario: a captain retires a long-dead series for good
     Given a long-dead established weekly game near me
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"

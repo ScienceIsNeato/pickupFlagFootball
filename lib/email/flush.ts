@@ -35,6 +35,11 @@ function whenText(start: Date, recurDow: number | null, recurTime: string | null
     : `${date} at ${time}`;
 }
 
+/** Human date from a YYYY-MM-DD string (e.g. the pause resume date). */
+function dateText(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 /** Human "when" for a weekly occurrence: its date + kickoff time. */
 function whenOccurrence(date: string, kickoff: Date): string {
   const d = new Date(`${date}T00:00:00`);
@@ -94,6 +99,9 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     occDate: gameOccurrences.occurrenceDate,
     kickoffAt: gameOccurrences.kickoffAt,
     gamePlace: games.placeText,
+    gameStatus: games.status,
+    pausedUntil: games.pausedUntil,
+    pauseNote: games.pauseNote,
     email: users.email,
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
@@ -120,6 +128,11 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     // early in-app / link interest can resolve it before this flush runs. The row
     // is already claimed (emailedAt set), so it's simply dropped, never retried.
     if (r.kind === "GAME_PROPOSED" && r.attemptStatus !== "OPEN") { skipped++; continue; }
+    // The series may have moved on before this flush (e.g. paused → resumed):
+    // don't send a stale "paused" email for a game that's active again, nor a
+    // "retired" for one that isn't. The row is claimed, so it's dropped, not retried.
+    if (r.kind === "SERIES_PAUSED" && r.gameStatus !== "paused") { skipped++; continue; }
+    if (r.kind === "SERIES_RETIRED" && r.gameStatus !== "retired") { skipped++; continue; }
 
     try {
       const kind = r.kind as NotifKind;
@@ -137,7 +150,14 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
         ? { place: r.placeText, when: whenText(r.proposedStart, r.recurDow, r.recurTime) }
         : OCCURRENCE_KINDS.has(kind) && r.gamePlace && r.occDate && r.kickoffAt
         ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) }
+        // Series notices show the venue; pause adds an expected-return date, retire has no "when".
+        : kind === "SERIES_PAUSED" && r.gamePlace
+        ? { place: r.gamePlace, when: r.pausedUntil ? `back around ${dateText(r.pausedUntil)}` : undefined }
+        : kind === "SERIES_RETIRED" && r.gamePlace
+        ? { place: r.gamePlace }
         : undefined;
+      // The captain's freeform pause reason, shown on the pause email.
+      const note = kind === "SERIES_PAUSED" ? r.pauseNote ?? undefined : undefined;
       // Who's in: GAME_ON lists the founding roster; WEEK_ON lists this week's ins.
       const roster = kind === "GAME_ON" && r.gameId
         ? await gameRosterNames(r.gameId)
@@ -147,7 +167,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       // CAN-SPAM: every bulk notification carries a one-click unsubscribe — a
       // footer link (page) and the List-Unsubscribe header (the api POST target).
       const mail = buildNotificationEmail(kind, {
-        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster,
+        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster, note,
         unsubscribeUrl: unsubscribeUrl(APP_BASE_URL, r.userId),
       });
       const delivered = await sendEmail({

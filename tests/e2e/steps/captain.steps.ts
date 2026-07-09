@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedCaptain, markEmailVerified } from "../support/db";
+import { seedCaptain, markEmailVerified, seedRosterMemberUser } from "../support/db";
 import { registerViaUi } from "../support/flows";
+import { clearMailpit, waitForEmailTo, allEmails } from "../support/mailpit";
 
 // Reuses the "established weekly game near me" Given + "I open the game on the
 // map" When from games.steps.ts (steps are registered globally).
@@ -19,6 +20,24 @@ Given(
     await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   },
 );
+
+Given("a teammate {string} at {string} is on the roster", async ({ world }, name: string, email: string) => {
+  await seedRosterMemberUser(world.game!.gameId!, email, name);
+  await clearMailpit(); // isolate the pause email the later tick will flush
+});
+
+Then("the roster member {string} gets the pause email", async ({}, email: string) => {
+  const mail = await waitForEmailTo(email);
+  expect(mail.subject.toLowerCase()).toMatch(/pause/);
+  expect(mail.html).toMatch(/summer break/i); // the captain's note rides along
+});
+
+Then("the roster member {string} gets no \"game ended\" email", async ({}, email: string) => {
+  // The tick flushed synchronously, so any (buggy) retire email would be here now.
+  const ended = (await allEmails()).filter((e) =>
+    e.to.toLowerCase() === email.toLowerCase() && /ended|retired|wrapped/i.test(e.subject));
+  expect(ended, "a resume must not send a retire/ended email").toHaveLength(0);
+});
 
 When("I pause the series", async ({ page }) => {
   await page.getByRole("button", { name: "pause series" }).click(); // opens the pause dialog
