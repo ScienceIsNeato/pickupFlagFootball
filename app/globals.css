@@ -111,12 +111,12 @@ a { color: var(--link); text-decoration: none; }
 .acct-id { padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 .acct-name { font-weight: 600; font-size: 14px; color: var(--ink); }
 .acct-email { font-size: 12px; color: var(--faint); }
-.acct-menu a, .acct-signout {
+.acct-menu a, .acct-signout, .acct-menu-item {
   display: block; width: 100%; text-align: left; padding: 8px 10px;
   border-radius: 6px; font-size: 14px; color: var(--muted);
   background: none; border: 0; cursor: pointer; font-family: inherit;
 }
-.acct-menu a:hover, .acct-signout:hover { background: var(--bg); color: var(--ink); }
+.acct-menu a:hover, .acct-signout:hover, .acct-menu-item:hover { background: var(--bg); color: var(--ink); }
 .acct-signout { color: var(--link); }
 
 /* auth modal (Google + email/password) */

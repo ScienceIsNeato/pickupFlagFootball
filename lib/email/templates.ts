@@ -26,7 +26,7 @@ type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: st
 type Details = { place: string; when: string };
 type Roster = { count: number; names: string[] };
 
-function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster; unsubscribeUrl?: string }): string {
+function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; greeting: string; footer: DonationFooter | null; base: string; buttons?: TwoButtons; details?: Details; roster?: Roster; unsubscribeUrl?: string; footerReason?: string }): string {
   // The proposal's spot + time, shown right in the email so the recipient can
   // decide without clicking through.
   const detailsHtml = p.details
@@ -69,9 +69,11 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       ${footerHtml}
     </td></tr>
     <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
-      you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>${
-        p.unsubscribeUrl ? `, or <a href="${esc(p.unsubscribeUrl)}" style="color:#5b9452; text-decoration:none;">unsubscribe</a>` : ""
-      }.
+      ${p.footerReason
+        ? esc(p.footerReason)
+        : `you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>${
+            p.unsubscribeUrl ? `, or <a href="${esc(p.unsubscribeUrl)}" style="color:#5b9452; text-decoration:none;">unsubscribe</a>` : ""
+          }.`}
       <br/><span style="color:#5b616f;">${esc(skin.footer.mailingAddress)}</span>
     </td></tr>
   </table>
@@ -108,6 +110,26 @@ export function buildPasswordResetEmail(
     subject: `reset your password · ${skin.brandName}`,
     htmlContent: layout({ title: "reset your password", intro, cta: "set a new password", ctaUrl, greeting, footer: null, base }),
     textContent: `${greeting}\n\n${intro}\n\nset a new password: ${ctaUrl}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
+  };
+}
+
+/** "A friend invited you" email — sent when a member shares a join link. Just a
+ *  branded nudge to the public registration; no account is pre-created and no
+ *  token is involved. Transactional (person-initiated one-off), so no
+ *  unsubscribe footer, but carries the postal address like the other mail. */
+export function buildInviteEmail(
+  inviterName: string, appBaseUrl: string,
+): { subject: string; htmlContent: string; textContent: string } {
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const ctaUrl = `${base}/show-interest`;
+  const intro = `${inviterName} thinks you'd be into ${skin.activity} near you. ${skin.brandName} finds or starts a local pickup game - tell it your general area and you're on the map, no organizing on your part. if a game's already forming nearby, you'll hear about it.`;
+  // The invitee has no account and hasn't shown interest, so the default
+  // "you showed interest / manage in your account" footer doesn't apply.
+  const footerReason = `${inviterName} invited you to ${skin.brandName}. no account needed to take a look — you only sign up if you want in.`;
+  return {
+    subject: `${inviterName} invited you to play ${skin.activity}`,
+    htmlContent: layout({ title: "come play", intro, cta: "find a game near you", ctaUrl, greeting: "hey there,", footer: null, base, footerReason }),
+    textContent: `hey there,\n\n${intro}\n\nfind a game near you: ${ctaUrl}\n\n${footerReason}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
   };
 }
 
