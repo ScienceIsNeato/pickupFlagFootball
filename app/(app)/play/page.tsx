@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -48,7 +49,20 @@ export default async function PlayPage() {
   return (
     <div className="dash-map">
       <MapView center={center} zoom={9} home={home} />
-      {scenario && <MapHud scenario={scenario} place={areaPlace} />}
+      {scenario ? (
+        <MapHud scenario={scenario} place={areaPlace} />
+      ) : (
+        // No scenario → no location/interest on file. Don't leave a bare map:
+        // point the user at setting their area so the map + proposing work.
+        <div className="map-hud">
+          <p className="map-hud-h">set your location to get started</p>
+          <p className="map-hud-body">
+            tell us your general area and we&apos;ll show games forming near you — and
+            let you propose one.
+          </p>
+          <Link href="/account" className="btn-green">set your location</Link>
+        </div>
+      )}
     </div>
   );
 }
