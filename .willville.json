@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Made shared links look good: when someone drops a MIME-FF link in a chat or on social, it now shows a proper branded preview card instead of a bare URL. Also added the standard search-engine files (robots + sitemap) so we can actually be found.",
-    "direction": "Two more small pre-launch fixes: prompt signed-in users with no location set, and a decline-from-email bug for out-of-range players",
-    "last_update": "2026-07-09T06:00:00Z"
+    "status": "Two last small fixes: a signed-in user with no location set now gets a clear 'set your location' prompt on the map instead of a blank screen, and fixed a bug where clicking 'not interested' from an email got silently dropped if you'd moved out of the area.",
+    "direction": "That's the whole pre-launch UX sweep done - all three tiers plus invite-a-friend. Ready to regroup on what's next.",
+    "last_update": "2026-07-09T07:00:00Z"
   }
 }

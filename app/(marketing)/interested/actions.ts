@@ -19,30 +19,32 @@ export async function applyInterest(formData: FormData) {
   const parsed = verifyInterestToken(t);
   if (!parsed) redirect("/interested?done=invalid");
 
-  // Eligibility (same gate as the in-app respondInterest): the responder's travel
-  // radius must reach the venue, or the area centroid when the proposal has no
-  // exact coords. Catches a one-click link clicked after the recipient moved out
-  // of range, so the link can't count an out-of-area user toward formation.
-  const [elig] = await txnDb.select({
-    lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
-    areaLat: areas.centerLat, areaLng: areas.centerLng,
-  }).from(formationAttempts).leftJoin(areas, eq(areas.id, formationAttempts.areaId))
-    .where(eq(formationAttempts.id, parsed.attemptId)).limit(1);
-  const vLat = elig?.lat ?? elig?.areaLat;
-  const vLng = elig?.lng ?? elig?.areaLng;
-  if (vLat != null && vLng != null) {
-    const [me] = await txnDb.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
-      .from(users).where(eq(users.id, parsed.userId)).limit(1);
-    // No home on file → ineligible, same as the in-app respondInterest gate: a user
-    // we can't range-check against the venue must not count toward formation via the
-    // one-click link.
-    if (me?.lat == null || me?.lng == null) redirect("/interested?done=outofrange");
-    if (haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) {
-      redirect("/interested?done=outofrange");
+  const interested = parsed.action === "in";
+
+  // Eligibility gate applies ONLY to an "i'm interested" click: the responder's
+  // travel radius must reach the venue (or the area centroid when the proposal
+  // has no exact coords), so an out-of-range one-click link can't count toward
+  // formation. A "not interested" click needs no eligibility — declining is
+  // always allowed, and running the gate on it dropped the decline AND showed
+  // "in"-worded out-of-range copy.
+  if (interested) {
+    const [elig] = await txnDb.select({
+      lat: formationAttempts.placeLat, lng: formationAttempts.placeLng,
+      areaLat: areas.centerLat, areaLng: areas.centerLng,
+    }).from(formationAttempts).leftJoin(areas, eq(areas.id, formationAttempts.areaId))
+      .where(eq(formationAttempts.id, parsed.attemptId)).limit(1);
+    const vLat = elig?.lat ?? elig?.areaLat;
+    const vLng = elig?.lng ?? elig?.areaLng;
+    if (vLat != null && vLng != null) {
+      const [me] = await txnDb.select({ lat: users.homeLat, lng: users.homeLng, km: users.maxTravelKm })
+        .from(users).where(eq(users.id, parsed.userId)).limit(1);
+      // No home on file → ineligible, same as the in-app respondInterest gate.
+      if (me?.lat == null || me?.lng == null) redirect("/interested?done=outofrange");
+      if (haversineKm(me.lat, me.lng, vLat, vLng) > (me.km ?? 24.14)) {
+        redirect("/interested?done=outofrange");
+      }
     }
   }
-
-  const interested = parsed.action === "in";
   // Lock the attempt, re-check OPEN, and write the response in one transaction so
   // a concurrent resolve can't close it between the check and the upsert (which
   // would record a late response on an already-settled proposal).
