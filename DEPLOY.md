@@ -77,8 +77,9 @@ Without it the build still succeeds, just skipping the upload. Create it with:
 ```bash
 gcloud secrets create pff-sentry-auth-token \
   --replication-policy=automatic --project=pickupflagfootball
-read -rs 'Sentry auth token: ' TOK && printf '%s' "$TOK" | \
-  gcloud secrets versions add pff-sentry-auth-token \
+# portable prompt (works in bash + zsh): print prompt, read silently into TOK
+printf 'Sentry auth token: '; read -rs TOK; echo
+printf '%s' "$TOK" | gcloud secrets versions add pff-sentry-auth-token \
   --data-file=- --project=pickupflagfootball && unset TOK
 ```
 
