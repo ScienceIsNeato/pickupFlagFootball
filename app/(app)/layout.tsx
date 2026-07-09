@@ -9,7 +9,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
 import { DonationReminderBanner } from "@/components/DonationReminderBanner";
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();

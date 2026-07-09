@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Ball } from "./Ball";
 import { skin } from "@/lib/skin";
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@pickupflagfootball.com";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
 
 export function SiteFooter() {
   return (
