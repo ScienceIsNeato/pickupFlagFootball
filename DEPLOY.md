@@ -63,10 +63,28 @@ Secrets needed: `DATABASE_URL` (Neon pooled), `DATABASE_URL_UNPOOLED` (Neon dire
 for migrations), `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
 `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `BREVO_API_KEY`.
 
-Optional: `pff-sentry-dsn` (SENTRY_DSN) turns on server-side error tracking —
-create a project at sentry.io, store its DSN in the secret, and uncomment
-`sentry_dsn_secret` in deploy-dev.yml / deploy-prod.yml. Without it the Sentry
-layer is a complete no-op.
+Sentry error tracking is wired via `@sentry/wizard` (server, edge, and client
+init in `sentry.*.config.ts` / `instrumentation-client.ts`, DSN in-code — DSNs
+are public by design). It's errors-only (no tracing/replay) to sit in the free
+tier. No runtime secret needed.
+
+Optional but recommended: `pff-sentry-auth-token` (a Sentry auth token with
+source-map upload scope). When present, the CI build pulls it from Secret
+Manager and mounts it into the Docker build so `withSentryConfig` uploads
+source maps — making stack traces map to TypeScript instead of minified chunks.
+Without it the build still succeeds, just skipping the upload. Create it with:
+
+```bash
+gcloud secrets create pff-sentry-auth-token \
+  --replication-policy=automatic --project=pickupflagfootball
+# portable prompt (works in bash + zsh): print prompt, read silently into TOK
+printf 'Sentry auth token: '; read -rs TOK; echo
+printf '%s' "$TOK" | gcloud secrets versions add pff-sentry-auth-token \
+  --data-file=- --project=pickupflagfootball && unset TOK
+```
+
+Locally, the same upload runs off the gitignored `.env.sentry-build-plugin`
+(created by the wizard). `org`/`project` are set in `next.config.ts`.
 
 ## 5. First-time database
 

@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -15,4 +16,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry build wrapper: uploads source maps so stack traces map to TS source.
+// Upload only happens when SENTRY_AUTH_TOKEN is present (locally via the
+// gitignored .env.sentry-build-plugin; in CI via the token pulled from Secret
+// Manager and mounted into the Docker build). Without the token the build still
+// succeeds — it just skips the upload.
+export default withSentryConfig(nextConfig, {
+  org: "william-martin-11",
+  project: "mime-ff",
+  // Quiet locally; verbose in CI so an upload problem is visible in the logs.
+  silent: !process.env.CI,
+  // Upload the wider client source-map set for prettier browser stack traces.
+  widenClientFileUpload: true,
+  webpack: {
+    // Tree-shake Sentry's debug logging out of the bundle.
+    treeshake: { removeDebugLogging: true },
+    // (automaticVercelMonitors dropped — this deploys to Cloud Run, not Vercel.)
+  },
+});

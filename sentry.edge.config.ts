@@ -1,13 +1,12 @@
+// Sentry init for edge features (middleware, edge routes). Required even when
+// running locally. https://docs.sentry.io/platforms/javascript/guides/nextjs/
 import * as Sentry from "@sentry/nextjs";
 
-// Edge-runtime twin of sentry.server.config.ts (middleware.ts runs on the edge
-// runtime in the build even though we deploy to Cloud Run). Same seam: no
-// SENTRY_DSN → no-op.
-const dsn = process.env.SENTRY_DSN?.trim();
-if (dsn) {
-  Sentry.init({
-    dsn,
-    environment: process.env.SENTRY_ENVIRONMENT ?? "production",
-    tracesSampleRate: 0,
-  });
-}
+Sentry.init({
+  dsn: "https://ec97ba0ad8dd2fc1b5bb73d98fac0bb5@o4511528005533696.ingest.us.sentry.io/4511698052841472",
+  // Edge runtime may not see the runtime SENTRY_ENVIRONMENT, so fall back to the
+  // build-inlined NEXT_PUBLIC one (set per-env at build).
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+  // Errors only for now (see sentry.server.config.ts).
+  tracesSampleRate: 0,
+});

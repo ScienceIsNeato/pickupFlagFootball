@@ -1,18 +1,14 @@
+// Server-side Sentry init (runs whenever the server handles a request).
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/
 import * as Sentry from "@sentry/nextjs";
 
-/**
- * Server-side error tracking. Follows the house env seam pattern
- * (BREVO_API_KEY et al.): SENTRY_DSN unset → Sentry.init never runs and the
- * whole layer is a no-op, so dev / CI / e2e report nothing and need no config.
- * Set the `pff-sentry-dsn` secret (DEPLOY.md) to turn it on in prod.
- */
-const dsn = process.env.SENTRY_DSN?.trim();
-if (dsn) {
-  Sentry.init({
-    dsn,
-    environment: process.env.SENTRY_ENVIRONMENT ?? "production",
-    // Errors only for now — no performance tracing until there's traffic worth
-    // sampling (keeps us square within the free tier).
-    tracesSampleRate: 0,
-  });
-}
+Sentry.init({
+  dsn: "https://ec97ba0ad8dd2fc1b5bb73d98fac0bb5@o4511528005533696.ingest.us.sentry.io/4511698052841472",
+  // dev vs production share one Sentry project — label events so incidents
+  // don't mix (set per Cloud Run service via SENTRY_ENVIRONMENT in the deploy;
+  // NEXT_PUBLIC fallback covers the build-inlined value).
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+  // Errors only for now — no performance tracing (keeps us in the free tier).
+  // Bump this or add tracesSampler once there's traffic worth sampling.
+  tracesSampleRate: 0,
+});

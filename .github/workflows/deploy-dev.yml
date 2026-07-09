@@ -25,7 +25,6 @@ jobs:
       stripe_webhook_secret_secret: pff-dev-stripe-webhook-secret
       stripe_price_id: price_1Tm8ah5dNONyK4ZWXwfedPnn      # test-mode price
       slack_webhook_secret: pff-dev-slack-webhook-url      # → #mime-ff-activity-feed-dev
-      # sentry_dsn_secret: pff-sentry-dsn                   # uncomment once the secret exists (Sentry on)
       run_e2e: false
       min_instances: "0"
     secrets: inherit

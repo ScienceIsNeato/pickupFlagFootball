@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Added a way to change your email from the account page - fixes the trap where a typo at signup locked you out for good. It sends a fresh confirmation to the new address.",
-    "direction": "Last of this batch: a way back in after opting out of an area. Then I'll check with Will on how to handle account deletion.",
-    "last_update": "2026-07-08T10:00:00Z"
+    "status": "Tidied up the Sentry error-tracking setup: dialed it down to errors-only (was set to capture everything, which would've burned through the free plan fast), removed the throwaway demo pages, and wired the CI build to upload debug info so crash reports point at real code.",
+    "direction": "Back to the pre-launch UX gaps: a way back in after opting out of an area, then the 'invite a friend' feature",
+    "last_update": "2026-07-08T11:30:00Z"
   }
 }

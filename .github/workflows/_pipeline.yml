@@ -16,7 +16,6 @@ on:
       stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
-      sentry_dsn_secret:            { type: string, required: false, default: "" }  # …for SENTRY_DSN (error tracking); unset = Sentry off
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -85,8 +84,18 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
       - name: Build image
         run: |
-          docker build --platform linux/amd64 \
+          # Pull the Sentry source-map upload token from Secret Manager if it
+          # exists; tolerate its absence so builds work before it's created (the
+          # build then just skips the upload). Passed as a BuildKit secret so it
+          # never lands in an image layer.
+          SENTRY_AUTH_TOKEN="$(gcloud secrets versions access latest \
+            --secret=pff-sentry-auth-token --project="${{ env.PROJECT_ID }}" 2>/dev/null || true)"
+          export SENTRY_AUTH_TOKEN
+          DOCKER_BUILDKIT=1 docker build --platform linux/amd64 \
             --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${{ env.NEXT_PUBLIC_SUPPORT_EMAIL }}" \
+            --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT="${{ inputs.environment }}" \
+            --build-arg CI=true \
+            --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             .
       - name: Push image
@@ -150,7 +159,7 @@ jobs:
           gcloud run deploy ${{ inputs.service_name }} \
             --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
-            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }}" \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }};SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
@@ -162,15 +171,6 @@ jobs:
           gcloud run services update ${{ inputs.service_name }} \
             --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
             --update-secrets="SLACK_WEBHOOK_URL=${{ inputs.slack_webhook_secret }}:latest"
-      # Same additive pattern for Sentry: bind the DSN when configured, no-op otherwise
-      # (the app only initializes Sentry when SENTRY_DSN is present).
-      - name: Bind Sentry DSN (optional)
-        if: inputs.sentry_dsn_secret != ''
-        run: |
-          gcloud run services update ${{ inputs.service_name }} \
-            --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \
-            --update-env-vars="SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
-            --update-secrets="SENTRY_DSN=${{ inputs.sentry_dsn_secret }}:latest"
       - name: Verify deployment
         run: |
           URL=$(gcloud run services describe ${{ inputs.service_name }} \
