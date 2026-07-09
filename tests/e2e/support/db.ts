@@ -36,6 +36,20 @@ export async function markEmailVerified(email: string): Promise<void> {
   await pool.query("UPDATE users SET email_verified = now() WHERE lower(email) = lower($1)", [email]);
 }
 
+/** Opt a user out of their own area (the email "not interested in this site"
+ *  case) so the account-page re-entry UI has something to show. */
+export async function seedAreaOptout(email: string): Promise<void> {
+  const { rows } = await pool.query(
+    `INSERT INTO area_optouts (area_id, user_id)
+       SELECT s.area_id, s.user_id FROM interest_signals s
+       JOIN users u ON u.id = s.user_id
+       WHERE lower(u.email) = lower($1) LIMIT 1
+     ON CONFLICT DO NOTHING RETURNING area_id`,
+    [email],
+  );
+  if (!rows[0]) throw new Error(`no interest signal to opt out for ${email}`);
+}
+
 /**
  * Seed an established weekly (standing) game at a venue. Returns the venue point
  * so a test can center the map there and click the badge. The H3 cell must be

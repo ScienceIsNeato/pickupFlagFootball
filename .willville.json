@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Tidied up the Sentry error-tracking setup: dialed it down to errors-only (was set to capture everything, which would've burned through the free plan fast), removed the throwaway demo pages, and wired the CI build to upload debug info so crash reports point at real code.",
-    "direction": "Back to the pre-launch UX gaps: a way back in after opting out of an area, then the 'invite a friend' feature",
-    "last_update": "2026-07-08T11:30:00Z"
+    "status": "Added a way back in for people who opted out of an area — they show up on the account page now with a one-tap 'I'm interested again'. Before this, opting out was a one-way door. That's the whole first batch of pre-launch UX gaps done.",
+    "direction": "Next batch: tell members when a captain pauses/retires their game, fix a couple of confusing dead-ends, then the invite-a-friend feature",
+    "last_update": "2026-07-08T12:30:00Z"
   }
 }

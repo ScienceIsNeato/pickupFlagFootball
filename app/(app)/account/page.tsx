@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, gameRoster, games, areas, areaCaptains } from "@/lib/db/schema";
+import { users, gameRoster, games, areas, areaCaptains, areaOptouts } from "@/lib/db/schema";
 import { kmToMiles } from "@/lib/geo";
 import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
 import { ChangeEmail } from "@/components/ChangeEmail";
+import { OptedOutAreas } from "@/components/OptedOutAreas";
 import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
@@ -51,6 +52,14 @@ export default async function AccountPage() {
     : [];
   const capRows = await db.select({ areaId: areaCaptains.areaId }).from(areaCaptains).where(eq(areaCaptains.userId, uid));
   const captainAreas = new Set(capRows.map((r) => r.areaId));
+
+  // Areas the user opted out of (via the email "not interested" link). Surfacing
+  // them here is the only in-app way back in — otherwise the opt-out is a one-way
+  // door once no proposal is open in that area.
+  const optedOutRows = await db.select({ areaId: areaOptouts.areaId, city: areas.displayCity, zip: areas.displayZip })
+    .from(areaOptouts).innerJoin(areas, eq(areas.id, areaOptouts.areaId))
+    .where(eq(areaOptouts.userId, uid));
+  const optedOut = optedOutRows.map((o) => ({ areaId: o.areaId, label: o.city || o.zip || "your area" }));
   const vitals = myGames.map((g) => ({
     id: g.id,
     name: g.placeText.split(" — ")[0],
@@ -134,6 +143,7 @@ export default async function AccountPage() {
             )}
             <Link href="/my-games" className="acct-vitals-link">manage in my games &rarr;</Link>
           </div>
+          <OptedOutAreas areas={optedOut} />
         </section>
 
         {/* RIGHT — location */}

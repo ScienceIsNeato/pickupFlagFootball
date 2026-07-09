@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "./world";
-import { seedFormingAttempt } from "../support/db";
+import { seedFormingAttempt, seedAreaOptout } from "../support/db";
 import { allEmails, extractButtonLink } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map" — clicking
@@ -70,4 +70,22 @@ When("I confirm not interested from the email", async ({ page }) => {
 
 Then("I'm marked not interested", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /no worries/i })).toBeVisible({ timeout: 10000 });
+});
+
+Given("I have opted out of my area", async ({ world }) => {
+  await seedAreaOptout(world.email!);
+});
+
+When("I open my account page", async ({ page }) => {
+  await page.goto("/account");
+});
+
+Then("I see the area I opted out of and can rejoin it", async ({ page }) => {
+  const section = page.locator(".acct-vitals", { hasText: "areas you've opted out of" });
+  await expect(section).toBeVisible({ timeout: 10000 });
+  const rejoin = section.getByRole("button", { name: "i'm interested again" });
+  await expect(rejoin).toHaveCount(1);
+  await rejoin.click();
+  // The row (and section) clear once the opt-out is undone.
+  await expect(section).toHaveCount(0, { timeout: 10000 });
 });
