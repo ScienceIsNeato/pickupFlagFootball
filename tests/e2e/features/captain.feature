@@ -17,6 +17,9 @@ Feature: Captain controls
     And I pause the series
     And the engine ticks
     Then the teammate gets the pause email
+    When I resume the series
+    And the engine ticks
+    Then the teammate gets no "game ended" email
 
   Scenario: a captain retires a long-dead series for good
     Given a long-dead established weekly game near me

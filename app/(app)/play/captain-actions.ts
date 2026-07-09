@@ -84,15 +84,18 @@ async function setSeriesStatus(
         ));
     }
     // Tell the roster their game changed state — otherwise it just goes quiet on
-    // them and looks broken. Enqueue BEFORE a retire deletes the roster. Excludes
-    // the acting captain (they know — they just did it). Game-parented notices;
-    // one per real transition (the status guard above prevents re-enqueue).
-    const roster = await tx.select({ userId: gameRoster.userId }).from(gameRoster)
-      .where(and(eq(gameRoster.gameId, gameId), ne(gameRoster.userId, actorId)));
-    await enqueue(tx as unknown as EngineDb, roster.map((m) => ({
-      userId: m.userId, gameId,
-      kind: status === "paused" ? ("SERIES_PAUSED" as const) : ("SERIES_RETIRED" as const),
-    })), new Date());
+    // them and looks broken. ONLY for pause/retire (a resume→active must not send
+    // a "game ended" notice). Enqueue BEFORE a retire deletes the roster; exclude
+    // the acting captain (they know — they just did it). Game-parented; one per
+    // real transition (the status guard at the top prevents re-enqueue).
+    if (status === "paused" || status === "retired") {
+      const roster = await tx.select({ userId: gameRoster.userId }).from(gameRoster)
+        .where(and(eq(gameRoster.gameId, gameId), ne(gameRoster.userId, actorId)));
+      await enqueue(tx as unknown as EngineDb, roster.map((m) => ({
+        userId: m.userId, gameId,
+        kind: status === "paused" ? ("SERIES_PAUSED" as const) : ("SERIES_RETIRED" as const),
+      })), new Date());
+    }
 
     // Retiring is permanent — release the roster back to the free-interest pool.
     // Members keep their interest signals (so they still court games near home);
