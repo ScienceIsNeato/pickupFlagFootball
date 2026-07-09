@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Built 'invite a friend' - a member can email a friend a join link right from the account menu. It points them at the normal sign-up, no half-accounts. Also decided we're not doing self-serve account deletion for now.",
-    "direction": "Back to the pre-launch UX cleanup: telling members when their game gets paused, and a few smaller confusing dead-ends",
-    "last_update": "2026-07-08T13:15:00Z"
+    "status": "Knocked out a few smaller confusing spots: a support/contact link in the footers, fixed a session-timeout that dumped people on an ugly raw login page, and corrected a FAQ that mentioned a captain feature ('off season') that doesn't exist.",
+    "direction": "Next: tell members when a captain pauses or retires their game (right now it just goes quiet on them)",
+    "last_update": "2026-07-08T14:00:00Z"
   }
 }

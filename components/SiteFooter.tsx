@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Ball } from "./Ball";
 import { skin } from "@/lib/skin";
 
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
+
 export function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -23,6 +25,7 @@ export function SiteFooter() {
         <div className="foot-col">
           <div className="foot-h">the project</div>
           <a href={skin.footer.githubUrl}>github</a>
+          <a href={`mailto:${SUPPORT_EMAIL}`}>contact</a>
           <Link href="/privacy">privacy</Link>
           <Link href="/terms">terms</Link>
         </div>

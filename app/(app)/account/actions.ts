@@ -22,7 +22,7 @@ export type SaveResult = { ok: true } | { ok: false; error: string };
  */
 export async function saveAccount(_prev: SaveResult | null, formData: FormData): Promise<SaveResult> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/api/auth/signin");
+  if (!session?.user?.id) redirect("/?signin=1&next=/account");
   const uid = session.user.id;
 
   // Current values — to skip a needless re-geocode on a name-only save, and to
@@ -107,7 +107,7 @@ type DonationStatus = (typeof DONATION_STATUSES)[number];
 
 export async function updateDonationPref(formData: FormData) {
   const session = await auth();
-  if (!session?.user?.id) redirect("/api/auth/signin");
+  if (!session?.user?.id) redirect("/?signin=1&next=/account");
 
   // An active Stripe subscriber's status is webhook-managed — ignore a direct
   // POST (the UI hides the control for them) so they can't desync to unset/declined

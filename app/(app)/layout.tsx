@@ -9,6 +9,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
 import { DonationReminderBanner } from "@/components/DonationReminderBanner";
 
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const loggedIn = !!session?.user?.id;
@@ -58,6 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Link href="/faq">faq</Link>
         <Link href="/privacy">privacy</Link>
         <Link href="/terms">terms</Link>
+        <a href={`mailto:${SUPPORT_EMAIL}`}>contact</a>
         <a href={skin.footer.githubUrl} target="_blank" rel="noopener noreferrer">github</a>
       </footer>
     </>
