@@ -13,10 +13,31 @@ const barlow = Barlow_Condensed({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: { default: skin.seo.title, template: `%s` },
-  description: skin.seo.description,
-};
+// generateMetadata (not a static export) so metadataBase reads APP_BASE_URL at
+// request time — same as robots.ts/sitemap.ts. The Docker build has no
+// APP_BASE_URL, so a build-baked value would use the fallback for every env.
+// No pinned openGraph.url: pinning "/" advertised the homepage as the canonical
+// URL for every page (so a /faq share showed "/"). Omitting it lets each share
+// carry its own URL (og:image still resolves via metadataBase).
+export function generateMetadata(): Metadata {
+  const base = process.env.APP_BASE_URL?.trim() || "https://pickupflagfootball.com";
+  return {
+    metadataBase: new URL(base),
+    title: { default: skin.seo.title, template: `%s` },
+    description: skin.seo.description,
+    openGraph: {
+      title: skin.seo.title,
+      description: skin.seo.description,
+      siteName: skin.brandName,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: skin.seo.title,
+      description: skin.seo.description,
+    },
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
