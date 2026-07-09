@@ -5,7 +5,8 @@ import type { MetadataRoute } from "next";
 // fallback for every environment.
 export const dynamic = "force-dynamic";
 
-const APP_BASE_URL = () => process.env.APP_BASE_URL?.trim() || "https://pickupflagfootball.com";
+// Trailing slash stripped so `${base}/sitemap.xml` can't become `//sitemap.xml`.
+const APP_BASE_URL = () => (process.env.APP_BASE_URL?.trim() || "https://pickupflagfootball.com").replace(/\/+$/, "");
 
 /** Crawl guidance: index the public marketing pages, keep bots out of the API
  *  and the auth-gated app routes (nothing there is useful to a crawler). */
