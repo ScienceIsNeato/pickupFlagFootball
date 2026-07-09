@@ -180,23 +180,17 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* Frosted legend — a vertical stack in the upper-right corner of the map. */
 /* Floating "propose a game" button — the discoverable, touch-friendly trigger
    (right-click / long-press still work). Bottom-center, thumb-reachable. */
-.map-propose-btn {
-  /* Sits above the fixed .app-foot (z-index 30, ~40px tall) — clear of it and
-     of the bottom-right zoom control. */
-  position: fixed; z-index: 31; left: 50%; bottom: 56px; transform: translateX(-50%);
-  padding: 12px 20px; border: none; border-radius: 999px; cursor: pointer;
-  font-family: var(--font-barlow), sans-serif; font-size: 15px; font-weight: 700; white-space: nowrap;
-  color: #fff; background: var(--green);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+/* Prominent "how to propose" cue in the legend — the only propose affordance now
+   (long-press on touch, right-click on desktop; no floating button). Set apart
+   from the plain legend rows with an accent border + background so it reads as a
+   call to action on both desktop and mobile. */
+.legend-propose {
+  display: flex; align-items: center; gap: 7px; margin-top: 8px; padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 3px solid var(--green); border-radius: 6px;
+  background: rgba(70, 137, 68, 0.14); color: var(--ink); font-size: 12.5px; line-height: 1.4;
 }
-.map-propose-btn:hover { filter: brightness(1.06); }
-.map-propose-btn:active { transform: translateX(-50%) scale(0.97); }
-.map-propose-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-@media (max-width: 560px) {
-  /* Stack above the footer but BELOW the HUD's bottom sheet (which raises to
-     104px on mobile), so the button never overlaps the HUD's own controls. */
-  .map-propose-btn { bottom: 52px; font-size: 14px; padding: 12px 18px; }
-}
+.legend-propose strong { color: #fff; }
 
 .map-legend {
   position: absolute; top: 64px; right: 12px;

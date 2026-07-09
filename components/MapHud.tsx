@@ -40,7 +40,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "what if not enough say yes?",
           a: "the proposal quietly fails and nothing bad happens - no game, no spam. anyone can propose again, usually once the area has grown a bit." },
         { q: "how do i propose?",
-          a: `tap "propose a game here" (or right-click / long-press the map) where you'd want to play. good spots: a park or field people already know, a weekend morning.` },
+          a: `long-press the map on your phone (or right-click on a computer) where you'd want to play. good spots: a park or field people already know, a weekend morning.` },
       ];
     case "open-proposal":
       return [
@@ -68,7 +68,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "what if i can't make a week?",
           a: "answer the poll honestly and sit it out. skipping a week never drops you from the roster." },
         { q: `want a second ${activity} game here?`,
-          a: `tap "propose a game here" (or right-click / long-press the map) to propose another spot or time - areas can hold more than one game.` },
+          a: `long-press the map (or right-click on a computer) to propose another spot or time - areas can hold more than one game.` },
       ];
   }
 }
@@ -174,7 +174,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       break;
     case "ambient-interest":
       headline = `${scenario.totalCount} interested in ${where}`;
-      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? tap "propose a game here" — or invite more people below.`;
+      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? long-press the map (right-click on a computer) to propose it — or invite more people below.`;
       break;
     case "alone":
       headline = "you're the first one here";

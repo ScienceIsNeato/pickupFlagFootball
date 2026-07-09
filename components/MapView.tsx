@@ -666,25 +666,10 @@ export function MapView({
     window.dispatchEvent(new Event("mime:hud-stale"));
   };
 
-  // Propose at the center of the current view — the discoverable, touch-friendly
-  // path (no precise right-click needed on a phone). The modal's address picker
-  // refines the exact venue from this seed point.
-  const proposeAtCenter = () => {
-    const m = mapRef.current;
-    if (!m) return;
-    const c = m.getCenter();
-    setPropose({ h3: latLngToCell(c.lat, c.lng, PROPOSE_RES), lat: c.lat, lng: c.lng });
-  };
-
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
-      {!mineOnly && (
-        <button type="button" className="map-propose-btn" onClick={proposeAtCenter}>
-          + propose a game here
-        </button>
-      )}
       <div className="map-legend">
         {home && <span className="legend-item"><img src="/you-badge.png" alt="" className="legend-badge" /> you</span>}
         <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player <span ref={cInterested} className="legend-n">0</span></span>
@@ -692,7 +677,9 @@ export function MapView({
         <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game <span ref={cGames} className="legend-n">0</span></span>
         <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site <span ref={cProposed} className="legend-n">0</span></span>
         <span className="legend-item"><Streamer color="#94a3b8" /> claimed (in a game) <span ref={cClaimed} className="legend-n">0</span></span>
-        <span className="legend-item"><Crosshair /> right-click or long-press to propose</span>
+        {!mineOnly && (
+          <span className="legend-propose"><Crosshair /> <strong>long-press the map</strong> (or right-click) to propose a game here</span>
+        )}
       </div>
       <div ref={tipRef} className="map-tip" style={{ display: "none" }}>Click to see game details</div>
       {propose && (
