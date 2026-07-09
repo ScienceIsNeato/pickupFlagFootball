@@ -26,16 +26,16 @@ Given("a teammate {string} at {string} is on the roster", async ({ world }, name
   await clearMailpit(); // isolate the pause email the later tick will flush
 });
 
-Then("the teammate gets the pause email", async () => {
-  const mail = await waitForEmailTo("teammate@example.com");
+Then("the roster member {string} gets the pause email", async ({}, email: string) => {
+  const mail = await waitForEmailTo(email);
   expect(mail.subject.toLowerCase()).toMatch(/pause/);
   expect(mail.html).toMatch(/summer break/i); // the captain's note rides along
 });
 
-Then('the teammate gets no "game ended" email', async () => {
+Then("the roster member {string} gets no \"game ended\" email", async ({}, email: string) => {
   // The tick flushed synchronously, so any (buggy) retire email would be here now.
   const ended = (await allEmails()).filter((e) =>
-    e.to.toLowerCase() === "teammate@example.com" && /ended|retired|wrapped/i.test(e.subject));
+    e.to.toLowerCase() === email.toLowerCase() && /ended|retired|wrapped/i.test(e.subject));
   expect(ended, "a resume must not send a retire/ended email").toHaveLength(0);
 });
 

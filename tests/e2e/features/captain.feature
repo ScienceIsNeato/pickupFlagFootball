@@ -16,10 +16,10 @@ Feature: Captain controls
     When I open the game on the map
     And I pause the series
     And the engine ticks
-    Then the teammate gets the pause email
+    Then the roster member "teammate@example.com" gets the pause email
     When I resume the series
     And the engine ticks
-    Then the teammate gets no "game ended" email
+    Then the roster member "teammate@example.com" gets no "game ended" email
 
   Scenario: a captain retires a long-dead series for good
     Given a long-dead established weekly game near me

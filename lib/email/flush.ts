@@ -99,6 +99,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     occDate: gameOccurrences.occurrenceDate,
     kickoffAt: gameOccurrences.kickoffAt,
     gamePlace: games.placeText,
+    gameStatus: games.status,
     pausedUntil: games.pausedUntil,
     pauseNote: games.pauseNote,
     email: users.email,
@@ -127,6 +128,11 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     // early in-app / link interest can resolve it before this flush runs. The row
     // is already claimed (emailedAt set), so it's simply dropped, never retried.
     if (r.kind === "GAME_PROPOSED" && r.attemptStatus !== "OPEN") { skipped++; continue; }
+    // The series may have moved on before this flush (e.g. paused → resumed):
+    // don't send a stale "paused" email for a game that's active again, nor a
+    // "retired" for one that isn't. The row is claimed, so it's dropped, not retried.
+    if (r.kind === "SERIES_PAUSED" && r.gameStatus !== "paused") { skipped++; continue; }
+    if (r.kind === "SERIES_RETIRED" && r.gameStatus !== "retired") { skipped++; continue; }
 
     try {
       const kind = r.kind as NotifKind;

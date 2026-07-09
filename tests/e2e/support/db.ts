@@ -42,7 +42,7 @@ export async function seedRosterMemberUser(gameId: string, email: string, name: 
   const { rows } = await pool.query(
     `INSERT INTO users (email, display_name, zip, home_lat, home_lng, email_verified)
      VALUES ($1, $2, '78701', 30.27, -97.74, now())
-     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, email_verified = now()
      RETURNING id`,
     [email, name],
   );
