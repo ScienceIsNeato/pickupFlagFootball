@@ -13,9 +13,26 @@ const barlow = Barlow_Condensed({
   display: "swap",
 });
 
+// Absolute base for OG/canonical URLs — the whole product loop is share-driven,
+// so shared links need a rich preview and any relative metadata URL must resolve.
+const APP_BASE_URL = process.env.APP_BASE_URL?.trim() || "https://pickupflagfootball.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_BASE_URL),
   title: { default: skin.seo.title, template: `%s` },
   description: skin.seo.description,
+  openGraph: {
+    title: skin.seo.title,
+    description: skin.seo.description,
+    url: "/",
+    siteName: skin.brandName,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: skin.seo.title,
+    description: skin.seo.description,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

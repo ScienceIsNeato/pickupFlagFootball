@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Members now get told when a captain pauses or retires their game - an email with the reason and when it's back, plus a clear 'paused, back by DATE' badge on their games list. Before this the game just went silent and looked broken.",
-    "direction": "That's the pause/retire gap closed. Next: the high-value Tier 3 items - link previews for sharing, and a couple of small map/registration dead-ends",
-    "last_update": "2026-07-08T15:00:00Z"
+    "status": "Made shared links look good: when someone drops a MIME-FF link in a chat or on social, it now shows a proper branded preview card instead of a bare URL. Also added the standard search-engine files (robots + sitemap) so we can actually be found.",
+    "direction": "Two more small pre-launch fixes: prompt signed-in users with no location set, and a decline-from-email bug for out-of-range players",
+    "last_update": "2026-07-09T06:00:00Z"
   }
 }
