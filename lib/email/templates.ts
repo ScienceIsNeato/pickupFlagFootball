@@ -111,6 +111,23 @@ export function buildPasswordResetEmail(
   };
 }
 
+/** "A friend invited you" email — sent when a member shares a join link. Just a
+ *  branded nudge to the public registration; no account is pre-created and no
+ *  token is involved. Transactional (person-initiated one-off), so no
+ *  unsubscribe footer, but carries the postal address like the other mail. */
+export function buildInviteEmail(
+  inviterName: string, appBaseUrl: string,
+): { subject: string; htmlContent: string; textContent: string } {
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const ctaUrl = `${base}/show-interest`;
+  const intro = `${inviterName} thinks you'd be into ${skin.activity} near you. ${skin.brandName} finds or starts a local pickup game - tell it your general area and you're on the map, no organizing on your part. if a game's already forming nearby, you'll hear about it.`;
+  return {
+    subject: `${inviterName} invited you to play ${skin.activity}`,
+    htmlContent: layout({ title: "come play", intro, cta: "find a game near you", ctaUrl, greeting: "hey there,", footer: null, base }),
+    textContent: `hey there,\n\n${intro}\n\nfind a game near you: ${ctaUrl}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
+  };
+}
+
 /** Build subject + HTML + text for one notification email. */
 export function buildNotificationEmail(
   kind: NotifKind,

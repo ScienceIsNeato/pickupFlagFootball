@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { AuthModal } from "./AuthModal";
+import { InviteFriend } from "./InviteFriend";
 
 /**
  * Site-wide account control for the upper-right, like ganglia-ai.com: a single
@@ -14,6 +15,7 @@ export function AccountMenu() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
@@ -71,6 +73,9 @@ export function AccountMenu() {
               </div>
               <Link href="/play" onClick={() => setOpen(false)}>find a game</Link>
               <Link href="/account" onClick={() => setOpen(false)}>account</Link>
+              <button className="acct-menu-item" onClick={() => { setOpen(false); setInviteOpen(true); }}>
+                invite a friend
+              </button>
               <button className="acct-signout" onClick={() => signOut({ callbackUrl: "/" })}>
                 sign out
               </button>
@@ -85,6 +90,9 @@ export function AccountMenu() {
           of the transient "loading" status, so it isn't remounted mid-login. */}
       {authOpen && !session?.user && (
         <AuthModal callbackUrl={callbackUrl} notice={notice} onClose={() => { setAuthOpen(false); setNotice(undefined); }} />
+      )}
+      {inviteOpen && session?.user && (
+        <InviteFriend onClose={() => setInviteOpen(false)} />
       )}
     </div>
   );
