@@ -68,8 +68,8 @@ When("I open the game on the map", async ({ page, world }) => {
 });
 
 When("I join the weekly game", async ({ page }) => {
-  // Joining is immediate now (no save button) — picking "i'm in" rosters you.
-  await page.getByRole("button", { name: "i'm in", exact: true }).click();
+  // The toggles stage the choice; the yellow "join game" button commits it.
+  await page.getByRole("button", { name: "join game", exact: true }).click();
   // The popup reloads on success — the leave control proves we're on the roster.
   await expect(page.locator(".game-leave")).toBeVisible({ timeout: 10000 });
 });
@@ -85,7 +85,7 @@ Then("opening the game tells me it's outside my travel radius", async ({ page, w
 });
 
 Then("trying to join tells me to confirm my email", async ({ page }) => {
-  await page.getByRole("button", { name: "i'm in", exact: true }).click();
+  await page.getByRole("button", { name: "join game", exact: true }).click();
   const err = page.locator(".game-err");
   await expect(err).toContainText(/confirm your email/i);
   await err.scrollIntoViewIfNeeded(); // ensure the beat's screenshot shows the error

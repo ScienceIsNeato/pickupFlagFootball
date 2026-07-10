@@ -365,6 +365,15 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-leave:hover { color: var(--red); }
 .game-leave:disabled { opacity: 0.6; cursor: default; }
 .game-in-count { margin: 8px 0 0; font-size: 13px; }
+/* The explicit commit for a not-yet-member — team-yellow like the map's flags. */
+.game-join-cta {
+  display: block; width: 100%; margin-top: 12px; padding: 11px 12px;
+  border: none; border-radius: 8px; cursor: pointer;
+  background: var(--yellow); color: #1a1400;
+  font-family: var(--font-barlow), sans-serif; font-weight: 800; font-size: 16px; letter-spacing: 0.3px;
+}
+.game-join-cta:hover { filter: brightness(1.06); }
+.game-join-cta:disabled { opacity: 0.6; cursor: default; }
 .game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 /* Type-to-confirm dialog for destructive captain actions (pause / retire). */
 .game-confirm {

@@ -138,19 +138,11 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     }
   }
 
-  // Each segment toggle persists immediately — no separate "save". joinWeeklyGame
-  // is idempotent: it joins a not-yet-member and updates the regular/occasional
-  // default + the next-game RSVP otherwise. Optimistic, reverting on failure.
+  // A member's segment toggles persist immediately — no separate "save".
+  // joinWeeklyGame is idempotent: it updates the regular/occasional default +
+  // the next-game RSVP. Optimistic, reverting on failure.
   async function persist(p: "regular" | "occasional", inVal: boolean) {
     if (!game || busy) return;
-    // A not-yet-member tapping "i'm out" hits joinWeeklyGame's decline no-op (we
-    // don't roster someone opting out — that would sign them up for weekly poll
-    // emails), so nothing persists and the next reload snaps the toggle back. Nudge
-    // them to join first rather than show a misleading success.
-    if (!game.onRoster && !inVal) {
-      setActionErr("tap “i'm in” (or pick a player type) to join — you can set yourself out afterward");
-      return;
-    }
     const prevP = pref, prevIn = nextIn;
     setPref(p); setNextIn(inVal);
     setBusy(true); setActionErr("");
@@ -161,6 +153,26 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
       onChanged?.();
     } catch {
       setActionErr("something went wrong"); setPref(prevP); setNextIn(prevIn);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // A not-yet-member stages their choices locally and commits with the explicit
+  // "join game" button; a member's taps persist immediately.
+  const choosePref = (p: "regular" | "occasional") => { if (game?.onRoster) persist(p, nextIn); else setPref(p); };
+  const chooseNext = (inVal: boolean) => { if (game?.onRoster) persist(pref, inVal); else setNextIn(inVal); };
+
+  async function joinNow() {
+    if (!game || busy) return;
+    setBusy(true); setActionErr("");
+    try {
+      const res = await joinWeeklyGame(game.gameId, pref === "regular", nextIn);
+      if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
+      await load();
+      onChanged?.();
+    } catch {
+      setActionErr("something went wrong");
     } finally {
       setBusy(false);
     }
@@ -231,22 +243,26 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                   <p className="game-join-h">{game.onRoster ? "you've found your weekly game!" : "join weekly game"}</p>
                   <div className="seg" role="group" aria-label="how often you'll play">
                     <button type="button" className={pref === "regular" ? "seg-on" : ""}
-                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => persist("regular", nextIn)}>regular player</button>
+                      aria-pressed={pref === "regular"} disabled={busy} onClick={() => choosePref("regular")}>regular player</button>
                     <button type="button" className={pref === "occasional" ? "seg-on" : ""}
-                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => persist("occasional", nextIn)}>occasional player</button>
+                      aria-pressed={pref === "occasional"} disabled={busy} onClick={() => choosePref("occasional")}>occasional player</button>
                   </div>
                   <p className="game-seg-cap">next game · {fmtDate(game.nextOccurrence)}</p>
                   <div className="seg" role="group" aria-label="next game">
                     <button type="button" className={nextIn ? "seg-on" : ""}
-                      aria-pressed={nextIn} disabled={busy} onClick={() => persist(pref, true)}>i&apos;m in</button>
+                      aria-pressed={nextIn} disabled={busy} onClick={() => chooseNext(true)}>i&apos;m in</button>
                     <button type="button" className={!nextIn ? "seg-on seg-on-out" : ""}
-                      aria-pressed={!nextIn} disabled={busy} onClick={() => persist(pref, false)}>i&apos;m out</button>
+                      aria-pressed={!nextIn} disabled={busy} onClick={() => chooseNext(false)}>i&apos;m out</button>
                   </div>
                   {game.onRoster && (
                     <button type="button" className="game-leave" disabled={busy}
                       onClick={() => run(() => setRosterMembership(game.gameId, false))}>leave this game</button>
                   )}
                   <p className="game-muted game-in-count">{game.inCount} in for {fmtDate(game.nextOccurrence)}</p>
+                  {/* A not-yet-member's toggles stage their choice; this commits it. */}
+                  {!game.onRoster && (
+                    <button type="button" className="game-join-cta" disabled={busy} onClick={joinNow}>join game</button>
+                  )}
                 </>
               ) : game.viewerIsCaptain ? (
                 // Captain who isn't a roster player: no "join" affordance, just the status.
