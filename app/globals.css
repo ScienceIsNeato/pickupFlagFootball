@@ -268,9 +268,11 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
      sheet. It stays collapsed to just its headline peek — the map's game badges
      center on the viewer's area (mid-screen), and an open panel would sit right
      on top of them, so a tap on the peek is what expands it. Expanded, it caps
-     at 40vh and scrolls; the bottom edge clears the map's center either way. */
+     at 40vh and scrolls; the bottom edge clears the map's center either way.
+     Docked at bottom:52 so the peek sits ABOVE the fixed site footer (z-index
+     30, ~40px tall) — a lower dock would let the footer swallow taps on it. */
   .map-hud {
-    top: auto; bottom: 12px; left: 12px; right: 12px; width: auto;
+    top: auto; bottom: 52px; left: 12px; right: 12px; width: auto;
     max-height: 40vh;
   }
   .map-hud[data-expanded="false"] { max-height: none; overflow: visible; }
@@ -433,6 +435,13 @@ body:has(.dash-map) .app-frost { display: none; }
 .app-foot a { color: var(--muted); }
 .app-foot a:hover { color: var(--ink); }
 .app-foot-sep { color: var(--faint); }
+@media (max-width: 560px) {
+  /* Tighten the footer so its five links stay on ONE line down to ~360px
+     (common Android width). A wrapped, two-line footer over the fullscreen map
+     grows tall enough to sit under the bottom-docked HUD peek and swallow taps
+     on it — keeping it one line keeps the peek's clearance (52px) honest. */
+  .app-foot { gap: 9px; padding: 9px 12px; font-size: 12px; }
+}
 /* keep the map's zoom control clear of the floating header/footer */
 .maplibregl-ctrl-top-right { top: 58px; }
 .maplibregl-ctrl-bottom-right { bottom: 42px; }
