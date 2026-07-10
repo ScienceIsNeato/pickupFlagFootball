@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Two last small fixes: a signed-in user with no location set now gets a clear 'set your location' prompt on the map instead of a blank screen, and fixed a bug where clicking 'not interested' from an email got silently dropped if you'd moved out of the area.",
-    "direction": "That's the whole pre-launch UX sweep done - all three tiers plus invite-a-friend. Ready to regroup on what's next.",
-    "last_update": "2026-07-09T07:00:00Z"
+    "status": "Fixing the map on phones: the 'what's happening near you' panel was covering the middle of the map so you couldn't tap your own game. It now tucks into a little tap-to-open strip at the bottom. Also stood up a phone version of the automated test run so the report shows every screen on a phone too.",
+    "direction": "Running the full test suite on both desktop and phone to confirm it's all green, then putting the changes up for review.",
+    "last_update": "2026-07-09T08:00:00Z"
   }
 }
