@@ -127,17 +127,24 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
   .badge.passed { background:var(--pass); } .badge.failed,.badge.timedOut { background:var(--fail); }
   .dur { color:var(--muted); font-size:12px; margin-left:auto; }
   .err { background:#fff4f3; color:var(--fail); border-top:1px solid #f3d6d3; padding:10px 16px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; }
-  .device { border-top:1px solid var(--line); }
-  .device:first-of-type { border-top:none; }
-  .device-h { display:flex; align-items:center; gap:10px; padding:10px 16px 0; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-  .device-h .dur { margin-left:0; }
-  /* Phone screenshots render at phone width so the mobile layout reads true. */
-  .device[data-device="mobile"] .beat img { width:300px; }
-  .beats { padding:14px 16px; display:grid; gap:16px; }
-  .beat { display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:start; }
-  .beat .n { width:26px; height:26px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:700; display:grid; place-items:center; }
-  .beat .body .txt { font-weight:500; margin:3px 0 8px; }
-  .beat img { max-width:100%; width:680px; border:1px solid var(--line); border-radius:8px; display:block; cursor:zoom-in; background:#fff; }
+  .beats { padding:12px 16px 16px; }
+  /* Device column headers — one grid row that shares its column template with
+     every beat's screenshot row below, so the labels sit exactly above their
+     column. */
+  .dcols { display:grid; gap:16px; margin-bottom:12px; }
+  .dcol-h { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .dcol-h .dur { margin-left:0; }
+  .beat { margin:0 0 22px; }
+  .beat-head { display:flex; align-items:flex-start; gap:10px; margin:0 0 8px; }
+  .beat-head .n { width:26px; height:26px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:700; display:grid; place-items:center; flex:none; }
+  .beat-head .txt { font-weight:500; padding-top:3px; }
+  /* The same client, every step, side by side: desktop (landscape) gets more
+     width than mobile (portrait). Columns align with .dcols above. */
+  .beat-shots { display:grid; gap:16px; align-items:start; }
+  .beat-shot { min-width:0; }
+  .beat-shot img { max-width:100%; border:1px solid var(--line); border-radius:8px; display:block; cursor:zoom-in; background:#fff; }
+  .beat-shot[data-device="mobile"] img { max-width:300px; }
+  .beat-missing { color:var(--muted); font-size:12px; padding:24px; text-align:center; border:1px dashed var(--line); border-radius:8px; }
   dialog { border:none; background:transparent; max-width:96vw; max-height:96vh; padding:0; }
   dialog::backdrop { background:rgba(8,16,12,.82); }
   dialog img { max-width:96vw; max-height:96vh; border-radius:8px; }
@@ -168,10 +175,14 @@ ${features}
 const DEVICE_ORDER = ["desktop", "mobile"];
 const DEVICE_LABEL: Record<string, string> = { desktop: "💻 desktop", mobile: "📱 mobile" };
 
-// One card per scenario, with a section per device (desktop + mobile) so the
-// mobile layout of every beat sits next to the desktop one.
+// One card per scenario. The same test runs on each client (desktop + mobile);
+// this pairs them beat-for-beat so every step's desktop and mobile screenshots
+// sit side by side — one row per Gherkin step, one column per client.
 function renderScenario(variants: Scenario[]): string {
-  const sorted = [...variants].sort(
+  // Collapse retries: keep the final run per device.
+  const byDevice = new Map<string, Scenario>();
+  for (const v of variants) byDevice.set(v.device, v);
+  const sorted = [...byDevice.values()].sort(
     (a, b) => DEVICE_ORDER.indexOf(a.device) - DEVICE_ORDER.indexOf(b.device),
   );
   const name = sorted[0].scenario;
@@ -180,30 +191,52 @@ function renderScenario(variants: Scenario[]): string {
   const totalDur = sorted.reduce((n, v) => n + v.durationMs, 0);
   const openAttr = anyFailed ? " open" : ""; // auto-open failures
 
-  const sections = sorted
+  // Shared column template — desktop (landscape) gets more room than mobile
+  // (portrait). Both the header row and every beat row use it, so columns line up.
+  const cols = sorted.map((v) => (v.device === "mobile" ? "1fr" : "1.6fr")).join(" ");
+  const gridStyle = `grid-template-columns:${cols}`;
+
+  const colHeads = sorted
     .map((v) => {
-      const beats = v.beats
-        .map(
-          (b, i) =>
-            `<div class="beat"><div class="n">${i + 1}</div><div class="body"><div class="txt">${esc(
-              b.title,
-            )}</div><img src="${b.img}" alt="${esc(b.title)}" /></div></div>`,
-        )
-        .join("\n");
-      const err = v.error ? `<div class="err">${esc(v.error)}</div>` : "";
       const badge = v.status === "passed" ? "" : ` <span class="badge ${v.status}">${esc(v.status)}</span>`;
-      return `<div class="device" data-device="${esc(v.device)}">
-        <div class="device-h">${DEVICE_LABEL[v.device] ?? esc(v.device)}<span class="dur">${(v.durationMs / 1000).toFixed(1)}s</span>${badge}</div>
-        ${err}
-        <div class="beats">${beats}</div>
-      </div>`;
+      return `<div class="dcol-h">${DEVICE_LABEL[v.device] ?? esc(v.device)}<span class="dur">${(v.durationMs / 1000).toFixed(1)}s</span>${badge}</div>`;
     })
-    .join("\n");
+    .join("");
+
+  // A failing client's error sits above the beats, labelled with which client.
+  const errs = sorted
+    .filter((v) => v.error)
+    .map((v) => `<div class="err"><b>${DEVICE_LABEL[v.device] ?? esc(v.device)}</b>\n${esc(v.error!)}</div>`)
+    .join("");
+
+  // Zip beats by index: step N's clients share one row. Beat counts match when
+  // both clients pass; if one fails early its later cells show a placeholder.
+  const maxBeats = Math.max(...sorted.map((v) => v.beats.length));
+  const rows: string[] = [];
+  for (let i = 0; i < maxBeats; i++) {
+    const title = sorted.map((v) => v.beats[i]?.title).find(Boolean) ?? "";
+    const cells = sorted
+      .map((v) => {
+        const b = v.beats[i];
+        return `<div class="beat-shot" data-device="${esc(v.device)}">${
+          b ? `<img src="${b.img}" alt="${esc(b.title)}" />` : `<div class="beat-missing">no beat</div>`
+        }</div>`;
+      })
+      .join("");
+    rows.push(
+      `<div class="beat"><div class="beat-head"><span class="n">${i + 1}</span><span class="txt">${esc(title)}</span></div>` +
+        `<div class="beat-shots" style="${gridStyle}">${cells}</div></div>`,
+    );
+  }
 
   return `<details class="scenario" data-status="${esc(status)}"${openAttr}>
     <summary class="head"><span class="badge ${status}">${esc(status)}</span><span class="name">${esc(
       name,
     )}</span><span class="dur">${(totalDur / 1000).toFixed(1)}s</span><span class="caret" aria-hidden="true">▸</span></summary>
-    ${sections}
+    ${errs}
+    <div class="beats">
+      <div class="dcols" style="${gridStyle}">${colHeads}</div>
+      ${rows.join("\n")}
+    </div>
   </details>`;
 }
