@@ -25,7 +25,21 @@ Then("the HUD tells me I'm the first one here", async ({ page }) => {
 // count — so "once N say yes" tracks the real threshold. Find the formation
 // answer by its question (not by position/count) so adding other FAQ items
 // (e.g. "what am i looking at?") never breaks this.
+// On a phone the HUD is a collapsed bottom sheet (headline peek only) so the map
+// stays tappable — its body/FAQ/share live behind the peek. Open it before
+// asserting that inner copy. On desktop the panel is always shown and the peek
+// isn't a real toggle, so this is a no-op there. Idempotent, so it's safe to
+// call from every panel-touching step regardless of order.
+async function expandHud(page: import("@playwright/test").Page): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1280) > 560) return;
+  const hud = page.locator(".map-hud");
+  if ((await hud.getAttribute("data-expanded")) === "true") return;
+  await page.locator(".map-hud-peek").click();
+  await expect(hud).toHaveAttribute("data-expanded", "true");
+}
+
 Then("the HUD's FAQ explains how a game forms, with the live threshold", async ({ page }) => {
+  await expandHud(page);
   const formation = page.locator(".map-hud-faq-item").filter({ hasText: "how do games actually form" });
   await expect(formation).toBeVisible({ timeout: 10000 });
   await formation.locator("summary").click();
@@ -34,6 +48,7 @@ Then("the HUD's FAQ explains how a game forms, with the live threshold", async (
 
 Then("the HUD offers a copyable share post", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-write"]);
+  await expandHud(page);
   const btn = page.locator(".map-hud-copy").first();
   await expect(btn).toBeVisible();
   await btn.click();
@@ -60,6 +75,7 @@ async function nudge(page: import("@playwright/test").Page): Promise<void> {
 Then("the HUD tells me {int} people are interested near me", async ({ page }, total: number) => {
   await nudge(page);
   await expect(page.locator(".map-hud-h")).toContainText(new RegExp(`${total} interested in`, "i"), { timeout: 10000 });
+  await expandHud(page);
   await expect(page.locator(".map-hud-body")).toContainText(new RegExp(`${total - 1} others? nearby`, "i"));
 });
 
@@ -72,6 +88,7 @@ Then("the HUD tells me a game's been proposed at {string} with {int} of {int} in
   async ({ page }, place: string, inCount: number, pMin: number) => {
     await nudge(page);
     await expect(page.locator(".map-hud-h")).toContainText(/proposed/i, { timeout: 10000 });
+    await expandHud(page);
     await expect(page.locator(".map-hud-body")).toContainText(new RegExp(place));
     await expect(page.locator(".map-hud-body")).toContainText(new RegExp(`${inCount}/${pMin} people are in`, "i"));
   });

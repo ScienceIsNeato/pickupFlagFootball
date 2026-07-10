@@ -123,6 +123,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
 
   const where = place?.city ? `${place.city}${place.zip ? ` (${place.zip})` : ""}` : "your area";
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  // Collapsed by default. On desktop the HUD is a left rail and CSS always shows
+  // the panel regardless of this flag; on a phone it's a bottom sheet that stays
+  // collapsed to a headline peek so the map's center badges (which sit right
+  // where this panel would otherwise cover) stay tappable — tap the peek to open.
+  const [expanded, setExpanded] = useState(false);
   const [closesText, setClosesText] = useState("closes soon");
 
   useEffect(() => {
@@ -191,29 +196,40 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   const faq = buildFaq(scenario, skin.activity);
 
   return (
-    <div className="map-hud">
-      <p className="map-hud-h">{headline}</p>
-      <p className="map-hud-body">{body}</p>
-      <div className="map-hud-faq">
-        {faq.map((f) => (
-          <details key={f.q} className="map-hud-faq-item">
-            <summary>{f.q}</summary>
-            <p>{f.a}</p>
-          </details>
-        ))}
-      </div>
-      {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
-        <div className="map-hud-share">
-          <p className="map-hud-share-label">share this to grow {where}</p>
-          {templates.map((t, i) => (
-            <button key={t.label} type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
-              {copiedIdx === i ? "copied ✓" : `copy ${t.label} post`}
-            </button>
+    <div className="map-hud" data-expanded={expanded ? "true" : "false"}>
+      <button
+        type="button"
+        className="map-hud-peek"
+        aria-expanded={expanded}
+        aria-controls="map-hud-panel"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="map-hud-h">{headline}</span>
+        <span className="map-hud-caret" aria-hidden="true">▸</span>
+      </button>
+      <div className="map-hud-panel" id="map-hud-panel">
+        <p className="map-hud-body">{body}</p>
+        <div className="map-hud-faq">
+          {faq.map((f) => (
+            <details key={f.q} className="map-hud-faq-item">
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
           ))}
         </div>
-      ) : (
-        <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
-      )}
+        {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
+          <div className="map-hud-share">
+            <p className="map-hud-share-label">share this to grow {where}</p>
+            {templates.map((t, i) => (
+              <button key={t.label} type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
+                {copiedIdx === i ? "copied ✓" : `copy ${t.label} post`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+        )}
+      </div>
     </div>
   );
 }

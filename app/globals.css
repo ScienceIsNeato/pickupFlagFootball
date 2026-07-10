@@ -226,9 +226,21 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--ink); font-size: 13px; line-height: 1.45;
 }
+/* Header row: the headline plus a caret. On desktop it's a plain, non-collapsing
+   header (caret hidden, panel always open); on a phone it's the tap target that
+   opens/closes the bottom sheet (see the max-width:560px block). */
+.map-hud-peek {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin: 0 0 10px; padding: 0; border: 0; background: none;
+  text-align: left; color: inherit; font: inherit; cursor: default;
+}
 .map-hud-h {
-  margin: 0 0 10px; font-family: var(--font-barlow), sans-serif;
+  margin: 0; font-family: var(--font-barlow), sans-serif;
   font-size: 22px; font-weight: 700; color: #fff;
+}
+.map-hud-caret {
+  display: none; margin-left: auto; flex: none;
+  color: var(--grass-l); font-weight: 800; font-size: 15px;
 }
 .map-hud-body { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .map-hud-faq { margin: 0 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
@@ -252,10 +264,21 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-hud-copy:hover { border-color: var(--green); color: #fff; }
 .map-hud-link { display: inline-block; margin-top: 2px; font-size: 12px; color: var(--link); }
 @media (max-width: 560px) {
-  /* Small screens: the legend already owns the top strip — dock the HUD at
-     the bottom, ABOVE the floating propose button (which sits ~52–96px up), so
-     the two never overlap. Capped so the map stays usable above it. */
-  .map-hud { top: auto; bottom: 104px; width: auto; left: 12px; right: 12px; max-height: 40vh; }
+  /* Small screens: the legend owns the top strip, so the HUD becomes a bottom
+     sheet. It stays collapsed to just its headline peek — the map's game badges
+     center on the viewer's area (mid-screen), and an open panel would sit right
+     on top of them, so a tap on the peek is what expands it. Expanded, it caps
+     at 40vh and scrolls; the bottom edge clears the map's center either way. */
+  .map-hud {
+    top: auto; bottom: 12px; left: 12px; right: 12px; width: auto;
+    max-height: 40vh;
+  }
+  .map-hud[data-expanded="false"] { max-height: none; overflow: visible; }
+  .map-hud-peek { margin-bottom: 0; cursor: pointer; }
+  .map-hud[data-expanded="true"] .map-hud-peek { margin-bottom: 10px; }
+  .map-hud-caret { display: inline-block; transition: transform 0.15s ease; }
+  .map-hud[data-expanded="true"] .map-hud-caret { transform: rotate(90deg); }
+  .map-hud[data-expanded="false"] .map-hud-panel { display: none; }
 }
 
 .map-tip {
