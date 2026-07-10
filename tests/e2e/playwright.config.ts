@@ -26,7 +26,14 @@ export default defineConfig({
     screenshot: "off", // we take per-beat screenshots ourselves
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Run the whole story suite on BOTH a desktop and a phone viewport, so the
+  // report shows the mobile layout of every beat (catches touch-only / responsive
+  // regressions the desktop-only run never saw). Serial (workers:1) so the two
+  // projects don't clobber the shared DB.
+  projects: [
+    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", use: { ...devices["Pixel 5"] } },
+  ],
   webServer: {
     command: `npx next start -p ${E2E.appPort}`,
     url: E2E.appBaseUrl,

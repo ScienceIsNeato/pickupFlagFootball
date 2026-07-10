@@ -27,7 +27,13 @@ async function openGameOnMap(page: Page, world: World) {
   await page.waitForTimeout(300); // brief: let the app set clustersRef from the feed
   const box = await page.locator(".dash-map").boundingBox();
   if (!box) throw new Error("no map element");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  // Use a mouse click on every viewport, including the phone project. maplibre's
+  // map "click" fires from a DOM click event; a real phone tap produces one (the
+  // browser synthesizes it), but Playwright's touchscreen.tap dispatches only CDP
+  // touch events and never that synthesized click — so a mouse click here is both
+  // reliable and the faithful stand-in for what a real tap does to the map.
+  await page.mouse.click(cx, cy);
   await expect(page.locator(".game-card")).toBeVisible({ timeout: 10000 });
 }
 

@@ -11,6 +11,7 @@ type Beat = { title: string; img: string };
 type Scenario = {
   feature: string;
   scenario: string;
+  device: string; // playwright project — "desktop" | "mobile"
   status: TestResult["status"];
   durationMs: number;
   beats: Beat[];
@@ -48,6 +49,7 @@ export default class BeatReporter implements Reporter {
     this.scenarios.push({
       feature: test.parent?.title || "Feature",
       scenario: test.title,
+      device: test.parent?.project()?.name || "desktop",
       status: result.status,
       durationMs: result.duration,
       beats,
@@ -84,7 +86,14 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
 
   const features = [...byFeature.entries()]
     .map(([feature, list]) => {
-      const cards = list.map((s) => renderScenario(s)).join("\n");
+      // Group the per-device runs (desktop + mobile) of each scenario into one card.
+      const byScenario = new Map<string, Scenario[]>();
+      for (const s of list) {
+        const arr = byScenario.get(s.scenario) ?? [];
+        arr.push(s);
+        byScenario.set(s.scenario, arr);
+      }
+      const cards = [...byScenario.values()].map((v) => renderScenario(v)).join("\n");
       return `<section class="feature"><h2>${esc(feature)}</h2>${cards}</section>`;
     })
     .join("\n");
@@ -118,6 +127,12 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
   .badge.passed { background:var(--pass); } .badge.failed,.badge.timedOut { background:var(--fail); }
   .dur { color:var(--muted); font-size:12px; margin-left:auto; }
   .err { background:#fff4f3; color:var(--fail); border-top:1px solid #f3d6d3; padding:10px 16px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; }
+  .device { border-top:1px solid var(--line); }
+  .device:first-of-type { border-top:none; }
+  .device-h { display:flex; align-items:center; gap:10px; padding:10px 16px 0; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .device-h .dur { margin-left:0; }
+  /* Phone screenshots render at phone width so the mobile layout reads true. */
+  .device[data-device="mobile"] .beat img { width:300px; }
   .beats { padding:14px 16px; display:grid; gap:16px; }
   .beat { display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:start; }
   .beat .n { width:26px; height:26px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:700; display:grid; place-items:center; }
@@ -150,23 +165,45 @@ ${features}
 </body></html>`;
 }
 
-function renderScenario(s: Scenario): string {
-  const beats = s.beats
-    .map(
-      (b, i) =>
-        `<div class="beat"><div class="n">${i + 1}</div><div class="body"><div class="txt">${esc(
-          b.title,
-        )}</div><img src="${b.img}" alt="${esc(b.title)}" /></div></div>`,
-    )
+const DEVICE_ORDER = ["desktop", "mobile"];
+const DEVICE_LABEL: Record<string, string> = { desktop: "💻 desktop", mobile: "📱 mobile" };
+
+// One card per scenario, with a section per device (desktop + mobile) so the
+// mobile layout of every beat sits next to the desktop one.
+function renderScenario(variants: Scenario[]): string {
+  const sorted = [...variants].sort(
+    (a, b) => DEVICE_ORDER.indexOf(a.device) - DEVICE_ORDER.indexOf(b.device),
+  );
+  const name = sorted[0].scenario;
+  const anyFailed = sorted.some((v) => v.status !== "passed");
+  const status = anyFailed ? "failed" : "passed";
+  const totalDur = sorted.reduce((n, v) => n + v.durationMs, 0);
+  const openAttr = anyFailed ? " open" : ""; // auto-open failures
+
+  const sections = sorted
+    .map((v) => {
+      const beats = v.beats
+        .map(
+          (b, i) =>
+            `<div class="beat"><div class="n">${i + 1}</div><div class="body"><div class="txt">${esc(
+              b.title,
+            )}</div><img src="${b.img}" alt="${esc(b.title)}" /></div></div>`,
+        )
+        .join("\n");
+      const err = v.error ? `<div class="err">${esc(v.error)}</div>` : "";
+      const badge = v.status === "passed" ? "" : ` <span class="badge ${v.status}">${esc(v.status)}</span>`;
+      return `<div class="device" data-device="${esc(v.device)}">
+        <div class="device-h">${DEVICE_LABEL[v.device] ?? esc(v.device)}<span class="dur">${(v.durationMs / 1000).toFixed(1)}s</span>${badge}</div>
+        ${err}
+        <div class="beats">${beats}</div>
+      </div>`;
+    })
     .join("\n");
-  const err = s.error ? `<div class="err">${esc(s.error)}</div>` : "";
-  // Collapsed by default; auto-open failures so they're never hidden.
-  const openAttr = s.status === "passed" ? "" : " open";
-  return `<details class="scenario" data-status="${esc(s.status)}"${openAttr}>
-    <summary class="head"><span class="badge ${s.status}">${esc(s.status)}</span><span class="name">${esc(
-      s.scenario,
-    )}</span><span class="dur">${(s.durationMs / 1000).toFixed(1)}s</span><span class="caret" aria-hidden="true">▸</span></summary>
-    ${err}
-    <div class="beats">${beats}</div>
+
+  return `<details class="scenario" data-status="${esc(status)}"${openAttr}>
+    <summary class="head"><span class="badge ${status}">${esc(status)}</span><span class="name">${esc(
+      name,
+    )}</span><span class="dur">${(totalDur / 1000).toFixed(1)}s</span><span class="caret" aria-hidden="true">▸</span></summary>
+    ${sections}
   </details>`;
 }
