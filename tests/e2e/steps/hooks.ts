@@ -50,10 +50,14 @@ AfterStep(async ({ page, $step, $testInfo, world }) => {
   // the two clients side by side (see MOBILE_VP).
   try {
     if (page && !page.isClosed() && page.url() !== "about:blank") {
+      // Full-page, not viewport: on a phone the page is one tall column, and a
+      // step often acts on a control below the fold (e.g. the game-emails toggle
+      // low on /account). A viewport shot — especially the mobile one, whose
+      // scroll resets on resize — would miss it; full-page always frames it.
       const shoot = () =>
         world.beatLens
           ? page.locator(world.beatLens).screenshot({ type: "jpeg", quality: 72, timeout: 2_000 })
-          : page.screenshot({ type: "jpeg", quality: 72 });
+          : page.screenshot({ type: "jpeg", quality: 72, fullPage: true });
       const shot = await shoot();
       const hash = createHash("sha1").update(shot).digest("hex");
       if (lastShotHash.get(id) !== hash) {
