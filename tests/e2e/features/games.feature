@@ -1,12 +1,10 @@
 Feature: Finding & joining a game
 
   @mobile
-  Scenario: a new player confirms their email and joins a weekly game
+  Scenario: a player joins a weekly game from the map
     Given an established weekly game near me
-    And I register as "Reg Ular" with email "joiner@example.com" password "hunter2pass" in ZIP "78701"
+    And I am a confirmed player "Reg Ular" with email "joiner@example.com" in ZIP "78701"
     When I open the game on the map
-    And I click the confirm link in my email
-    And I open the game on the map
     And I join the weekly game
     Then the game shows in my games
 
