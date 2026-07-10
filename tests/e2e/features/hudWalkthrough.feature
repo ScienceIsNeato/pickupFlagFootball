@@ -5,12 +5,12 @@ Feature: HUD walkthrough — one area's life story, every scenario in order
   neighbors back a proposal → it fills and the game is on, rostered with them →
   a second game joins it. One login, one continuous cohort: the interest that
   accumulates is what actually forms the games — no ghost games with nobody
-  behind them. The report captures only the HUD at each beat.
+  behind them. The report shows the whole app at each beat so the HUD reads in
+  context — the map behind it, and (on mobile) the sheet expanded to its content.
 
   @mobile
   Scenario: an area grows from one player to two real weekly games
-    Given the report captures only the HUD
-    And I am a confirmed player "Journey Jo" with email "jo@example.com" in ZIP "30301"
+    Given I am a confirmed player "Journey Jo" with email "jo@example.com" in ZIP "30301"
     When I open the map
     Then the HUD tells me I'm the first one here
     And the HUD's FAQ explains how a game forms, with the live threshold

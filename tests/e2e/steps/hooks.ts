@@ -69,6 +69,15 @@ AfterStep(async ({ page, $step, $testInfo, world }) => {
         try {
           await page.setViewportSize(MOBILE_VP);
           await page.waitForTimeout(150);
+          // On a phone the HUD is a collapsed bottom sheet — a bare headline peek.
+          // Expand it for the shot so the report's mobile column shows the real
+          // content, not just the peek. (No-op when there's no collapsed HUD; a
+          // modal on top still wins, so game/propose cards are unaffected.)
+          const peek = page.locator('.map-hud[data-expanded="false"] .map-hud-peek');
+          if (await peek.count()) {
+            await peek.first().click({ timeout: 1_000 }).catch(() => {});
+            await page.waitForTimeout(120);
+          }
           const mshot = await shoot();
           await $testInfo.attach(`beat:m:${title}`, { body: mshot, contentType: "image/jpeg" });
         } catch {

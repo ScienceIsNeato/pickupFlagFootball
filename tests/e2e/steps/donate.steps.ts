@@ -27,8 +27,12 @@ When("Stripe reports their subscription started", async ({ page, world }) => {
   });
 });
 
-Then("they're marked as a subscriber", async ({ world }) => {
+Then("they're marked as a subscriber", async ({ page, world }) => {
   expect(await getDonationStatus(world.email!)).toBe("subscribed");
+  // Surface the synced status in the report: the account page now shows the
+  // member state ("manage subscription"), not the "support the project" ask.
+  await page.goto("/account");
+  await expect(page.getByText(/manage subscription/i)).toBeVisible({ timeout: 10000 });
 });
 
 When("Stripe reports their subscription cancelled", async ({ page }) => {
@@ -38,8 +42,12 @@ When("Stripe reports their subscription cancelled", async ({ page }) => {
   });
 });
 
-Then("the donation reminder is back on", async ({ world }) => {
+Then("the donation reminder is back on", async ({ page, world }) => {
   expect(await getDonationStatus(world.email!)).toBe("unset");
+  // Back to the "support the project" ask, reminder checkbox on — shown in the report.
+  await page.goto("/account");
+  await expect(page.getByText(/support the project/i)).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('input[name="remind"]')).toBeChecked();
 });
 
 // ── support-nudge banner ─────────────────────────────────────────────────────

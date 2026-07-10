@@ -10,13 +10,6 @@ import {
 // persistent cohort of real neighbors that backs the proposal and rosters the
 // games — every number the HUD shows is real interest, never fabricated.
 
-// The story is about the HUD alone — its report beats capture just the widget,
-// not the whole map. World.beatLens (world.ts) is read by the AfterStep hook
-// (hooks.ts) to screenshot one element instead of the full page.
-Given("the report captures only the HUD", async ({ world }) => {
-  world.beatLens = ".map-hud";
-});
-
 Then("the HUD tells me I'm the first one here", async ({ page }) => {
   await expect(page.locator(".map-hud-h")).toContainText(/first one here/i, { timeout: 10000 });
 });
