@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Fixing the map on phones: the 'what's happening near you' panel was covering the middle of the map so you couldn't tap your own game. It now tucks into a little tap-to-open strip at the bottom. Also stood up a phone version of the automated test run so the report shows every screen on a phone too.",
-    "direction": "Running the full test suite on both desktop and phone to confirm it's all green, then putting the changes up for review.",
-    "last_update": "2026-07-09T08:00:00Z"
+    "status": "Reworked the phone testing so it doesn't run everything twice anymore. Now each test runs once and the report just shows the desktop and phone view of every step side by side. A few map screens still get a real phone run on top, to catch phone-only breakage.",
+    "direction": "All tests green. Pushing the change up for review.",
+    "last_update": "2026-07-09T09:00:00Z"
   }
 }

@@ -1,5 +1,6 @@
 Feature: Captain controls
 
+  @mobile
   Scenario: a captain pauses and resumes the series
     Given an established weekly game near me
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"

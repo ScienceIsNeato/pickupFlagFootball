@@ -7,6 +7,7 @@ Feature: HUD walkthrough — one area's life story, every scenario in order
   accumulates is what actually forms the games — no ghost games with nobody
   behind them. The report captures only the HUD at each beat.
 
+  @mobile
   Scenario: an area grows from one player to two real weekly games
     Given the report captures only the HUD
     And I am a confirmed player "Journey Jo" with email "jo@example.com" in ZIP "30301"

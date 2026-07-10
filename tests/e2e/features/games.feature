@@ -1,5 +1,6 @@
 Feature: Finding & joining a game
 
+  @mobile
   Scenario: a new player confirms their email and joins a weekly game
     Given an established weekly game near me
     And I register as "Reg Ular" with email "joiner@example.com" password "hunter2pass" in ZIP "78701"

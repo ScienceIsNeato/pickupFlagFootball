@@ -23,6 +23,7 @@ Feature: Proposing a game (the proposer's view)
     Then no game forms and the proposal fails
     And everyone hears the proposal fell short
 
+  @mobile
   Scenario: a proposed game gets scheduled when enough are interested
     Given I am a confirmed player "Sam Spark" with email "sam@example.com" in ZIP "78701"
     When I propose a game at a nearby spot

@@ -26,13 +26,15 @@ export default defineConfig({
     screenshot: "off", // we take per-beat screenshots ourselves
     trace: "retain-on-failure",
   },
-  // Run the whole story suite on BOTH a desktop and a phone viewport, so the
-  // report shows the mobile layout of every beat (catches touch-only / responsive
-  // regressions the desktop-only run never saw). Serial (workers:1) so the two
+  // "desktop" runs the whole suite ONCE; its report shows every beat at desktop
+  // and phone width side by side (the hook resizes per beat — see steps/hooks.ts),
+  // so there are no duplicate tests. "mobile" re-runs only the @mobile-tagged
+  // map/HUD scenarios on a real phone profile (touch, dpr) as a regression net
+  // for behaviour a resize alone can't exercise. Serial (workers:1) so the two
   // projects don't clobber the shared DB.
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 5"] } },
+    { name: "mobile", use: { ...devices["Pixel 5"] }, grep: /@mobile/ },
   ],
   webServer: {
     command: `npx next start -p ${E2E.appPort}`,
