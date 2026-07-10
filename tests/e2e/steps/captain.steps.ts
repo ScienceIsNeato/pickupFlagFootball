@@ -89,19 +89,30 @@ Then("the game shows as retired", async ({ page }) => {
   await expect(page.locator(".game-dl dd").nth(2)).toHaveText("0");
 });
 
-When("I cancel this week", async ({ page, world }) => {
-  // Make sure the caption is actually rendered before capturing it — otherwise an
-  // empty capture would make the "advanced" assertion below pass vacuously.
+When("I cancel this week with reason {string}", async ({ page, world }, reason: string) => {
+  // Capture the current "next game" caption first — otherwise an empty capture
+  // would make the "advanced" assertion below pass vacuously.
   const cap = page.locator(".game-seg-cap");
   await expect(cap).toContainText(/next game/i, { timeout: 10000 });
   world.nextGameCaption = ((await cap.textContent()) ?? "").trim();
   expect(world.nextGameCaption).not.toBe("");
-  page.once("dialog", (d) => d.accept()); // simple "call off this week's game?" confirm
   await page.getByRole("button", { name: "cancel this week" }).click();
+  // The in-app confirm collects a required reason players will see.
+  const dlg = page.getByRole("alertdialog");
+  await dlg.locator("textarea").fill(reason);
+  await dlg.getByRole("button", { name: "cancel this week" }).click();
+});
+
+Then("the game shows this week called off, noting {string}", async ({ page }, reason: string) => {
+  const banner = page.locator(".game-cancelled");
+  await expect(banner).toBeVisible({ timeout: 10000 });
+  await expect(banner).toContainText(/called off/i);
+  await expect(banner).toContainText(reason); // the captain's reason, shown to players
 });
 
 Then("next week becomes the next game", async ({ page, world }) => {
-  // The "next game · <date>" caption advances past the called-off week.
+  // The "next game · <date>" caption advances past the called-off week — the
+  // red banner shows the cancellation, the RSVP below it is for the next week.
   await expect(page.locator(".game-seg-cap")).not.toHaveText(world.nextGameCaption ?? "", { timeout: 10000 });
 });
 

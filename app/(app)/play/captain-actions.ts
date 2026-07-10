@@ -135,11 +135,14 @@ export async function retireSeries(gameId: string) { return setSeriesStatus(game
 
 /** Captain calls off this week's game. Marks (or pre-empts) the upcoming
  *  occurrence as cancelled, so the poll won't open / a scheduled game is off. */
-export async function cancelWeek(gameId: string): Promise<CaptainResult> {
+export async function cancelWeek(gameId: string, note: string): Promise<CaptainResult> {
   const c = await asCaptain(gameId);
   if (!c.ok) return c;
   const g = c.game;
   if (g.recurDow == null || !g.recurTime) return { ok: false, error: "not a recurring game" };
+  // Players see this reason on the game card, so it's required (like pausing).
+  const reason = (note ?? "").trim();
+  if (!reason) return { ok: false, error: "add a reason so players know why" };
   const now = new Date();
   // Target the same week the popup/RSVP flows call "next game" — skipping weeks
   // already off or kicked off — so "cancel this week" hits the game players are
@@ -156,12 +159,12 @@ export async function cancelWeek(gameId: string): Promise<CaptainResult> {
   if (kickoff <= now) return { ok: false, error: "this week's game has already started" };
   const done = await db.insert(gameOccurrences)
     .values({
-      gameId, occurrenceDate: date, status: "cancelled",
+      gameId, occurrenceDate: date, status: "cancelled", cancelNote: reason,
       kickoffAt: kickoff, pollOpensAt: kickoff, pollClosesAt: kickoff,
     })
     .onConflictDoUpdate({
       target: [gameOccurrences.gameId, gameOccurrences.occurrenceDate],
-      set: { status: "cancelled" },
+      set: { status: "cancelled", cancelNote: reason },
       // Never downgrade a finished occurrence (played/skipped) back to cancelled.
       setWhere: sql`${gameOccurrences.status} not in ('played', 'skipped', 'cancelled')`,
     })

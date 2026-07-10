@@ -72,6 +72,7 @@ export async function GET(req: Request) {
   const since = new Date(now - 10 * WEEK);
   const history = await db.select({
     date: gameOccurrences.occurrenceDate, inCount: gameOccurrences.inCount, status: gameOccurrences.status,
+    cancelNote: gameOccurrences.cancelNote,
   }).from(gameOccurrences)
     .where(and(
       eq(gameOccurrences.gameId, best.id),
@@ -86,8 +87,24 @@ export async function GET(req: Request) {
       return t >= start && t < end;
     });
     const played = !!o && o.status === "played";
-    return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0 };
+    // status lets the card distinguish a called-off week ("cancelled") from a
+    // quiet "no game" one; cancelNote carries the captain's reason for it.
+    return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0,
+      status: o?.status ?? null, cancelNote: o?.cancelNote ?? null };
   });
+
+  // The nearest upcoming week the captain has called off — the card shows it as
+  // a red banner (the RSVP below it is for the next week that's still on).
+  const cancelledRows = await db.select({ date: gameOccurrences.occurrenceDate, note: gameOccurrences.cancelNote })
+    .from(gameOccurrences)
+    .where(and(
+      eq(gameOccurrences.gameId, best.id),
+      eq(gameOccurrences.status, "cancelled"),
+      gte(gameOccurrences.kickoffAt, new Date(now)),
+    ))
+    .orderBy(gameOccurrences.occurrenceDate)
+    .limit(1);
+  const cancelledThisWeek = cancelledRows[0] ?? null;
 
   // Retired games show a full history (the 10-week grid above can't reach a
   // long-retired series) — the last games actually played, most recent first.
@@ -141,6 +158,7 @@ export async function GET(req: Request) {
       retireBlockedReason: retire && !retire.ok ? retire.reason : null,
     },
     weeks,
+    cancelledThisWeek,
     playedHistory,
   });
 }

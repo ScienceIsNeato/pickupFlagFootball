@@ -28,8 +28,9 @@ type GameInfo = {
   nextOccurrence: string;
   canRetire: boolean; retireBlockedReason: string | null;
 };
-type Week = { weekStart: string; played: boolean; count: number };
+type Week = { weekStart: string; played: boolean; count: number; status?: string | null; cancelNote?: string | null };
 type PlayedGame = { date: string; inCount: number };
+type CancelledWeek = { date: string; note: string | null };
 
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -56,11 +57,12 @@ function fmtDate(ymd: string): string {
 
 type ConfirmReq =
   | { kind: "phrase"; title: string; phrase: string; confirmLabel: string; onConfirm: () => void }
-  | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void };
+  | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void }
+  | { kind: "note"; title: string; confirmLabel: string; placeholder: string; onConfirm: (note: string) => void };
 
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number; lng: number; onClose: () => void; onChanged?: () => void }) {
-  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[] } | "loading" | "error">("loading");
+  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[]; cancelledThisWeek: CancelledWeek | null } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
@@ -91,8 +93,8 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     try {
       const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
       if (!r.ok) throw new Error();
-      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[] };
-      setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [] });
+      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[]; cancelledThisWeek?: CancelledWeek | null };
+      setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [], cancelledThisWeek: d.cancelledThisWeek ?? null });
     } catch {
       setState("error");
     }
@@ -103,6 +105,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
   const game = state !== "loading" && state !== "error" ? state.game : null;
   const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
   const playedHistory = state !== "loading" && state !== "error" ? state.playedHistory : [];
+  const cancelledThisWeek = state !== "loading" && state !== "error" ? state.cancelledThisWeek : null;
   const playedCount = weeks.filter((w) => w.played).length;
   const retired = game?.status === "retired";
   const maps = game?.placeLat != null && game?.placeLng != null
@@ -225,6 +228,13 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
               )}
             </dl>
 
+            {!retired && cancelledThisWeek && (
+              <div className="game-cancelled" role="status">
+                <p className="game-cancelled-h">this week ({fmtDate(cancelledThisWeek.date)}) is called off</p>
+                {cancelledThisWeek.note && <p className="game-cancelled-note">“{cancelledThisWeek.note}”</p>}
+              </div>
+            )}
+
             {!retired && (
             <div className="game-join-box">
               {game.status === "paused" ? (
@@ -282,7 +292,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                 <p className="game-join-h">captain controls</p>
                 {game.status === "active" ? (
                   <div className="seg" role="group" aria-label="captain controls">
-                    <button type="button" disabled={busy} onClick={() => { if (window.confirm("call off this week's game?")) run(() => cancelWeek(game.gameId)); }}>cancel this week</button>
+                    <button type="button" disabled={busy} onClick={() => askConfirm({ kind: "note", title: "call off this week's game?", confirmLabel: "cancel this week", placeholder: "field's flooded — back next week", onConfirm: (note) => run(() => cancelWeek(game.gameId, note)) })}>cancel this week</button>
                     <button type="button" disabled={busy} onClick={() => askConfirm({ kind: "pause", title: "pause this series?", confirmLabel: "pause series", onConfirm: (d, n) => run(() => pauseSeries(game.gameId, d, n)) })}>pause series</button>
                     <button type="button" className="game-leave" disabled={busy || !game.canRetire} onClick={() => askConfirm({ kind: "phrase", title: "retire this series for good? this can't be undone.", phrase: "retire this series for good", confirmLabel: "retire series", onConfirm: () => run(() => retireSeries(game.gameId)) })}>retire series</button>
                   </div>
@@ -390,6 +400,8 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                         <span>{new Date(w.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                         {w.played
                           ? <span className="game-played">✓ played · {w.count} in</span>
+                          : w.status === "cancelled"
+                          ? <span className="game-called-off">✕ called off{w.cancelNote ? ` · ${w.cancelNote}` : ""}</span>
                           : <span className="game-muted">— no game</span>}
                       </li>
                     ))}
@@ -426,6 +438,23 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                     type="button" className="btn-green game-confirm-go"
                     disabled={typed.trim() !== confirmReq.phrase}
                     onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(); }}
+                  >{confirmReq.confirmLabel}</button>
+                </div>
+              </>
+            ) : confirmReq.kind === "note" ? (
+              <>
+                <label className="game-muted" htmlFor="game-note-input">why (shown to players)</label>
+                <textarea
+                  id="game-note-input" className="game-confirm-input game-pause-note" rows={2} autoFocus
+                  value={pauseNote} onChange={(e) => setPauseNote(e.target.value)}
+                  placeholder={confirmReq.placeholder} aria-label="why"
+                />
+                <div className="seg" role="group" aria-label="confirm actions">
+                  <button type="button" onClick={() => setConfirmReq(null)}>cancel</button>
+                  <button
+                    type="button" className="btn-green game-confirm-go"
+                    disabled={!pauseNote.trim()}
+                    onClick={() => { const req = confirmReq; setConfirmReq(null); req.onConfirm(pauseNote.trim()); }}
                   >{confirmReq.confirmLabel}</button>
                 </div>
               </>

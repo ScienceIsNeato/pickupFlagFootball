@@ -402,6 +402,14 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-paused { padding: 2px 0; }
 .game-paused-h { margin: 0 0 6px; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--ink); }
 .game-paused-note { margin: 0; font-size: 14px; color: var(--muted); font-style: italic; }
+/* This-week-called-off banner (red) — shown above the RSVP for the next week. */
+.game-cancelled {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px;
+  background: rgba(226, 59, 46, 0.12); border-left: 3px solid var(--red);
+}
+.game-cancelled-h { margin: 0; font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 15px; color: var(--red); }
+.game-cancelled-note { margin: 6px 0 0; font-size: 14px; color: var(--muted); font-style: italic; }
+.game-called-off { color: var(--red); }
 /* Retired series: a prominent red badge near the top; controls are hidden and the
    body becomes the games-played history. */
 .game-retired {

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Cleaning up the test report from feedback: the phone screenshots now show the whole page so controls near the bottom aren't cut off, and I trimmed a couple of tests that were re-checking the same sign-up/confirm flow already covered elsewhere.",
-    "direction": "Full test run to confirm everything's still green, then pushing up for review.",
-    "last_update": "2026-07-09T11:00:00Z"
+    "status": "When a captain calls off a week, the game now clearly says that week is cancelled (in red) with the captain's reason, instead of quietly skipping to next week. Players can still RSVP for the following week. Also knocked out a batch of report-review fixes and added a clear yellow Join button.",
+    "direction": "Full test run with the new database change to confirm it's all green, then pushing up for review.",
+    "last_update": "2026-07-09T12:00:00Z"
   }
 }
