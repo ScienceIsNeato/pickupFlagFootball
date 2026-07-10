@@ -60,7 +60,7 @@ export default async function PlayPage() {
             tell us your general area and we&apos;ll show games forming near you — and
             let you propose one.
           </p>
-          <Link href="/account" className="btn-green">set your location</Link>
+          <Link href="/account" className="btn-green-link">set your location</Link>
         </div>
       )}
     </div>

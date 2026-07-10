@@ -43,7 +43,7 @@ When("I click the confirm link in my email", async ({ page, world }) => {
   // head to the map.
   await expect(page.getByRole("heading", { name: /email confirmed/i })).toBeVisible({ timeout: 15000 });
   // main's CTA, not the nav's "find a game" link (same text)
-  await page.locator("main a.btn-green").click();
+  await page.locator("main a.btn-green-link").click();
   await page.waitForURL("**/play", { timeout: 15000 });
   await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
   await expect(page.locator(".unverified-banner")).toHaveCount(0);

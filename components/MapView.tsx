@@ -195,6 +195,12 @@ export function MapView({
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     mapRef.current = map;
+    // The compact attribution renders expanded (a full-width © bar) by default,
+    // which crowds the footer and the mobile bottom sheet. Collapse it to its ⓘ
+    // once — the full text is still one tap away (maplibre reopens on click).
+    map.on("load", () => {
+      container.querySelector(".maplibregl-ctrl-attrib")?.removeAttribute("open");
+    });
     // E2E seam: the game/proposed badges are drawn on a canvas, so tests can't
     // select them. Under the e2e build flag only, expose the map so a test can
     // center on a seeded game and click its badge for real. Dead-code-eliminated

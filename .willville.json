@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reworked the phone testing so it doesn't run everything twice anymore. Now each test runs once and the report just shows the desktop and phone view of every step side by side. A few map screens still get a real phone run on top, to catch phone-only breakage.",
-    "direction": "All tests green. Pushing the change up for review.",
-    "last_update": "2026-07-09T09:00:00Z"
+    "status": "Cleaned up a few small things on the phone map: the zoom buttons and the map's credits line no longer sit under the info panel at the bottom, and gave that panel a little breathing room above the footer. Also fixed a couple buttons whose text was jammed against the edges.",
+    "direction": "All tests still green. Pushing the tidy-ups up for review.",
+    "last_update": "2026-07-09T10:00:00Z"
   }
 }

@@ -32,7 +32,7 @@ export default async function VerifyEmailPage({
           you&apos;re not signed in on this device, we&apos;ll ask you to log in
           first.
         </p>
-        <p><Link href="/play" className="btn-green">find a game</Link></p>
+        <p><Link href="/play" className="btn-green-link">find a game</Link></p>
       </main>
     );
   }

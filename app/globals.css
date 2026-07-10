@@ -267,13 +267,12 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   /* Small screens: the legend owns the top strip, so the HUD becomes a bottom
      sheet. It stays collapsed to just its headline peek — the map's game badges
      center on the viewer's area (mid-screen), and an open panel would sit right
-     on top of them, so a tap on the peek is what expands it. Expanded, it caps
-     at 40vh and scrolls; the bottom edge clears the map's center either way.
-     Docked at bottom:52 so the peek sits ABOVE the fixed site footer (z-index
-     30, ~40px tall) — a lower dock would let the footer swallow taps on it. */
+     on top of them, so a tap on the peek is what expands it. Docked at bottom:74
+     to sit above the map's ⓘ attribution and the fixed footer with a clear
+     bumper; capped at 36vh so the expanded panel still clears the map's center. */
   .map-hud {
-    top: auto; bottom: 52px; left: 12px; right: 12px; width: auto;
-    max-height: 40vh;
+    top: auto; bottom: 74px; left: 12px; right: 12px; width: auto;
+    max-height: 36vh;
   }
   .map-hud[data-expanded="false"] { max-height: none; overflow: visible; }
   .map-hud-peek { margin-bottom: 0; cursor: pointer; }
@@ -281,6 +280,13 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   .map-hud-caret { display: inline-block; transition: transform 0.15s ease; }
   .map-hud[data-expanded="true"] .map-hud-caret { transform: rotate(90deg); }
   .map-hud[data-expanded="false"] .map-hud-panel { display: none; }
+
+  /* The bottom sheet owns the bottom, so pull the map's own controls clear of
+     it. Lift the zoom buttons up into the map above the peek, and keep the
+     (collapsed) © attribution as a small ⓘ just above the footer. */
+  .maplibregl-ctrl-bottom-right { bottom: 40px !important; }
+  /* !important: maplibre's own .maplibregl-ctrl margin loads later and wins otherwise. */
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { margin-bottom: 100px !important; }
 }
 
 .map-tip {
