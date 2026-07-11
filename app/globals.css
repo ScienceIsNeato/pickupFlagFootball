@@ -564,6 +564,21 @@ section h2::after {
 .card .title .tag { margin-left: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); border: 1px solid var(--green); border-radius: 999px; padding: 2px 7px; vertical-align: middle; }
 .card p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
 
+/* "See it in action" gallery — one looping clip per core flow. */
+.gallery { display: grid; grid-template-columns: 1fr; gap: 22px; }
+@media (min-width: 720px) { .gallery { grid-template-columns: 1fr 1fr; } }
+.gallery-item {
+  margin: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  background: var(--surface);
+}
+.gallery-video {
+  display: block; width: 100%; aspect-ratio: 1120 / 704; object-fit: cover;
+  background: #0b1210; border-bottom: 1px solid var(--border);
+}
+.gallery-item figcaption { padding: 15px 18px 18px; }
+.gallery-title { display: block; font-family: var(--font-inter), sans-serif; font-weight: 600; font-size: 16px; }
+.gallery-caption { display: block; color: var(--muted); font-size: 14px; line-height: 1.5; margin-top: 5px; }
+
 .faq-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
 .faq-item .q { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
 .faq-item p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
