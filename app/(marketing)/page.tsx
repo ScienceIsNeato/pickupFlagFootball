@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { skin } from "@/lib/skin";
+import Gallery from "./Gallery";
 
 export default function Home() {
   return (
@@ -31,26 +32,7 @@ export default function Home() {
 
         {skin.gallery.length > 0 && (
           <section id="gallery">
-            <h2>see it in action</h2>
-            <div className="gallery">
-              {skin.gallery.map((g) => (
-                <figure className="gallery-item" key={g.src}>
-                  <video
-                    className="gallery-video"
-                    autoPlay loop muted playsInline preload="metadata"
-                    poster={`/gallery/${g.src}.jpg`}
-                    aria-label={g.title}
-                  >
-                    <source src={`/gallery/${g.src}.webm`} type="video/webm" />
-                    <source src={`/gallery/${g.src}.mp4`} type="video/mp4" />
-                  </video>
-                  <figcaption>
-                    <span className="gallery-title">{g.title}</span>
-                    <span className="gallery-caption">{g.caption}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            <Gallery items={skin.gallery} />
           </section>
         )}
       </main>

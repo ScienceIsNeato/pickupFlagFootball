@@ -79,10 +79,14 @@ async function centerOnGame(page: Page, lat: number, lng: number) {
 
 async function openGame(page: Page, lat: number, lng: number) {
   await centerOnGame(page, lat, lng);
-  const box = await page.locator(".dash-map").boundingBox();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2, { steps: 22 });
+  const map = page.locator(".dash-map");
+  await map.waitFor({ timeout: 10000 });
+  const box = await map.boundingBox();
+  if (!box) throw new Error("no box for .dash-map");
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy, { steps: 22 });
   await sleep(page, 400);
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.click(cx, cy);
   await page.locator(".game-card").waitFor({ timeout: 10000 });
   await sleep(page, 700);
 }
@@ -112,6 +116,7 @@ async function main() {
   // A signed-in demo user for the play-side flows. Registered once via the real
   // form, then reused via storageState so the clips start already on the map.
   const browser = await chromium.launch();
+  try {
   const authCtx = await browser.newContext({ viewport: VP, baseURL: BASE });
   const authPage = await authCtx.newPage();
   await registerViaUi(authPage, { email: "" } as unknown as import("../e2e/steps/world").World, ALEX);
@@ -183,9 +188,11 @@ async function main() {
     await sleep(page, 700);
   });
 
-  await browser.close();
-  await pool.end();
   console.log("done — raw webms in tests/demos/raw/");
+  } finally {
+    await browser.close();
+    await pool.end();
+  }
 }
 
 await main();
