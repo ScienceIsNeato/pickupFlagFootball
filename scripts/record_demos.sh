@@ -41,7 +41,7 @@ echo "▸ convert → public/gallery (webm + mp4, 960px wide)"
 mkdir -p public/gallery
 for name in show-interest join-game attend-week captain-pause; do
   raw="tests/demos/raw/${name}.webm"
-  [ -f "$raw" ] || { echo "  ✗ missing $raw"; continue; }
+  [ -f "$raw" ] || { echo "  ✗ missing $raw — recording did not produce all clips"; exit 1; }
   ffmpeg -y -i "$raw" -vf "scale=960:-2" -c:v libvpx-vp9 -b:v 0 -crf 34 -an -pix_fmt yuv420p "public/gallery/${name}.webm" -loglevel error
   ffmpeg -y -i "$raw" -vf "scale=960:-2" -c:v libx264 -crf 28 -an -movflags +faststart -pix_fmt yuv420p "public/gallery/${name}.mp4" -loglevel error
   # Poster (first-frame-ish), shown while the clip loads.

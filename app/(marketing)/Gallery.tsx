@@ -40,8 +40,12 @@ export default function Gallery({ items }: { items: Item[] }) {
   useEffect(() => {
     videos.current.forEach((v, i) => {
       if (!v) return;
-      if (i === active && playing && visible) v.play().catch(() => {});
-      else v.pause();
+      if (i === active && playing && visible) {
+        v.play().catch(() => {});
+      } else {
+        v.pause();
+        if (i !== active) v.currentTime = 0; // park inactive clips on their first frame
+      }
     });
   }, [active, playing, visible]);
 
