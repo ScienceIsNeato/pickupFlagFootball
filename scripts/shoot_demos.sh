@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Record the splash-gallery demo clips end to end: bring up the local stack,
-# seed, build + start the app (with the e2e map seam so clips can centre the
-# map), drive the four flows in Playwright, and convert the raw webm to
-# optimised webm + mp4 loops under public/gallery/.
+# Capture the splash-gallery stills end to end: bring up the local stack, seed,
+# build + start the app (with the e2e map seam so shots can centre the map),
+# and screenshot the four core flows straight into public/gallery/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,19 +33,8 @@ trap 'kill $APP_PID 2>/dev/null || true' EXIT
 until curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null; do sleep 1; done
 echo "  app up"
 
-echo "▸ record clips"
-node --import tsx tests/demos/record.mts
-
-echo "▸ convert → public/gallery (webm + mp4, 960px wide)"
+echo "▸ capture stills → public/gallery"
 mkdir -p public/gallery
-for name in show-interest join-game attend-week captain-pause; do
-  raw="tests/demos/raw/${name}.webm"
-  [ -f "$raw" ] || { echo "  ✗ missing $raw — recording did not produce all clips"; exit 1; }
-  ffmpeg -y -i "$raw" -vf "scale=960:-2" -c:v libvpx-vp9 -b:v 0 -crf 34 -an -pix_fmt yuv420p "public/gallery/${name}.webm" -loglevel error
-  ffmpeg -y -i "$raw" -vf "scale=960:-2" -c:v libx264 -crf 28 -an -movflags +faststart -pix_fmt yuv420p "public/gallery/${name}.mp4" -loglevel error
-  # Poster (first-frame-ish), shown while the clip loads.
-  ffmpeg -y -ss 1 -i "$raw" -frames:v 1 -vf "scale=960:-2" "public/gallery/${name}.jpg" -loglevel error
-  echo "  ✓ ${name} (webm + mp4 + poster)"
-done
+node --import tsx tests/demos/shots.mts
 
 echo "done → public/gallery/"

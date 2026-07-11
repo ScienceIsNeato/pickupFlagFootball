@@ -40,5 +40,4 @@ tests/e2e/test-results/
 .env.sentry-build-plugin
 
 # demo recording artifacts (the served clips live in public/gallery/)
-/tests/demos/raw/
 /tests/demos/.auth.json

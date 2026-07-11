@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Another round of report-review fixes: a skipped week (too few players) now shows the current week in yellow with the reason instead of jumping ahead; the 'game on' email no longer offers 'play after all' to people already in; the account page's donation panel moved to the far right; and the test report stopped repeating the confirm-email step in every test.",
-    "direction": "Full test run to confirm green, then pushing up for review.",
-    "last_update": "2026-07-09T13:00:00Z"
+    "status": "Reworking the splash 'see it in action' gallery — dropping the looping video clips for clean single screenshots with a tagline under each, still in the swipe-through gallery style.",
+    "direction": "Capturing the fresh screenshots against a clean demo setup, then pushing the gallery change up for review.",
+    "last_update": "2026-07-11T00:00:00Z"
   }
 }
