@@ -90,43 +90,7 @@ const esc = (s: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;"); // also safe inside attribute contexts (alt="…")
 
-function renderHtml(scenarios: Scenario[], result: FullResult): string {
-  // The report is built from the desktop run (it holds the beats); the mobile
-  // run is a pass/fail net keyed back to its scenario by title.
-  const desktopRuns = scenarios.filter((s) => s.project !== "mobile");
-  const mobileByTitle = new Map<string, Scenario>();
-  for (const s of scenarios) if (s.project === "mobile") mobileByTitle.set(s.scenario, s);
-
-  const byFeature = new Map<string, Scenario[]>();
-  for (const s of desktopRuns) {
-    const list = byFeature.get(s.feature) ?? [];
-    list.push(s);
-    byFeature.set(s.feature, list);
-  }
-
-  const passed = desktopRuns.filter((s) => s.status === "passed").length;
-  const failed = desktopRuns.length - passed;
-  const mobileRuns = [...mobileByTitle.values()];
-  const mobileFailed = mobileRuns.filter((s) => s.status !== "passed").length;
-
-  const features = [...byFeature.entries()]
-    .map(([feature, list]) => {
-      const cards = list.map((s) => renderScenario(s, mobileByTitle.get(s.scenario))).join("\n");
-      return `<section class="feature"><h2>${esc(feature)}</h2>${cards}</section>`;
-    })
-    .join("\n");
-
-  const mobileNote = mobileRuns.length
-    ? ` · 📱 ${mobileRuns.length} mobile check${mobileRuns.length === 1 ? "" : "s"}${
-        mobileFailed ? ` (<b>${mobileFailed} failed</b>)` : " passed"
-      }`
-    : "";
-
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Story report — pickup flag football</title>
-<style>
+const REPORT_CSS = `
   :root { --ink:#0f1c14; --green:#16633a; --line:#dfe7e1; --muted:#5b6b61; --bg:#f6f8f6; --pass:#16834a; --fail:#c0392b; }
   * { box-sizing: border-box; }
   body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
@@ -173,7 +137,45 @@ function renderHtml(scenarios: Scenario[], result: FullResult): string {
   dialog { border:none; background:transparent; max-width:96vw; max-height:96vh; padding:0; }
   dialog::backdrop { background:rgba(8,16,12,.82); }
   dialog img { max-width:96vw; max-height:96vh; border-radius:8px; }
-</style></head>
+`;
+
+function renderHtml(scenarios: Scenario[], result: FullResult): string {
+  // The report is built from the desktop run (it holds the beats); the mobile
+  // run is a pass/fail net keyed back to its scenario by title.
+  const desktopRuns = scenarios.filter((s) => s.project !== "mobile");
+  const mobileByTitle = new Map<string, Scenario>();
+  for (const s of scenarios) if (s.project === "mobile") mobileByTitle.set(s.scenario, s);
+
+  const byFeature = new Map<string, Scenario[]>();
+  for (const s of desktopRuns) {
+    const list = byFeature.get(s.feature) ?? [];
+    list.push(s);
+    byFeature.set(s.feature, list);
+  }
+
+  const passed = desktopRuns.filter((s) => s.status === "passed").length;
+  const failed = desktopRuns.length - passed;
+  const mobileRuns = [...mobileByTitle.values()];
+  const mobileFailed = mobileRuns.filter((s) => s.status !== "passed").length;
+
+  const features = [...byFeature.entries()]
+    .map(([feature, list]) => {
+      const cards = list.map((s) => renderScenario(s, mobileByTitle.get(s.scenario))).join("\n");
+      return `<section class="feature"><h2>${esc(feature)}</h2>${cards}</section>`;
+    })
+    .join("\n");
+
+  const mobileNote = mobileRuns.length
+    ? ` · 📱 ${mobileRuns.length} mobile check${mobileRuns.length === 1 ? "" : "s"}${
+        mobileFailed ? ` (<b>${mobileFailed} failed</b>)` : " passed"
+      }`
+    : "";
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Story report — pickup flag football</title>
+<style>${REPORT_CSS}</style></head>
 <body>
 <header class="top">
   <h1>pickup flag football — story report</h1>
