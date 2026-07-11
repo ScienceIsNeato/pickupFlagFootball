@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DB_URL="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"
+DB_URL="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"  # pragma: allowlist secret
 export DATABASE_URL="$DB_URL" DATABASE_URL_UNPOOLED="$DB_URL" DATABASE_DRIVER="node-postgres"
 export EMAIL_TRANSPORT="smtp" SMTP_URL="smtp://127.0.0.1:11025"
 unset BREVO_API_KEY 2>/dev/null || true
