@@ -107,7 +107,11 @@ async function main() {
       await page.goto("/play");
       await openGame(page, game.lat, game.lng);
       await page.getByRole("button", { name: "i'm in", exact: true }).first().click();
-      await page.locator(".game-leave, .game-in").first().waitFor({ timeout: 10000 }).catch(() => {});
+      await page
+        .locator(".game-leave, .game-in")
+        .first()
+        .waitFor({ timeout: 10000 })
+        .catch(() => console.warn("  ⚠ attend-week: join state did not appear before the shot"));
       await sleep(page, 600);
     });
 
@@ -124,10 +128,20 @@ async function main() {
       await sleep(page, 400);
     });
   } finally {
-    await browser.close();
-    await pool.end();
+    // Independent cleanup: a failure closing one must not skip the other.
+    await browser.close().catch((e) => console.error("browser close failed:", e));
+    await pool.end().catch((e) => console.error("pool end failed:", e));
   }
   console.log("done — stills in public/gallery/");
 }
 
-await main();
+// tests/e2e/support/db.ts holds its own module-level pool we can't close from
+// here, so exit explicitly once main() settles rather than let an open handle
+// keep the process (and scripts/shoot_demos.sh) hanging.
+main().then(
+  () => process.exit(0),
+  (e) => {
+    console.error(e);
+    process.exit(1);
+  },
+);

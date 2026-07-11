@@ -30,7 +30,11 @@ APP_BASE_URL="http://127.0.0.1:3100" AUTH_URL="http://127.0.0.1:3100" NEXTAUTH_U
   npx next start -p 3100 > /tmp/demo-app.log 2>&1 &
 APP_PID=$!
 trap 'kill $APP_PID 2>/dev/null || true' EXIT
-until curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null; do sleep 1; done
+for _ in $(seq 1 60); do
+  curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null && break
+  sleep 1
+done
+curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null || { echo "  ✗ app did not start within 60s" >&2; exit 1; }
 echo "  app up"
 
 echo "▸ capture stills → public/gallery"
