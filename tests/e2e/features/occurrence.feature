@@ -20,6 +20,7 @@ Feature: A weekly game runs (occurrence FSM)
     Then I've found my weekly game
     When the engine ticks
     Then the week is skipped
+    And the game shows this week skipped for low turnout
     And the off-week email has no donation ask
 
   Scenario: a supporter is thanked, not asked, on the game-on email

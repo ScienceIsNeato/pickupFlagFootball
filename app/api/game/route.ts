@@ -72,6 +72,7 @@ export async function GET(req: Request) {
   const since = new Date(now - 10 * WEEK);
   const history = await db.select({
     date: gameOccurrences.occurrenceDate, inCount: gameOccurrences.inCount, status: gameOccurrences.status,
+    cancelNote: gameOccurrences.cancelNote,
   }).from(gameOccurrences)
     .where(and(
       eq(gameOccurrences.gameId, best.id),
@@ -86,8 +87,25 @@ export async function GET(req: Request) {
       return t >= start && t < end;
     });
     const played = !!o && o.status === "played";
-    return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0 };
+    // status lets the card distinguish a called-off week ("cancelled") from a
+    // quiet "no game" one; cancelNote carries the captain's reason for it.
+    return { weekStart: new Date(start).toISOString(), played, count: played ? o!.inCount : 0,
+      status: o?.status ?? null, cancelNote: o?.cancelNote ?? null };
   });
+
+  // Every upcoming week that's off — captain called off ("cancelled", red + their
+  // note) or poll came up short ("skipped", yellow + "not enough players"). All of
+  // them show as banners until their kickoff passes, so if more than one week
+  // ahead is off the player sees each, not just the first before the next live RSVP.
+  const offWeeks = await db.select({
+    date: gameOccurrences.occurrenceDate, status: gameOccurrences.status, note: gameOccurrences.cancelNote,
+  }).from(gameOccurrences)
+    .where(and(
+      eq(gameOccurrences.gameId, best.id),
+      inArray(gameOccurrences.status, ["cancelled", "skipped"]),
+      gte(gameOccurrences.kickoffAt, new Date(now)),
+    ))
+    .orderBy(gameOccurrences.occurrenceDate);
 
   // Retired games show a full history (the 10-week grid above can't reach a
   // long-retired series) — the last games actually played, most recent first.
@@ -141,6 +159,7 @@ export async function GET(req: Request) {
       retireBlockedReason: retire && !retire.ok ? retire.reason : null,
     },
     weeks,
+    offWeeks,
     playedHistory,
   });
 }

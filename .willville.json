@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Two last small fixes: a signed-in user with no location set now gets a clear 'set your location' prompt on the map instead of a blank screen, and fixed a bug where clicking 'not interested' from an email got silently dropped if you'd moved out of the area.",
-    "direction": "That's the whole pre-launch UX sweep done - all three tiers plus invite-a-friend. Ready to regroup on what's next.",
-    "last_update": "2026-07-09T07:00:00Z"
+    "status": "Another round of report-review fixes: a skipped week (too few players) now shows the current week in yellow with the reason instead of jumping ahead; the 'game on' email no longer offers 'play after all' to people already in; the account page's donation panel moved to the far right; and the test report stopped repeating the confirm-email step in every test.",
+    "direction": "Full test run to confirm green, then pushing up for review.",
+    "last_update": "2026-07-09T13:00:00Z"
   }
 }

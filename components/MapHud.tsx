@@ -40,7 +40,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "what if not enough say yes?",
           a: "the proposal quietly fails and nothing bad happens - no game, no spam. anyone can propose again, usually once the area has grown a bit." },
         { q: "how do i propose?",
-          a: `tap "propose a game here" (or right-click / long-press the map) where you'd want to play. good spots: a park or field people already know, a weekend morning.` },
+          a: `long-press the map on your phone (or right-click on a computer) where you'd want to play. good spots: a park or field people already know, a weekend morning.` },
       ];
     case "open-proposal":
       return [
@@ -68,7 +68,7 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "what if i can't make a week?",
           a: "answer the poll honestly and sit it out. skipping a week never drops you from the roster." },
         { q: `want a second ${activity} game here?`,
-          a: `tap "propose a game here" (or right-click / long-press the map) to propose another spot or time - areas can hold more than one game.` },
+          a: `long-press the map (or right-click on a computer) to propose another spot or time - areas can hold more than one game.` },
       ];
   }
 }
@@ -123,6 +123,23 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
 
   const where = place?.city ? `${place.city}${place.zip ? ` (${place.zip})` : ""}` : "your area";
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  // Collapsed by default. On desktop the HUD is a left rail and CSS always shows
+  // the panel regardless of this flag; on a phone it's a bottom sheet that stays
+  // collapsed to a headline peek so the map's center badges (which sit right
+  // where this panel would otherwise cover) stay tappable — tap the peek to open.
+  const [expanded, setExpanded] = useState(false);
+  // Only a phone actually collapses (CSS shows the panel on desktop regardless),
+  // so the peek carries toggle a11y semantics only when it's a real toggle —
+  // otherwise a screen reader would announce the always-visible desktop panel as
+  // collapsed (WCAG 4.1.2). SSR-safe: starts false, corrected after mount.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 560px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const [closesText, setClosesText] = useState("closes soon");
 
   useEffect(() => {
@@ -174,7 +191,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       break;
     case "ambient-interest":
       headline = `${scenario.totalCount} interested in ${where}`;
-      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? tap "propose a game here" — or invite more people below.`;
+      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? long-press the map (or right-click on a computer) to propose it — or invite more people below.`;
       break;
     case "alone":
       headline = "you're the first one here";
@@ -191,29 +208,40 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   const faq = buildFaq(scenario, skin.activity);
 
   return (
-    <div className="map-hud">
-      <p className="map-hud-h">{headline}</p>
-      <p className="map-hud-body">{body}</p>
-      <div className="map-hud-faq">
-        {faq.map((f) => (
-          <details key={f.q} className="map-hud-faq-item">
-            <summary>{f.q}</summary>
-            <p>{f.a}</p>
-          </details>
-        ))}
-      </div>
-      {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
-        <div className="map-hud-share">
-          <p className="map-hud-share-label">share this to grow {where}</p>
-          {templates.map((t, i) => (
-            <button key={t.label} type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
-              {copiedIdx === i ? "copied ✓" : `copy ${t.label} post`}
-            </button>
+    <div className="map-hud" data-expanded={expanded ? "true" : "false"}>
+      <button
+        type="button"
+        className="map-hud-peek"
+        aria-expanded={isMobile ? expanded : undefined}
+        aria-controls={isMobile ? "map-hud-panel" : undefined}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="map-hud-h">{headline}</span>
+        <span className="map-hud-caret" aria-hidden="true">▸</span>
+      </button>
+      <div className="map-hud-panel" id="map-hud-panel">
+        <p className="map-hud-body">{body}</p>
+        <div className="map-hud-faq">
+          {faq.map((f) => (
+            <details key={f.q} className="map-hud-faq-item">
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
           ))}
         </div>
-      ) : (
-        <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
-      )}
+        {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
+          <div className="map-hud-share">
+            <p className="map-hud-share-label">share this to grow {where}</p>
+            {templates.map((t, i) => (
+              <button key={t.label} type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
+                {copiedIdx === i ? "copied ✓" : `copy ${t.label} post`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+        )}
+      </div>
     </div>
   );
 }

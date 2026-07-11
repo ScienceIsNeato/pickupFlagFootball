@@ -26,7 +26,16 @@ export default defineConfig({
     screenshot: "off", // we take per-beat screenshots ourselves
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // "desktop" runs the whole suite ONCE; its report shows every beat at desktop
+  // and phone width side by side (the hook resizes per beat — see steps/hooks.ts),
+  // so there are no duplicate tests. "mobile" re-runs only the @mobile-tagged
+  // map/HUD scenarios on a real phone profile (touch, dpr) as a regression net
+  // for behaviour a resize alone can't exercise. Serial (workers:1) so the two
+  // projects don't clobber the shared DB.
+  projects: [
+    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", use: { ...devices["Pixel 5"] }, grep: /@mobile/ },
+  ],
   webServer: {
     command: `npx next start -p ${E2E.appPort}`,
     url: E2E.appBaseUrl,

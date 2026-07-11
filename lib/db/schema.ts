@@ -332,6 +332,8 @@ export const gameOccurrences = pgTable("game_occurrences", {
   pollOpensAt:    timestamp("poll_opens_at", { withTimezone: true }).notNull(),
   pollClosesAt:   timestamp("poll_closes_at", { withTimezone: true }).notNull(),
   inCount:        integer("in_count").notNull().default(0),
+  // Captain's reason when they call off ("cancelled") a week — shown to players.
+  cancelNote:     text("cancel_note"),
   notifiedAt:     timestamp("notified_at", { withTimezone: true }),
   createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

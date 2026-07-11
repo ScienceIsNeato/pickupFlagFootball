@@ -76,46 +76,7 @@ export default async function AccountPage() {
 
       <AccountForm>
       <div className="account-grid">
-        {/* LEFT — supporting the project */}
-        <section className="account-col">
-          <h2 className="account-col-h">supporting the project</h2>
-          <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
-            <span className="acct-membership-label">membership</span>
-            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
-          </div>
-          {supporting ? (
-            <>
-              <p className="reg-hint">
-                thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
-                people like you find games in brand-new areas.
-              </p>
-              {me.stripeSubscriptionId ? (
-                <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
-                  manage subscription
-                </button>
-              ) : (
-                <button type="submit" formAction={updateDonationPref} formNoValidate
-                  name="donation_status" value="unset" className="game-leave">
-                  no longer donating? reset this
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="reg-hint">
-                free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
-                helps more local games get off the ground - an ask, not a gate.
-              </p>
-              <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              <label className="donate-opt">
-                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
-                <span>remind me to make a small monthly donation once I find a game</span>
-              </label>
-            </>
-          )}
-        </section>
-
-        {/* MIDDLE — you: display name + game-membership vitals */}
+        {/* you: display name + game-membership vitals */}
         <section className="account-col">
           <h2 className="account-col-h">you</h2>
           <div className="reg-form">
@@ -146,7 +107,7 @@ export default async function AccountPage() {
           <OptedOutAreas areas={optedOut} />
         </section>
 
-        {/* RIGHT — location */}
+        {/* location */}
         <section className="account-col">
           <h2 className="account-col-h">location</h2>
           <div className="reg-form">
@@ -192,6 +153,45 @@ export default async function AccountPage() {
               are from you - never shown to anyone. <Link href="/privacy">privacy</Link>.
             </p>
           </div>
+        </section>
+
+        {/* supporting the project — secondary, so it sits far right / bottom */}
+        <section className="account-col account-col--support">
+          <h2 className="account-col-h">supporting the project</h2>
+          <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
+            <span className="acct-membership-label">membership</span>
+            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
+          </div>
+          {supporting ? (
+            <>
+              <p className="reg-hint">
+                thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
+                people like you find games in brand-new areas.
+              </p>
+              {me.stripeSubscriptionId ? (
+                <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
+                  manage subscription
+                </button>
+              ) : (
+                <button type="submit" formAction={updateDonationPref} formNoValidate
+                  name="donation_status" value="unset" className="game-leave">
+                  no longer donating? reset this
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="reg-hint">
+                free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
+                helps more local games get off the ground - an ask, not a gate.
+              </p>
+              <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
+              <label className="donate-opt">
+                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+                <span>remind me to make a small monthly donation once I find a game</span>
+              </label>
+            </>
+          )}
         </section>
       </div>
       </AccountForm>

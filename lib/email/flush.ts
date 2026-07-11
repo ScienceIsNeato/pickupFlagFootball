@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance } from "@/lib/db/schema";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -106,6 +106,10 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
     donationStatus: users.donationStatus,
+    // Recipient's RSVP for a WEEK_ON: explicit per-occurrence override, else the
+    // roster default — picks which single button ("bail" / "play after all") shows.
+    attStatus: gameAttendance.status,
+    rosterDefault: gameRoster.defaultStatus,
   }).from(notificationsSent)
     .innerJoin(users, eq(users.id, notificationsSent.userId))
     // GAME_PROPOSED carries an attempt → its proposal details + interest links.
@@ -113,6 +117,12 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     // Weekly emails carry an occurrence + game → the date/time/location + roster.
     .leftJoin(gameOccurrences, eq(gameOccurrences.id, notificationsSent.occurrenceId))
     .leftJoin(games, eq(games.id, notificationsSent.gameId))
+    .leftJoin(gameAttendance, and(
+      eq(gameAttendance.userId, notificationsSent.userId),
+      eq(gameAttendance.gameId, notificationsSent.gameId),
+      eq(gameAttendance.occurrenceDate, gameOccurrences.occurrenceDate),
+    ))
+    .leftJoin(gameRoster, and(eq(gameRoster.userId, notificationsSent.userId), eq(gameRoster.gameId, notificationsSent.gameId)))
     .where(and(eq(notificationsSent.channel, "email"), isNull(notificationsSent.emailedAt)))
     .orderBy(notificationsSent.sentAt)
     .limit(limit);
@@ -166,8 +176,13 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
         : undefined;
       // CAN-SPAM: every bulk notification carries a one-click unsubscribe — a
       // footer link (page) and the List-Unsubscribe header (the api POST target).
+      // For WEEK_ON, the recipient's effective RSVP decides which single button
+      // shows (in → "bail", out → "play after all").
+      const rsvp = kind === "WEEK_ON"
+        ? ((r.attStatus as "in" | "out" | null) ?? (r.rosterDefault as "in" | "out" | null) ?? "out")
+        : undefined;
       const mail = buildNotificationEmail(kind, {
-        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster, note,
+        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster, note, rsvp,
         unsubscribeUrl: unsubscribeUrl(APP_BASE_URL, r.userId),
       });
       const delivered = await sendEmail({

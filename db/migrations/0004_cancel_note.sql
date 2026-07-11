@@ -1,0 +1,1 @@
+ALTER TABLE "game_occurrences" ADD COLUMN "cancel_note" text;

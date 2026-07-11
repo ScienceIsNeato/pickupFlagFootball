@@ -1,5 +1,6 @@
 Feature: Captain controls
 
+  @mobile
   Scenario: a captain pauses and resumes the series
     Given an established weekly game near me
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
@@ -38,7 +39,8 @@ Feature: Captain controls
     Given an established weekly game near me
     And I captain it as "Cap Tain" with email "cap@example.com" in ZIP "78701"
     When I open the game on the map
-    And I cancel this week
+    And I cancel this week with reason "field's flooded"
+    Then the game shows this week called off, noting "field's flooded"
     Then next week becomes the next game
 
   Scenario: a captain steps down

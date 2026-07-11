@@ -28,8 +28,8 @@ When("I right-click the map to propose a spot", async ({ page }) => {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  // Scope to the modal's title — the map now also has a "+ propose a game here"
-  // button, so a bare getByText("propose a game") would match two elements.
+  // Scope to the modal's title — the legend also carries a "…to propose a game"
+  // cue, so a bare getByText("propose a game") would match two elements.
   await expect(dialog.locator("#propose-title")).toHaveText(/propose a game/i);
 });
 

@@ -18,7 +18,7 @@ export default function NotFound() {
       <p>
         still stuck? email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
       </p>
-      <p><Link href="/" className="btn-green">back home</Link></p>
+      <p><Link href="/" className="btn-green-link">back home</Link></p>
     </main>
   );
 }

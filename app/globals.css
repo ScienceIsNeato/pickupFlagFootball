@@ -178,25 +178,17 @@ a { color: var(--link); text-decoration: none; }
 body:has(.dash-map) #bg { display: none; }             /* the map's flags take over */
 
 /* Frosted legend — a vertical stack in the upper-right corner of the map. */
-/* Floating "propose a game" button — the discoverable, touch-friendly trigger
-   (right-click / long-press still work). Bottom-center, thumb-reachable. */
-.map-propose-btn {
-  /* Sits above the fixed .app-foot (z-index 30, ~40px tall) — clear of it and
-     of the bottom-right zoom control. */
-  position: fixed; z-index: 31; left: 50%; bottom: 56px; transform: translateX(-50%);
-  padding: 12px 20px; border: none; border-radius: 999px; cursor: pointer;
-  font-family: var(--font-barlow), sans-serif; font-size: 15px; font-weight: 700; white-space: nowrap;
-  color: #fff; background: var(--green);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+/* Prominent "how to propose" cue in the legend — the only propose affordance now
+   (long-press on touch, right-click on desktop; no floating button). Set apart
+   from the plain legend rows with an accent border + background so it reads as a
+   call to action on both desktop and mobile. */
+.legend-propose {
+  display: flex; align-items: center; gap: 7px; margin-top: 8px; padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 3px solid var(--green); border-radius: 6px;
+  background: rgba(70, 137, 68, 0.14); color: var(--ink); font-size: 12.5px; line-height: 1.4;
 }
-.map-propose-btn:hover { filter: brightness(1.06); }
-.map-propose-btn:active { transform: translateX(-50%) scale(0.97); }
-.map-propose-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-@media (max-width: 560px) {
-  /* Stack above the footer but BELOW the HUD's bottom sheet (which raises to
-     104px on mobile), so the button never overlaps the HUD's own controls. */
-  .map-propose-btn { bottom: 52px; font-size: 14px; padding: 12px 18px; }
-}
+.legend-propose strong { color: #fff; }
 
 .map-legend {
   position: absolute; top: 64px; right: 12px;
@@ -232,9 +224,21 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--ink); font-size: 13px; line-height: 1.45;
 }
+/* Header row: the headline plus a caret. On desktop it's a plain, non-collapsing
+   header (caret hidden, panel always open); on a phone it's the tap target that
+   opens/closes the bottom sheet (see the max-width:560px block). */
+.map-hud-peek {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin: 0 0 10px; padding: 0; border: 0; background: none;
+  text-align: left; color: inherit; font: inherit; cursor: default;
+}
 .map-hud-h {
-  margin: 0 0 10px; font-family: var(--font-barlow), sans-serif;
+  margin: 0; font-family: var(--font-barlow), sans-serif;
   font-size: 22px; font-weight: 700; color: #fff;
+}
+.map-hud-caret {
+  display: none; margin-left: auto; flex: none;
+  color: var(--grass-l); font-weight: 800; font-size: 15px;
 }
 .map-hud-body { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .map-hud-faq { margin: 0 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
@@ -258,10 +262,29 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-hud-copy:hover { border-color: var(--green); color: #fff; }
 .map-hud-link { display: inline-block; margin-top: 2px; font-size: 12px; color: var(--link); }
 @media (max-width: 560px) {
-  /* Small screens: the legend already owns the top strip — dock the HUD at
-     the bottom, ABOVE the floating propose button (which sits ~52–96px up), so
-     the two never overlap. Capped so the map stays usable above it. */
-  .map-hud { top: auto; bottom: 104px; width: auto; left: 12px; right: 12px; max-height: 40vh; }
+  /* Small screens: the legend owns the top strip, so the HUD becomes a bottom
+     sheet. It stays collapsed to just its headline peek — the map's game badges
+     center on the viewer's area (mid-screen), and an open panel would sit right
+     on top of them, so a tap on the peek is what expands it. Docked at bottom:74
+     to sit above the map's ⓘ attribution and the fixed footer with a clear
+     bumper; capped at 36vh so the expanded panel still clears the map's center. */
+  .map-hud {
+    top: auto; bottom: 74px; left: 12px; right: 12px; width: auto;
+    max-height: 36vh;
+  }
+  .map-hud[data-expanded="false"] { max-height: none; overflow: visible; }
+  .map-hud-peek { margin-bottom: 0; cursor: pointer; }
+  .map-hud[data-expanded="true"] .map-hud-peek { margin-bottom: 10px; }
+  .map-hud-caret { display: inline-block; transition: transform 0.15s ease; }
+  .map-hud[data-expanded="true"] .map-hud-caret { transform: rotate(90deg); }
+  .map-hud[data-expanded="false"] .map-hud-panel { display: none; }
+
+  /* The bottom sheet owns the bottom, so pull the map's own controls clear of
+     it. Lift the zoom buttons up into the map above the peek, and keep the
+     (collapsed) © attribution as a small ⓘ just above the footer. */
+  .maplibregl-ctrl-bottom-right { bottom: 40px !important; }
+  /* !important: maplibre's own .maplibregl-ctrl margin loads later and wins otherwise. */
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { margin-bottom: 100px !important; }
 }
 
 .map-tip {
@@ -340,6 +363,15 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-leave:hover { color: var(--red); }
 .game-leave:disabled { opacity: 0.6; cursor: default; }
 .game-in-count { margin: 8px 0 0; font-size: 13px; }
+/* The explicit commit for a not-yet-member — team-yellow like the map's flags. */
+.game-join-cta {
+  display: block; width: 100%; margin-top: 12px; padding: 11px 12px;
+  border: none; border-radius: 8px; cursor: pointer;
+  background: var(--yellow); color: #1a1400;
+  font-family: var(--font-barlow), sans-serif; font-weight: 800; font-size: 16px; letter-spacing: 0.3px;
+}
+.game-join-cta:hover { filter: brightness(1.06); }
+.game-join-cta:disabled { opacity: 0.6; cursor: default; }
 .game-err { color: var(--red); font-size: 13px; margin: 8px 0 0; }
 /* Type-to-confirm dialog for destructive captain actions (pause / retire). */
 .game-confirm {
@@ -368,6 +400,17 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-paused { padding: 2px 0; }
 .game-paused-h { margin: 0 0 6px; font-family: var(--font-barlow), sans-serif; font-size: 15px; color: var(--ink); }
 .game-paused-note { margin: 0; font-size: 14px; color: var(--muted); font-style: italic; }
+/* This-week-called-off banner (red) — shown above the RSVP for the next week. */
+.game-cancelled {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px;
+  background: rgba(226, 59, 46, 0.12); border-left: 3px solid var(--red);
+}
+.game-cancelled-h { margin: 0; font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 15px; color: var(--red); }
+.game-cancelled-note { margin: 6px 0 0; font-size: 14px; color: var(--muted); font-style: italic; }
+.game-called-off { color: var(--red); }
+/* A poll-came-up-short week is yellow, not red — nobody's at fault, just low turnout. */
+.game-cancelled--skipped { background: rgba(244, 196, 48, 0.14); border-left-color: var(--yellow); }
+.game-cancelled--skipped .game-cancelled-h { color: var(--yellow); }
 /* Retired series: a prominent red badge near the top; controls are hidden and the
    body becomes the games-played history. */
 .game-retired {
@@ -416,6 +459,13 @@ body:has(.dash-map) .app-frost { display: none; }
 .app-foot a { color: var(--muted); }
 .app-foot a:hover { color: var(--ink); }
 .app-foot-sep { color: var(--faint); }
+@media (max-width: 560px) {
+  /* Tighten the footer so its five links stay on ONE line down to ~360px
+     (common Android width). A wrapped, two-line footer over the fullscreen map
+     grows tall enough to sit under the bottom-docked HUD peek and swallow taps
+     on it — keeping it one line keeps the peek's clearance (52px) honest. */
+  .app-foot { gap: 9px; padding: 9px 12px; font-size: 12px; }
+}
 /* keep the map's zoom control clear of the floating header/footer */
 .maplibregl-ctrl-top-right { top: 58px; }
 .maplibregl-ctrl-bottom-right { bottom: 42px; }

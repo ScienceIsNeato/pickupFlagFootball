@@ -3,6 +3,7 @@ import { Given, When, Then } from "./world";
 import { tickEngine } from "../support/tick";
 import { seedWeeklyGameWithClosedPoll, getOccurrenceStatus, expireOccurrenceKickoff, seedRosterMember, setDonationStatus } from "../support/db";
 import { allEmails } from "../support/mailpit";
+import { openGameOnMap } from "./games.steps";
 
 // Reuses "I am a confirmed player …" and "I open the game on the map".
 const SITE = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "Austin", zip: "78701" };
@@ -63,6 +64,16 @@ Then("the week is played", async ({ world }) => {
 
 Then("the week is skipped", async ({ world }) => {
   expect(await getOccurrenceStatus(world.occurrenceId!)).toBe("skipped");
+});
+
+// The upcoming skipped week shows on the card in yellow until its kickoff passes.
+Then("the game shows this week skipped for low turnout", async ({ page, world }) => {
+  await page.reload(); // the open card is stale; reopen it to reflect the tick
+  await openGameOnMap(page, world);
+  const banner = page.locator(".game-cancelled--skipped");
+  await expect(banner).toBeVisible({ timeout: 10000 });
+  await expect(banner).toContainText(/skipped/i);
+  await expect(banner).toContainText(/not enough players/i);
 });
 
 // A called-off week doesn't beg for money.

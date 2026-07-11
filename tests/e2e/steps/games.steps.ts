@@ -3,6 +3,7 @@ import { Given, When, Then } from "./world";
 import type { World } from "./world";
 import { seedStandingGame, markEmailVerified } from "../support/db";
 import { registerViaUi } from "../support/flows";
+import { clearMailpit } from "../support/mailpit";
 
 // A venue ~1km from the 78701 home (in radius) and one at Cedar Park 78613
 // (~27km, outside the 15mi default radius).
@@ -10,7 +11,7 @@ const NEAR = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "A
 const FAR = { lat: 30.5052, lng: -97.8203, placeText: "Cedar Park Field", city: "Cedar Park", zip: "78613" };
 
 /** Center the map on the seeded game and click its badge for real. */
-async function openGameOnMap(page: Page, world: World) {
+export async function openGameOnMap(page: Page, world: World) {
   const g = world.game!;
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
   const mapFeed = page.waitForResponse(
@@ -27,7 +28,13 @@ async function openGameOnMap(page: Page, world: World) {
   await page.waitForTimeout(300); // brief: let the app set clustersRef from the feed
   const box = await page.locator(".dash-map").boundingBox();
   if (!box) throw new Error("no map element");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  // Use a mouse click on every viewport, including the phone project. maplibre's
+  // map "click" fires from a DOM click event; a real phone tap produces one (the
+  // browser synthesizes it), but Playwright's touchscreen.tap dispatches only CDP
+  // touch events and never that synthesized click — so a mouse click here is both
+  // reliable and the faithful stand-in for what a real tap does to the map.
+  await page.mouse.click(cx, cy);
   await expect(page.locator(".game-card")).toBeVisible({ timeout: 10000 });
 }
 
@@ -48,6 +55,10 @@ Given(
   async ({ page, world }, name: string, email: string, zip: string) => {
     await registerViaUi(page, world, { name, email, zip });
     await markEmailVerified(email);
+    // Setup, not the subject: drop the registration's confirm-email so it doesn't
+    // show as a beat in every scenario that just needs a confirmed player. The
+    // confirm flow is captured in its own registration test.
+    await clearMailpit();
     // Reload so the page re-renders as a confirmed user — otherwise the
     // "unconfirmed email" banner (rendered at registration) lingers, making a
     // "confirmed player" look unconfirmed in the story report. (Mirrors the
@@ -62,8 +73,8 @@ When("I open the game on the map", async ({ page, world }) => {
 });
 
 When("I join the weekly game", async ({ page }) => {
-  // Joining is immediate now (no save button) — picking "i'm in" rosters you.
-  await page.getByRole("button", { name: "i'm in", exact: true }).click();
+  // The toggles stage the choice; the yellow "join game" button commits it.
+  await page.getByRole("button", { name: "join game", exact: true }).click();
   // The popup reloads on success — the leave control proves we're on the roster.
   await expect(page.locator(".game-leave")).toBeVisible({ timeout: 10000 });
 });
@@ -79,7 +90,7 @@ Then("opening the game tells me it's outside my travel radius", async ({ page, w
 });
 
 Then("trying to join tells me to confirm my email", async ({ page }) => {
-  await page.getByRole("button", { name: "i'm in", exact: true }).click();
+  await page.getByRole("button", { name: "join game", exact: true }).click();
   const err = page.locator(".game-err");
   await expect(err).toContainText(/confirm your email/i);
   await err.scrollIntoViewIfNeeded(); // ensure the beat's screenshot shows the error
