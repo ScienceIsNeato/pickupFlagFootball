@@ -26,7 +26,10 @@ function esc(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-type TwoButtons = { inUrl: string; inLabel: string; outUrl: string; outLabel: string };
+// A one-click row of up to two buttons; each side is optional so an email can
+// show just the one action that fits the recipient (e.g. WEEK_ON shows only
+// "bail" to someone already in, only "play after all" to someone out).
+type TwoButtons = { inUrl?: string; inLabel?: string; outUrl?: string; outLabel?: string };
 type Details = { place: string; when?: string };
 type Roster = { count: number; names: string[] };
 
@@ -53,8 +56,8 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
     : "";
   const buttonsHtml = p.buttons
     ? `<div style="margin:16px 0 0;">
-      <a href="${esc(p.buttons.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.buttons.inLabel)}</a>
-      <a href="${esc(p.buttons.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.buttons.outLabel)}</a>
+      ${p.buttons.inUrl ? `<a href="${esc(p.buttons.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.buttons.inLabel ?? "")}</a>` : ""}
+      ${p.buttons.outUrl ? `<a href="${esc(p.buttons.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.buttons.outLabel ?? "")}</a>` : ""}
     </div>`
     : "";
   const footerHtml = p.footer
@@ -159,6 +162,9 @@ export function buildNotificationEmail(
     unsubscribeUrl?: string;
     // captain's freeform note, shown on the SERIES_PAUSED email.
     note?: string;
+    // recipient's current RSVP for a WEEK_ON email — picks which single button
+    // to show ("bail" if in, "play after all" if out).
+    rsvp?: "in" | "out";
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
@@ -171,13 +177,26 @@ export function buildNotificationEmail(
     : kind === "GAME_PROPOSED"
     ? { inLabel: "i'm interested", outLabel: "not interested" }
     : { inLabel: "play after all", outLabel: "bail" };
-  const buttons = opts.buttons ? { inUrl: opts.buttons.inUrl, outUrl: opts.buttons.outUrl, ...labels } : undefined;
+  let buttons: TwoButtons | undefined = opts.buttons ? { inUrl: opts.buttons.inUrl, outUrl: opts.buttons.outUrl, ...labels } : undefined;
+  // WEEK_ON goes to the whole roster — show only the button that flips the
+  // recipient's current RSVP: someone already in gets "bail", someone out gets
+  // "play after all". Never both (an in-player has no "play after all" to do).
+  if (buttons && kind === "WEEK_ON" && opts.rsvp) {
+    buttons = opts.rsvp === "in"
+      ? { outUrl: buttons.outUrl, outLabel: buttons.outLabel }
+      : { inUrl: buttons.inUrl, inLabel: buttons.inLabel };
+  }
 
   const footerLine = opts.footer ? `\n\n${opts.footer.text}${opts.footer.donateUrl ? ` ${base}${opts.footer.donateUrl}` : ""}` : "";
   const detailsLine = opts.details ? `\n\nwhere: ${opts.details.place}${opts.details.when ? `\nwhen: ${opts.details.when}` : ""}` : "";
   const noteLine = opts.note ? `\n\n"${opts.note}"` : "";
   const rosterLine = opts.roster ? `\n\n${opts.roster.count} planning to play: ${opts.roster.names.join(", ") || "—"}` : "";
-  const buttonsLine = buttons ? `\n\n${buttons.inLabel}: ${buttons.inUrl}\n${buttons.outLabel}: ${buttons.outUrl}` : "";
+  const buttonsLine = buttons
+    ? "\n\n" + [
+        buttons.inUrl ? `${buttons.inLabel}: ${buttons.inUrl}` : "",
+        buttons.outUrl ? `${buttons.outLabel}: ${buttons.outUrl}` : "",
+      ].filter(Boolean).join("\n")
+    : "";
   const unsubLine = opts.unsubscribeUrl ? `\nunsubscribe: ${opts.unsubscribeUrl}` : "";
   const textContent = `${greeting}\n\n${c.intro}${detailsLine}${noteLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
 
