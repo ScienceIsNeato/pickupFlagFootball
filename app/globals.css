@@ -410,6 +410,9 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .game-cancelled-h { margin: 0; font-family: var(--font-barlow), sans-serif; font-weight: 700; font-size: 15px; color: var(--red); }
 .game-cancelled-note { margin: 6px 0 0; font-size: 14px; color: var(--muted); font-style: italic; }
 .game-called-off { color: var(--red); }
+/* A poll-came-up-short week is yellow, not red — nobody's at fault, just low turnout. */
+.game-cancelled--skipped { background: rgba(244, 196, 48, 0.14); border-left-color: var(--yellow); }
+.game-cancelled--skipped .game-cancelled-h { color: var(--yellow); }
 /* Retired series: a prominent red badge near the top; controls are hidden and the
    body becomes the games-played history. */
 .game-retired {

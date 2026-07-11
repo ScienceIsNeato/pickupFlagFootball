@@ -30,7 +30,7 @@ type GameInfo = {
 };
 type Week = { weekStart: string; played: boolean; count: number; status?: string | null; cancelNote?: string | null };
 type PlayedGame = { date: string; inCount: number };
-type CancelledWeek = { date: string; note: string | null };
+type OffWeek = { date: string; status: string; note: string | null }; // status: "cancelled" | "skipped"
 
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -62,7 +62,7 @@ type ConfirmReq =
 
 /** Details for an existing game, opened by clicking its flags on the map. */
 export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number; lng: number; onClose: () => void; onChanged?: () => void }) {
-  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[]; cancelledThisWeek: CancelledWeek | null } | "loading" | "error">("loading");
+  const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[]; offThisWeek: OffWeek | null } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
@@ -93,8 +93,8 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     try {
       const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
       if (!r.ok) throw new Error();
-      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[]; cancelledThisWeek?: CancelledWeek | null };
-      setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [], cancelledThisWeek: d.cancelledThisWeek ?? null });
+      const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[]; offThisWeek?: OffWeek | null };
+      setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [], offThisWeek: d.offThisWeek ?? null });
     } catch {
       setState("error");
     }
@@ -105,7 +105,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
   const game = state !== "loading" && state !== "error" ? state.game : null;
   const weeks = state !== "loading" && state !== "error" ? state.weeks : [];
   const playedHistory = state !== "loading" && state !== "error" ? state.playedHistory : [];
-  const cancelledThisWeek = state !== "loading" && state !== "error" ? state.cancelledThisWeek : null;
+  const offThisWeek = state !== "loading" && state !== "error" ? state.offThisWeek : null;
   const playedCount = weeks.filter((w) => w.played).length;
   const retired = game?.status === "retired";
   const maps = game?.placeLat != null && game?.placeLng != null
@@ -228,11 +228,18 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
               )}
             </dl>
 
-            {!retired && cancelledThisWeek && (
-              <div className="game-cancelled" role="status">
-                <p className="game-cancelled-h">this week ({fmtDate(cancelledThisWeek.date)}) is called off</p>
-                {cancelledThisWeek.note && <p className="game-cancelled-note">“{cancelledThisWeek.note}”</p>}
-              </div>
+            {!retired && offThisWeek && (
+              offThisWeek.status === "skipped" ? (
+                <div className="game-cancelled game-cancelled--skipped" role="status">
+                  <p className="game-cancelled-h">this week ({fmtDate(offThisWeek.date)}) is skipped</p>
+                  <p className="game-cancelled-note">not enough players said they&apos;re in</p>
+                </div>
+              ) : (
+                <div className="game-cancelled" role="status">
+                  <p className="game-cancelled-h">this week ({fmtDate(offThisWeek.date)}) is called off</p>
+                  {offThisWeek.note && <p className="game-cancelled-note">“{offThisWeek.note}”</p>}
+                </div>
+              )
             )}
 
             {!retired && (
@@ -402,6 +409,8 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
                           ? <span className="game-played">✓ played · {w.count} in</span>
                           : w.status === "cancelled"
                           ? <span className="game-called-off">✕ called off{w.cancelNote ? ` · ${w.cancelNote}` : ""}</span>
+                          : w.status === "skipped"
+                          ? <span className="game-muted">— skipped · low turnout</span>
                           : <span className="game-muted">— no game</span>}
                       </li>
                     ))}

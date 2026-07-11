@@ -93,18 +93,21 @@ export async function GET(req: Request) {
       status: o?.status ?? null, cancelNote: o?.cancelNote ?? null };
   });
 
-  // The nearest upcoming week the captain has called off — the card shows it as
-  // a red banner (the RSVP below it is for the next week that's still on).
-  const cancelledRows = await db.select({ date: gameOccurrences.occurrenceDate, note: gameOccurrences.cancelNote })
-    .from(gameOccurrences)
+  // The nearest upcoming week that's off — either the captain called it off
+  // ("cancelled", red + their note) or the poll came up short ("skipped", yellow
+  // + "not enough players"). Shown as a banner until its kickoff passes; the RSVP
+  // below it is for the next week that's still on.
+  const offRows = await db.select({
+    date: gameOccurrences.occurrenceDate, status: gameOccurrences.status, note: gameOccurrences.cancelNote,
+  }).from(gameOccurrences)
     .where(and(
       eq(gameOccurrences.gameId, best.id),
-      eq(gameOccurrences.status, "cancelled"),
+      inArray(gameOccurrences.status, ["cancelled", "skipped"]),
       gte(gameOccurrences.kickoffAt, new Date(now)),
     ))
     .orderBy(gameOccurrences.occurrenceDate)
     .limit(1);
-  const cancelledThisWeek = cancelledRows[0] ?? null;
+  const offThisWeek = offRows[0] ?? null;
 
   // Retired games show a full history (the 10-week grid above can't reach a
   // long-retired series) — the last games actually played, most recent first.
@@ -158,7 +161,7 @@ export async function GET(req: Request) {
       retireBlockedReason: retire && !retire.ok ? retire.reason : null,
     },
     weeks,
-    cancelledThisWeek,
+    offThisWeek,
     playedHistory,
   });
 }
