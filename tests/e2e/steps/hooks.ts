@@ -12,7 +12,7 @@ const seenEmailIds = new Map<string, Set<string>>(); // emails already captured
 // resized to a phone and shot again, then restored. Width-based media queries
 // re-render on resize, so the mobile shot is the real responsive layout. Actual
 // phone-only behaviour (touch, dpr) is covered separately by the @mobile project.
-const MOBILE_VP = { width: 393, height: 851 }; // Pixel 5 CSS viewport
+const MOBILE_VP = { width: 393, height: 727 }; // Pixel 5 CSS viewport (devices["Pixel 5"].viewport)
 
 // Independent, deterministic scenarios: reset DB + inbox before each. Also clear the
 // module-scoped capture caches — a reused worker carries them across scenarios, so

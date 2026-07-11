@@ -178,8 +178,6 @@ a { color: var(--link); text-decoration: none; }
 body:has(.dash-map) #bg { display: none; }             /* the map's flags take over */
 
 /* Frosted legend — a vertical stack in the upper-right corner of the map. */
-/* Floating "propose a game" button — the discoverable, touch-friendly trigger
-   (right-click / long-press still work). Bottom-center, thumb-reachable. */
 /* Prominent "how to propose" cue in the legend — the only propose affordance now
    (long-press on touch, right-click on desktop; no floating button). Set apart
    from the plain legend rows with an accent border + background so it reads as a

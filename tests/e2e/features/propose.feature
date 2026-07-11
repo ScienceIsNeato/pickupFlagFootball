@@ -9,6 +9,7 @@ Feature: Proposing a game (the proposer's view)
     Given I am a confirmed player "Mobile Mo" with email "mo@example.com" in ZIP "78701"
     When I open the map
     Then the map explains how to propose a game
+    And I right-click the map to propose a spot
 
   Scenario: a proposed game fails when too few are interested
     Given I am a confirmed player "Polly Propose" with email "polly@example.com" in ZIP "78701"

@@ -168,6 +168,10 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
 
   async function joinNow() {
     if (!game || busy) return;
+    // joinWeeklyGame treats a non-member + "out" as a decline no-op (we don't
+    // roster someone opting out — it'd sign them up for weekly poll emails), so
+    // it would return ok without joining them. You join by being in; nudge them.
+    if (!nextIn) { setActionErr("tap “i'm in” to join — you can set yourself out afterward"); return; }
     setBusy(true); setActionErr("");
     try {
       const res = await joinWeeklyGame(game.gameId, pref === "regular", nextIn);

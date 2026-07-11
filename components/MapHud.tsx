@@ -128,6 +128,18 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   // collapsed to a headline peek so the map's center badges (which sit right
   // where this panel would otherwise cover) stay tappable — tap the peek to open.
   const [expanded, setExpanded] = useState(false);
+  // Only a phone actually collapses (CSS shows the panel on desktop regardless),
+  // so the peek carries toggle a11y semantics only when it's a real toggle —
+  // otherwise a screen reader would announce the always-visible desktop panel as
+  // collapsed (WCAG 4.1.2). SSR-safe: starts false, corrected after mount.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 560px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const [closesText, setClosesText] = useState("closes soon");
 
   useEffect(() => {
@@ -179,7 +191,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       break;
     case "ambient-interest":
       headline = `${scenario.totalCount} interested in ${where}`;
-      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? long-press the map (right-click on a computer) to propose it — or invite more people below.`;
+      body = `${scenario.othersCount} other${scenario.othersCount === 1 ? "" : "s"} nearby want to play. know a good spot and time? long-press the map (or right-click on a computer) to propose it — or invite more people below.`;
       break;
     case "alone":
       headline = "you're the first one here";
@@ -200,8 +212,8 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       <button
         type="button"
         className="map-hud-peek"
-        aria-expanded={expanded}
-        aria-controls="map-hud-panel"
+        aria-expanded={isMobile ? expanded : undefined}
+        aria-controls={isMobile ? "map-hud-panel" : undefined}
         onClick={() => setExpanded((v) => !v)}
       >
         <span className="map-hud-h">{headline}</span>

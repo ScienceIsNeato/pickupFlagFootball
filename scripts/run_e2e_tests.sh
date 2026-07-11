@@ -10,7 +10,7 @@
 # tests/e2e/run.sh (and on to Playwright). The report opens even when the run
 # fails — that's exactly when you want to look at the failing beats.
 set -o pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 open_report=0
 args=()
