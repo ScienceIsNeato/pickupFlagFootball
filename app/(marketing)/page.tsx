@@ -32,6 +32,7 @@ export default function Home() {
 
         {skin.gallery.length > 0 && (
           <section id="gallery">
+            <h2>see it in action</h2>
             <Gallery items={skin.gallery} />
           </section>
         )}
