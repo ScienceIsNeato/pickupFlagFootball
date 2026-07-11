@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "When a captain calls off a week, the game now clearly says that week is cancelled (in red) with the captain's reason, instead of quietly skipping to next week. Players can still RSVP for the following week. Also knocked out a batch of report-review fixes and added a clear yellow Join button.",
-    "direction": "Full test run with the new database change to confirm it's all green, then pushing up for review.",
-    "last_update": "2026-07-09T12:00:00Z"
+    "status": "Another round of report-review fixes: a skipped week (too few players) now shows the current week in yellow with the reason instead of jumping ahead; the 'game on' email no longer offers 'play after all' to people already in; the account page's donation panel moved to the far right; and the test report stopped repeating the confirm-email step in every test.",
+    "direction": "Full test run to confirm green, then pushing up for review.",
+    "last_update": "2026-07-09T13:00:00Z"
   }
 }

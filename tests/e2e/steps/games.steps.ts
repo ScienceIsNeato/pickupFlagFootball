@@ -3,6 +3,7 @@ import { Given, When, Then } from "./world";
 import type { World } from "./world";
 import { seedStandingGame, markEmailVerified } from "../support/db";
 import { registerViaUi } from "../support/flows";
+import { clearMailpit } from "../support/mailpit";
 
 // A venue ~1km from the 78701 home (in radius) and one at Cedar Park 78613
 // (~27km, outside the 15mi default radius).
@@ -10,7 +11,7 @@ const NEAR = { lat: 30.281, lng: -97.742, placeText: "Republic Square", city: "A
 const FAR = { lat: 30.5052, lng: -97.8203, placeText: "Cedar Park Field", city: "Cedar Park", zip: "78613" };
 
 /** Center the map on the seeded game and click its badge for real. */
-async function openGameOnMap(page: Page, world: World) {
+export async function openGameOnMap(page: Page, world: World) {
   const g = world.game!;
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
   const mapFeed = page.waitForResponse(
@@ -54,6 +55,10 @@ Given(
   async ({ page, world }, name: string, email: string, zip: string) => {
     await registerViaUi(page, world, { name, email, zip });
     await markEmailVerified(email);
+    // Setup, not the subject: drop the registration's confirm-email so it doesn't
+    // show as a beat in every scenario that just needs a confirmed player. The
+    // confirm flow is captured in its own registration test.
+    await clearMailpit();
     // Reload so the page re-renders as a confirmed user — otherwise the
     // "unconfirmed email" banner (rendered at registration) lingers, making a
     // "confirmed player" look unconfirmed in the story report. (Mirrors the

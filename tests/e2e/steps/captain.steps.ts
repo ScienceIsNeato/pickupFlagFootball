@@ -12,6 +12,8 @@ Given(
   async ({ page, world }, name: string, email: string, zip: string) => {
     await registerViaUi(page, world, { name, email, zip });
     await markEmailVerified(email);
+    // Setup, not the subject: drop the registration's confirm-email beat.
+    await clearMailpit();
     // Captain rights are per-area; the popup reads area_captains live on open.
     await seedCaptain(world.game!.areaId!, email);
     // Reload so the page re-renders as a confirmed user — drops the "email
