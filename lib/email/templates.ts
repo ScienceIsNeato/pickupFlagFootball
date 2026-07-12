@@ -5,6 +5,8 @@ export type NotifKind =
   | "GAME_PROPOSED" | "GAME_ON" | "STALLED_NOTICE"
   // weekly occurrence poll
   | "POLL_ASK" | "WEEK_ON" | "WEEK_OFF"
+  // a player joins an established game mid-cycle (poll open / not opened yet)
+  | "JOIN_POLLING" | "JOIN_UPCOMING"
   // series lifecycle: captain paused or retired the standing game
   | "SERIES_PAUSED" | "SERIES_RETIRED";
 
@@ -18,6 +20,8 @@ const COPY: Record<NotifKind, Copy> = {
   POLL_ASK:       { subject: "you in for this week's game?", title: "rsvp for this week", intro: "your weekly game's poll is open. let everyone know if you're in or out so we know whether it's on.", cta: "rsvp now", path: "/my-games" },
   WEEK_ON:        { subject: "game on this week", title: "this week's game is a go", intro: "enough players are in - this week's game is on. here's the spot, time, and who's coming.", cta: "see this week", path: "/my-games" },
   WEEK_OFF:       { subject: "no game this week", title: "this week's game is off", intro: "not enough players were in this week, so it's off. there's always next week - and you can still rally folks.", cta: "see your games", path: "/my-games" },
+  JOIN_POLLING:   { subject: "you're in - the poll's still open", title: "you're in for this week", intro: "you joined while this week's poll is still open, so you're marked in for the game below.", cta: "see your games", path: "/my-games" },
+  JOIN_UPCOMING:  { subject: "you're on the roster", title: "you're in", intro: "you're on the roster for this weekly game. here's when it meets - we'll email you when the RSVP poll opens.", cta: "see your games", path: "/my-games" },
   SERIES_PAUSED:  { subject: "your weekly game is paused", title: "your game's on pause", intro: "a captain paused your weekly game for now - no polls or games until it's back. here's the spot and when to expect it.", cta: "see your games", path: "/my-games" },
   SERIES_RETIRED: { subject: "your weekly game has ended", title: "your game has wrapped up", intro: "a captain retired this weekly game, so it won't run anymore. thanks for playing - you're back in the pool for other games near you.", cta: "find another game", path: "/play" },
 };
@@ -165,9 +169,13 @@ export function buildNotificationEmail(
     // recipient's current RSVP for a WEEK_ON email — picks which single button
     // to show ("bail" if in, "play after all" if out).
     rsvp?: "in" | "out";
+    // replaces the static per-kind intro with a dynamic one (join-confirmation
+    // emails whose copy carries live dates — the game day, the poll-close day).
+    introOverride?: string;
   },
 ): { subject: string; htmlContent: string; textContent: string } {
   const c = COPY[kind];
+  const intro = opts.introOverride ?? c.intro;
   const base = opts.appBaseUrl.replace(/\/+$/, "");
   const ctaUrl = `${base}${c.path}`;
   const greeting = `hey ${opts.displayName ?? "there"},`;
@@ -198,11 +206,11 @@ export function buildNotificationEmail(
       ].filter(Boolean).join("\n")
     : "";
   const unsubLine = opts.unsubscribeUrl ? `\nunsubscribe: ${opts.unsubscribeUrl}` : "";
-  const textContent = `${greeting}\n\n${c.intro}${detailsLine}${noteLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
+  const textContent = `${greeting}\n\n${intro}${detailsLine}${noteLine}${rosterLine}\n\n${c.cta}: ${ctaUrl}${buttonsLine}${footerLine}\n\nmanage email in your account: ${base}/account${unsubLine}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`;
 
   return {
     subject: c.subject,
-    htmlContent: layout({ title: c.title, intro: c.intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster, unsubscribeUrl: opts.unsubscribeUrl, note: opts.note }),
+    htmlContent: layout({ title: c.title, intro, cta: c.cta, ctaUrl, greeting, footer: opts.footer, base, buttons, details: opts.details, roster: opts.roster, unsubscribeUrl: opts.unsubscribeUrl, note: opts.note }),
     textContent,
   };
 }

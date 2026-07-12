@@ -72,6 +72,11 @@
       "src": "join-game"
     },
     {
+      "title": "get the details by email",
+      "caption": "the moment you join, we email you the week's game - the spot, the time, and who's coming.",
+      "src": "game-on-email"
+    },
+    {
       "title": "keep up with your games",
       "caption": "your sites, upcoming weeks with one-tap in and out, and your play history.",
       "src": "my-games"

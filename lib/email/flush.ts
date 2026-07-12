@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance } from "@/lib/db/schema";
+import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance, areas } from "@/lib/db/schema";
+import { nextOccurrenceYMD, zonedWallTimeToUtc } from "@/lib/datetime";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -38,6 +39,12 @@ function whenText(start: Date, recurDow: number | null, recurTime: string | null
 /** Human date from a YYYY-MM-DD string (e.g. the pause resume date). */
 function dateText(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
+/** Human weekday+date for an instant, in the game's local timezone (so a
+ *  poll-close near midnight UTC lands on the right day for the reader). */
+function dayText(d: Date, tz: string | null): string {
+  return new Date(d).toLocaleDateString("en-US", { timeZone: tz ?? "America/Chicago", weekday: "long", month: "short", day: "numeric" });
 }
 
 /** Human "when" for a weekly occurrence: its date + kickoff time. */
@@ -98,10 +105,17 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     recurTime: formationAttempts.recurTime,
     occDate: gameOccurrences.occurrenceDate,
     kickoffAt: gameOccurrences.kickoffAt,
+    pollClosesAt: gameOccurrences.pollClosesAt,
     gamePlace: games.placeText,
     gameStatus: games.status,
     pausedUntil: games.pausedUntil,
     pauseNote: games.pauseNote,
+    // Join-confirmation emails with no occurrence yet (JOIN_UPCOMING) compute the
+    // next recurrence from the series' schedule + the site's timezone.
+    gameRecurDow: games.recurDow,
+    gameRecurTime: games.recurTime,
+    gameScheduledStart: games.scheduledStart,
+    timezone: areas.timezone,
     email: users.email,
     displayName: users.displayName,
     emailOptIn: users.emailOptIn,
@@ -117,6 +131,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     // Weekly emails carry an occurrence + game → the date/time/location + roster.
     .leftJoin(gameOccurrences, eq(gameOccurrences.id, notificationsSent.occurrenceId))
     .leftJoin(games, eq(games.id, notificationsSent.gameId))
+    .leftJoin(areas, eq(areas.id, games.areaId))
     .leftJoin(gameAttendance, and(
       eq(gameAttendance.userId, notificationsSent.userId),
       eq(gameAttendance.gameId, notificationsSent.gameId),
@@ -181,9 +196,24 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       const rsvp = kind === "WEEK_ON"
         ? ((r.attStatus as "in" | "out" | null) ?? (r.rosterDefault as "in" | "out" | null) ?? "out")
         : undefined;
+      // Join-confirmation emails carry live dates in the intro + a spot/time card.
+      // JOIN_POLLING: the game day + the day the poll closes ("you'll find out
+      // by …"). JOIN_UPCOMING (no occurrence yet): the next recurrence, computed
+      // from the series schedule + site timezone.
+      let joinIntro: string | undefined;
+      let joinDetails: typeof details;
+      if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
+        joinDetails = { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) };
+        joinIntro = `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`;
+      } else if (kind === "JOIN_UPCOMING" && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
+        const nextDate = nextOccurrenceYMD({ isStanding: true, recurDow: r.gameRecurDow, scheduledStart: r.gameScheduledStart }, now);
+        const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, r.timezone ?? "America/Chicago");
+        joinDetails = { place: r.gamePlace, when: whenOccurrence(nextDate, kickoff) };
+        joinIntro = `you're on the roster at ${r.gamePlace}. the next game is ${whenOccurrence(nextDate, kickoff)} - we'll email you when the weekly poll opens so you can confirm.`;
+      }
       const mail = buildNotificationEmail(kind, {
-        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details, roster, note, rsvp,
-        unsubscribeUrl: unsubscribeUrl(APP_BASE_URL, r.userId),
+        displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details: details ?? joinDetails, roster, note, rsvp,
+        introOverride: joinIntro, unsubscribeUrl: unsubscribeUrl(APP_BASE_URL, r.userId),
       });
       const delivered = await sendEmail({
         to: r.email, toName: r.displayName, ...mail,

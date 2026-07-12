@@ -1,0 +1,2 @@
+ALTER TYPE "public"."notification_kind" ADD VALUE 'JOIN_POLLING' BEFORE 'SERIES_PAUSED';--> statement-breakpoint
+ALTER TYPE "public"."notification_kind" ADD VALUE 'JOIN_UPCOMING' BEFORE 'SERIES_PAUSED';

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Reworking the splash 'see it in action' gallery — dropping the looping video clips for clean single screenshots with a tagline under each, still in the swipe-through gallery style.",
-    "direction": "Capturing the fresh screenshots against a clean demo setup, then pushing the gallery change up for review.",
-    "last_update": "2026-07-11T00:00:00Z"
+    "status": "New feature: when you join an established weekly game, you now get an email right away about the next game — a game-on / not-this-week heads-up, or a 'you're in, here's when it meets' note if the poll hasn't run yet. Added that confirmation email to the splash gallery too.",
+    "direction": "Pushing it up on the splash-gallery branch and sailing it green.",
+    "last_update": "2026-07-12T00:00:00Z"
   }
 }
