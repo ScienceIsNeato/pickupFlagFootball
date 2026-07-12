@@ -36,6 +36,20 @@
       "when": 1783712905422,
       "tag": "0004_cancel_note",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783841804754,
+      "tag": "0005_wide_randall",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783845961136,
+      "tag": "0006_small_iron_lad",
+      "breakpoints": true
     }
   ]
 }

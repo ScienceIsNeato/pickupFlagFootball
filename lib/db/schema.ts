@@ -33,6 +33,9 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "GAME_PROPOSED", "GAME_ON", "STALLED_NOTICE",
   // weekly occurrence poll
   "POLL_ASK", "WEEK_ON", "WEEK_OFF",
+  // a player joins an established game mid-cycle → confirm the week's state to
+  // them (JOIN_POLLING while the poll's open, JOIN_UPCOMING before it opens).
+  "JOIN_POLLING", "JOIN_UPCOMING",
   // series lifecycle: a captain pauses or retires the standing game (game-parented)
   "SERIES_PAUSED", "SERIES_RETIRED",
 ]);
@@ -354,6 +357,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   occurrenceId: uuid("occurrence_id").references(() => gameOccurrences.id, { onDelete: "cascade" }),
   gameId:    uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
   kind:      notificationKindEnum("kind").notNull(),
+  // The occurrence date a dateless email refers to, captured at enqueue time so
+  // the send never has to re-derive it (JOIN_UPCOMING, which has no occurrence).
+  contextDate: date("context_date"),
   channel:   notificationChannelEnum("channel").notNull(),
   sentAt:    timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   // When the email was actually delivered via Brevo. NULL = claimed (row exists,

@@ -8,6 +8,7 @@ import { gameRoster, gameAttendance, games } from "@/lib/db/schema";
 import { activeGame, reachableActiveGame, nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { isEmailVerified, UNVERIFIED_MSG } from "@/lib/auth/verified";
 import { runOccurrence } from "@/lib/mime/trigger";
+import { sendJoinConfirmation } from "@/lib/email/joinConfirm";
 
 export type JoinResult = { ok: true } | { ok: false; error: string };
 
@@ -55,11 +56,17 @@ export async function joinWeeklyGame(gameId: string, regular: boolean, nextIn: b
   await db.insert(gameRoster).values({ gameId, userId: me, defaultStatus: def })
     .onConflictDoUpdate({ target: [gameRoster.gameId, gameRoster.userId], set: { defaultStatus: def } });
 
-  await upsertAttendance(gameId, me, await nextPlayableOccurrence(g, new Date()), nextIn ? "in" : "out");
+  const date = await nextPlayableOccurrence(g, new Date());
+  await upsertAttendance(gameId, me, date, nextIn ? "in" : "out");
   await syncRosterCount(gameId);
   // Reconcile the occurrence now (poll tally, week-on/off) instead of waiting for
   // the cron tick — the map popup joins through here, same as my-games/captain do.
   await runOccurrence(gameId);
+  // A brand-new joiner gets the current week's status email (game-on / not-this-
+  // week, or a "you're in" note when the poll hasn't run yet). The FSM already
+  // counts them; this just closes the gap when the week's email already went out
+  // before they joined. Existing members tweaking their pref don't re-trigger it.
+  if (!member) await sendJoinConfirmation(gameId, me, date, new Date());
   revalidatePath("/my-games");
   return { ok: true };
 }

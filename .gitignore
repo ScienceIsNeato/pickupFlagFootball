@@ -29,6 +29,7 @@ next-env.d.ts
 .vercel
 *.tsbuildinfo
 .env*.local
+.env*.local.disabled
 
 # e2e test artifacts
 tests/e2e/.features-gen/

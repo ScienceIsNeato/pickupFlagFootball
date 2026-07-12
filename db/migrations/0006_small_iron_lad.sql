@@ -1,0 +1,1 @@
+ALTER TABLE "notifications_sent" ADD COLUMN "context_date" date;
