@@ -100,16 +100,24 @@ async function joinConfirmContent(kind: NotifKind, r: JoinRow, now: Date): Promi
       intro: `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`,
     };
   }
-  if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
-    const tz = r.timezone ?? "America/Chicago";
-    const nextDate = await nextPlayableOccurrence(
-      { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
-      now,
-    );
-    const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, tz);
+  if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameScheduledStart) {
+    const standing = r.gameRecurDow != null && !!r.gameRecurTime;
+    let when: string;
+    if (standing) {
+      const tz = r.timezone ?? "America/Chicago";
+      const nextDate = await nextPlayableOccurrence(
+        { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
+        now,
+      );
+      when = whenOccurrence(nextDate, zonedWallTimeToUtc(nextDate, r.gameRecurTime!, tz));
+    } else {
+      when = whenText(r.gameScheduledStart, null, null); // one-off game: its single date/time
+    }
     return {
-      details: { place: r.gamePlace, when: whenOccurrence(nextDate, kickoff) },
-      intro: `you're on the roster at ${r.gamePlace}. the next game is ${whenOccurrence(nextDate, kickoff)} - we'll email you when the weekly poll opens so you can confirm.`,
+      details: { place: r.gamePlace, when },
+      intro: standing
+        ? `you're on the roster at ${r.gamePlace}. the next game is ${when} - we'll email you when the weekly poll opens so you can confirm.`
+        : `you're on the roster at ${r.gamePlace}. the game is ${when} - see you there.`,
     };
   }
   return {};
