@@ -42,6 +42,11 @@
   ],
   "gallery": [
     {
+      "title": "show you're interested",
+      "caption": "name, email, a rough location - about 30 seconds, no app to install.",
+      "src": "signup"
+    },
+    {
       "title": "confirm your email",
       "caption": "one tap on the email we send, and you can join or propose games near you.",
       "src": "confirm-email"
@@ -80,6 +85,11 @@
       "title": "keep up with your games",
       "caption": "your sites, upcoming weeks with one-tap in and out, and your play history.",
       "src": "my-games"
+    },
+    {
+      "title": "you're in",
+      "caption": "join anytime and we email you where the week stands - so you're never left guessing.",
+      "src": "confirm-game"
     }
   ],
   "faq": [
