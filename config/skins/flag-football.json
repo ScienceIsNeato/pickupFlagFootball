@@ -40,6 +40,28 @@
       "body": "it's on - a standing weekly game."
     }
   ],
+  "gallery": [
+    {
+      "title": "show you're interested",
+      "caption": "name, email, a rough location - about 30 seconds, no app to install.",
+      "src": "show-interest"
+    },
+    {
+      "title": "join a weekly game",
+      "caption": "tap a game on the map and you're on the roster - show up when you can.",
+      "src": "join-game"
+    },
+    {
+      "title": "say you're in for the week",
+      "caption": "one tap before each game tells everyone whether it's on.",
+      "src": "attend-week"
+    },
+    {
+      "title": "pause it as captain",
+      "caption": "heading out for a season? set an expected return and a note for players.",
+      "src": "captain-pause"
+    }
+  ],
   "faq": [
     {
       "q": "how are game sites determined? who picks them?",

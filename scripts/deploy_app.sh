@@ -27,7 +27,8 @@ usage() {
 Usage:
   scripts/deploy_app.sh            Build and start the production server (detached)
   scripts/deploy_app.sh serve      Build and run in the FOREGROUND on a fixed
-                                   port (used by the editor preview)
+                                   port (used by the editor preview); reclaims
+                                   the port if something else is on it
   scripts/deploy_app.sh --status   Show running deployment(s)
   scripts/deploy_app.sh --logs     Tail this repo's server log
   scripts/deploy_app.sh --stop     Stop this repo's server
@@ -162,6 +163,29 @@ find_free_port() {
   die "No free ports in range $PORT_RANGE_START-$PORT_RANGE_END"
 }
 
+# `serve` binds a FIXED port, so it must own it: evict whatever is already
+# listening there (a stale instance, an orphaned server from a crashed run)
+# before we bind, instead of dying on EADDRINUSE. TERM first, then KILL if it
+# won't let go. This is deliberate for the fixed-port foreground mode — unlike
+# the tracked-only stop_deployment, it reclaims the port no matter who holds it.
+reclaim_port() {
+  local port="$1" pids
+  pids=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+  [[ -z "$pids" ]] && return 0
+  echo "Port $port is in use by pid(s) $(echo $pids | tr '\n' ' ')— taking it over."
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    pids=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+    [[ -z "$pids" ]] && return 0
+    sleep 0.25
+  done
+  echo "  still held — sending SIGKILL."
+  kill -9 $pids 2>/dev/null || true
+  sleep 0.5
+  pids=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+  [[ -z "$pids" ]] || die "Could not free port $port (pid(s) $(echo $pids | tr '\n' ' '))."
+}
+
 show_status() {
   local now found=0; now=$(date +%s)
   for lockfile in "$DEPLOY_DIR"/*.json; do
@@ -227,6 +251,7 @@ case "$ACTION" in
       echo "SKIP_BUILD=1 — serving the existing bundle; skipping migrations."
     fi
     SERVE_PORT="${PORT:-3000}"
+    reclaim_port "$SERVE_PORT"
     echo "Serving MIME-FF in the foreground on 0.0.0.0:$SERVE_PORT"
     exec "$NEXT_BIN" start -p "$SERVE_PORT" -H 0.0.0.0
     ;;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { skin } from "@/lib/skin";
+import Gallery from "./Gallery";
 
 export default function Home() {
   return (
@@ -28,6 +29,13 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        {skin.gallery.length > 0 && (
+          <section id="gallery">
+            <h2>see it in action</h2>
+            <Gallery items={skin.gallery} />
+          </section>
+        )}
       </main>
     </>
   );

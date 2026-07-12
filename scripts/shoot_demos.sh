@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Capture the splash-gallery stills end to end: bring up the local stack, seed,
+# build + start the app (with the e2e map seam so shots can centre the map),
+# and screenshot the four core flows straight into public/gallery/.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+DB_URL="postgres://mimeff:mimeff@127.0.0.1:55433/mimeff_test"  # pragma: allowlist secret
+export DATABASE_URL="$DB_URL" DATABASE_URL_UNPOOLED="$DB_URL" DATABASE_DRIVER="node-postgres"
+export EMAIL_TRANSPORT="smtp" SMTP_URL="smtp://127.0.0.1:11025"
+unset BREVO_API_KEY 2>/dev/null || true
+
+echo "▸ docker stack up (Postgres + Mailpit)"
+docker compose -f tests/e2e/docker-compose.yml up -d --wait
+
+echo "▸ schema + reference seed"
+PGPASSWORD=mimeff psql "$DB_URL" -q -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+node scripts/migrate.mjs apply
+PGPASSWORD=mimeff psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f tests/e2e/seed.sql
+
+echo "▸ build app (NEXT_PUBLIC_E2E=1 for the map-centring seam)"
+NEXT_PUBLIC_E2E=1 npm run build
+
+echo "▸ start app on :3100"
+lsof -ti tcp:3100 | xargs kill -9 2>/dev/null || true
+APP_BASE_URL="http://127.0.0.1:3100" AUTH_URL="http://127.0.0.1:3100" NEXTAUTH_URL="http://127.0.0.1:3100" \
+  AUTH_SECRET="e2e-test-secret-not-for-prod" NEXTAUTH_SECRET="e2e-test-secret-not-for-prod" AUTH_TRUST_HOST="true" \
+  GOOGLE_CLIENT_ID="demo" GOOGLE_CLIENT_SECRET="demo" CRON_SECRET="demo" \
+  STRIPE_SECRET_KEY="sk_test_demo" STRIPE_WEBHOOK_SECRET="whsec_demo" \
+  npx next start -p 3100 > /tmp/demo-app.log 2>&1 &
+APP_PID=$!
+trap 'kill $APP_PID 2>/dev/null || true' EXIT
+for _ in $(seq 1 60); do
+  curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null && break
+  sleep 1
+done
+curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null || { echo "  ✗ app did not start within 60s" >&2; exit 1; }
+echo "  app up"
+
+echo "▸ capture stills → public/gallery"
+mkdir -p public/gallery
+node --import tsx tests/demos/shots.mts
+
+echo "done → public/gallery/"

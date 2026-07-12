@@ -232,7 +232,9 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
               )}
             </dl>
 
-            {!retired && offWeeks.map((off) => (
+            {/* A paused series already explains itself with its own banner below —
+                don't also list its off weeks. */}
+            {!retired && game.status !== "paused" && offWeeks.map((off) => (
               off.status === "skipped" ? (
                 <div key={off.date} className="game-cancelled game-cancelled--skipped" role="status">
                   <p className="game-cancelled-h">this week ({fmtDate(off.date)}) is skipped</p>
