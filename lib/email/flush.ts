@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance, areas } from "@/lib/db/schema";
-import { toYMD, zonedWallTimeToUtc } from "@/lib/datetime";
+import { zonedWallTimeToUtc } from "@/lib/datetime";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -83,34 +83,30 @@ async function gameRosterNames(gameId: string): Promise<{ count: number; names: 
 }
 
 type JoinRow = {
-  userId: string; gamePlace: string | null; occDate: string | null; kickoffAt: Date | null; pollClosesAt: Date | null;
-  timezone: string | null; gameId: string | null; gameRecurDow: number | null;
-  gameRecurTime: string | null; gameScheduledStart: Date | null;
+  gamePlace: string | null; occDate: string | null; kickoffAt: Date | null; pollClosesAt: Date | null;
+  timezone: string | null; gameRecurDow: number | null; gameRecurTime: string | null;
+  gameScheduledStart: Date | null; contextDate: string | null;
 };
 
 /** Live-dated intro + spot/time card for a join-confirmation email; empty when
  *  the schedule can't be built (the caller then drops the send). JOIN_POLLING:
  *  the game day + the poll-close day. JOIN_UPCOMING: the next playable recurrence
  *  (the same helper the join used, so off/already-started weeks are skipped). */
-async function joinConfirmContent(kind: NotifKind, r: JoinRow, now: Date): Promise<{ intro?: string; details?: { place: string; when: string } }> {
+function joinConfirmContent(kind: NotifKind, r: JoinRow): { intro?: string; details?: { place: string; when: string } } {
   if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
     return {
       details: { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) },
       intro: `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`,
     };
   }
-  if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameScheduledStart) {
-    // Use the date the join actually rostered them for (stored in game_attendance)
-    // rather than a flush-time recompute, which could drift to a later week if the
-    // send is delayed (backlog / cron fallback) past the targeted kickoff.
-    const [att] = await db.select({ d: gameAttendance.occurrenceDate }).from(gameAttendance)
-      .where(and(eq(gameAttendance.gameId, r.gameId), eq(gameAttendance.userId, r.userId), gte(gameAttendance.occurrenceDate, toYMD(now))))
-      .orderBy(asc(gameAttendance.occurrenceDate)).limit(1);
-    if (!att) return {};
+  if (kind === "JOIN_UPCOMING" && r.gamePlace && r.contextDate) {
+    // The date was stamped at join time (contextDate) — render it verbatim, no
+    // re-derivation. Standing games show the recurring kickoff time; a one-off
+    // shows its single scheduled time.
     const standing = r.gameRecurDow != null && !!r.gameRecurTime;
     const when = standing
-      ? whenOccurrence(att.d, zonedWallTimeToUtc(att.d, r.gameRecurTime!, r.timezone ?? "America/Chicago"))
-      : whenText(r.gameScheduledStart, null, null); // one-off game: its single date/time
+      ? whenOccurrence(r.contextDate, zonedWallTimeToUtc(r.contextDate, r.gameRecurTime!, r.timezone ?? "America/Chicago"))
+      : r.gameScheduledStart ? whenText(r.gameScheduledStart, null, null) : dateText(r.contextDate);
     return {
       details: { place: r.gamePlace, when },
       intro: standing
@@ -137,6 +133,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
     occurrenceId: notificationsSent.occurrenceId,
     attemptId: notificationsSent.attemptId,
     gameId: notificationsSent.gameId,
+    contextDate: notificationsSent.contextDate,
     placeText: formationAttempts.placeText,
     attemptStatus: formationAttempts.status,
     proposedStart: formationAttempts.proposedStart,
@@ -239,7 +236,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       // schedule can't be built, the static COPY would promise timing it can't
       // show — drop the row instead (shouldn't happen for a standing game).
       const isJoin = kind === "JOIN_POLLING" || kind === "JOIN_UPCOMING";
-      const { intro: joinIntro, details: joinDetails } = isJoin ? await joinConfirmContent(kind, r, now) : {};
+      const { intro: joinIntro, details: joinDetails } = isJoin ? joinConfirmContent(kind, r) : {};
       if (isJoin && !joinIntro) {
         console.warn("[email] join-confirmation missing schedule data - dropping", { id: r.id, kind });
         skipped++;

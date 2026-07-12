@@ -357,6 +357,9 @@ export const notificationsSent = pgTable("notifications_sent", {
   occurrenceId: uuid("occurrence_id").references(() => gameOccurrences.id, { onDelete: "cascade" }),
   gameId:    uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
   kind:      notificationKindEnum("kind").notNull(),
+  // The occurrence date a dateless email refers to, captured at enqueue time so
+  // the send never has to re-derive it (JOIN_UPCOMING, which has no occurrence).
+  contextDate: date("context_date"),
   channel:   notificationChannelEnum("channel").notNull(),
   sentAt:    timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   // When the email was actually delivered via Brevo. NULL = claimed (row exists,

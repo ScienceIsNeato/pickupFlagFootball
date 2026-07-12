@@ -65,8 +65,10 @@ export async function sendJoinConfirmation(
     // Occurrence-keyed kinds (WEEK_ON/WEEK_OFF/JOIN_POLLING) dedupe against the
     // roster-wide enqueue via uq_notif_occurrence; JOIN_UPCOMING has no such
     // index but the new-join-only caller keeps it to one per join.
+    // Stamp the target date so the send renders it verbatim — no re-derivation at
+    // flush time (which is fragile to when the flush actually runs).
     await db.insert(notificationsSent).values({
-      userId, occurrenceId, gameId, attemptId: null, kind, channel: "email", sentAt: now,
+      userId, occurrenceId, gameId, attemptId: null, kind, contextDate: date, channel: "email", sentAt: now,
     }).onConflictDoNothing();
 
     await flushNotificationEmails(now);
