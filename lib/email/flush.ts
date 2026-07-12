@@ -1,7 +1,8 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance, areas } from "@/lib/db/schema";
-import { nextOccurrenceYMD, zonedWallTimeToUtc } from "@/lib/datetime";
+import { zonedWallTimeToUtc } from "@/lib/datetime";
+import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -205,11 +206,25 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
         joinDetails = { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) };
         joinIntro = `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`;
-      } else if (kind === "JOIN_UPCOMING" && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
-        const nextDate = nextOccurrenceYMD({ isStanding: true, recurDow: r.gameRecurDow, scheduledStart: r.gameScheduledStart }, now);
-        const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, r.timezone ?? "America/Chicago");
+      } else if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
+        const tz = r.timezone ?? "America/Chicago";
+        // Use the same date the join used (nextPlayableOccurrence skips off /
+        // started weeks) — a naive next-recurrence could name an off week.
+        const nextDate = await nextPlayableOccurrence(
+          { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
+          now,
+        );
+        const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, tz);
         joinDetails = { place: r.gamePlace, when: whenOccurrence(nextDate, kickoff) };
         joinIntro = `you're on the roster at ${r.gamePlace}. the next game is ${whenOccurrence(nextDate, kickoff)} - we'll email you when the weekly poll opens so you can confirm.`;
+      }
+      // A join-confirmation with no schedule to show would fall back to static
+      // copy that promises timing it can't back up — drop it. Shouldn't happen: a
+      // standing game carries recur config and its occurrence carries a poll-close.
+      if ((kind === "JOIN_POLLING" || kind === "JOIN_UPCOMING") && !joinIntro) {
+        console.warn("[email] join-confirmation missing schedule data - dropping", { id: r.id, kind });
+        skipped++;
+        continue;
       }
       const mail = buildNotificationEmail(kind, {
         displayName: r.displayName, appBaseUrl: APP_BASE_URL, footer, buttons, details: details ?? joinDetails, roster, note, rsvp,
