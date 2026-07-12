@@ -42,24 +42,39 @@
   ],
   "gallery": [
     {
-      "title": "show you're interested",
-      "caption": "name, email, a rough location - about 30 seconds, no app to install.",
-      "src": "show-interest"
+      "title": "confirm your email",
+      "caption": "one tap on the email we send, and you can join or propose games near you.",
+      "src": "confirm-email"
     },
     {
-      "title": "join a weekly game",
-      "caption": "tap a game on the map and you're on the roster - show up when you can.",
+      "title": "you're all set",
+      "caption": "email confirmed - now head to the map to find a game nearby.",
+      "src": "email-confirmed"
+    },
+    {
+      "title": "find a game near you",
+      "caption": "your area on one map: every interested neighbor and every standing game.",
+      "src": "find-on-map"
+    },
+    {
+      "title": "read the map",
+      "caption": "flags are real neighbors, badges are games - the key shows what each marker means.",
+      "src": "map-key"
+    },
+    {
+      "title": "get the lay of the land",
+      "caption": "tap any question to see how games form, who's nearby, and how to propose your own.",
+      "src": "how-it-works"
+    },
+    {
+      "title": "join the game",
+      "caption": "open a game, pick regular or occasional, tap \"i'm in\" - and you're on the roster.",
       "src": "join-game"
     },
     {
-      "title": "say you're in for the week",
-      "caption": "one tap before each game tells everyone whether it's on.",
-      "src": "attend-week"
-    },
-    {
-      "title": "pause it as captain",
-      "caption": "heading out for a season? set an expected return and a note for players.",
-      "src": "captain-pause"
+      "title": "keep up with your games",
+      "caption": "your sites, upcoming weeks with one-tap in and out, and your play history.",
+      "src": "my-games"
     }
   ],
   "faq": [
