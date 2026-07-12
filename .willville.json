@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Chasing down the Sentry errors — fixed the map crash where zooming past a coarse cluster blew up the whole map feed, and tagged where errors come from (prod/dev/local) so my own local runs stop looking like production incidents.",
-    "direction": "Pushing this up as its own small PR and sailing it green, then marking the old map error resolved and watching that it stays quiet.",
+    "status": "Reworking the splash 'see it in action' gallery — dropping the looping video clips for clean single screenshots with a tagline under each, still in the swipe-through gallery style.",
+    "direction": "Capturing the fresh screenshots against a clean demo setup, then pushing the gallery change up for review.",
     "last_update": "2026-07-11T00:00:00Z"
   }
 }

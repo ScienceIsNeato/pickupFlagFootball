@@ -25,6 +25,10 @@ export const SkinSchema = z.object({
     note: z.string(),
   }),
   how: z.array(z.object({ n: z.string(), title: z.string(), body: z.string() })),
+  // Splash "see it in action" gallery — one still screenshot per core flow.
+  // `src` is the base filename under /public/gallery (served as .jpg); `caption`
+  // is the tagline shown beneath it.
+  gallery: z.array(z.object({ title: z.string(), caption: z.string(), src: z.string() })).default([]),
   faq: z.array(
     z.object({ q: z.string(), a: z.string().optional(), aHtml: z.string().optional() })
   ),
