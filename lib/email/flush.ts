@@ -1,8 +1,7 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationsSent, users, formationAttempts, gameOccurrences, games, gameRoster, gameAttendance, areas } from "@/lib/db/schema";
-import { zonedWallTimeToUtc } from "@/lib/datetime";
-import { nextPlayableOccurrence } from "@/lib/db/gameMembership";
+import { toYMD, zonedWallTimeToUtc } from "@/lib/datetime";
 import { sendEmail, isEmailConfigured } from "./send";
 import { buildNotificationEmail, type NotifKind } from "./templates";
 import { donationFooterFor } from "./donationFooter";
@@ -84,7 +83,7 @@ async function gameRosterNames(gameId: string): Promise<{ count: number; names: 
 }
 
 type JoinRow = {
-  gamePlace: string | null; occDate: string | null; kickoffAt: Date | null; pollClosesAt: Date | null;
+  userId: string; gamePlace: string | null; occDate: string | null; kickoffAt: Date | null; pollClosesAt: Date | null;
   timezone: string | null; gameId: string | null; gameRecurDow: number | null;
   gameRecurTime: string | null; gameScheduledStart: Date | null;
 };
@@ -101,18 +100,17 @@ async function joinConfirmContent(kind: NotifKind, r: JoinRow, now: Date): Promi
     };
   }
   if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameScheduledStart) {
+    // Use the date the join actually rostered them for (stored in game_attendance)
+    // rather than a flush-time recompute, which could drift to a later week if the
+    // send is delayed (backlog / cron fallback) past the targeted kickoff.
+    const [att] = await db.select({ d: gameAttendance.occurrenceDate }).from(gameAttendance)
+      .where(and(eq(gameAttendance.gameId, r.gameId), eq(gameAttendance.userId, r.userId), gte(gameAttendance.occurrenceDate, toYMD(now))))
+      .orderBy(asc(gameAttendance.occurrenceDate)).limit(1);
+    if (!att) return {};
     const standing = r.gameRecurDow != null && !!r.gameRecurTime;
-    let when: string;
-    if (standing) {
-      const tz = r.timezone ?? "America/Chicago";
-      const nextDate = await nextPlayableOccurrence(
-        { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
-        now,
-      );
-      when = whenOccurrence(nextDate, zonedWallTimeToUtc(nextDate, r.gameRecurTime!, tz));
-    } else {
-      when = whenText(r.gameScheduledStart, null, null); // one-off game: its single date/time
-    }
+    const when = standing
+      ? whenOccurrence(att.d, zonedWallTimeToUtc(att.d, r.gameRecurTime!, r.timezone ?? "America/Chicago"))
+      : whenText(r.gameScheduledStart, null, null); // one-off game: its single date/time
     return {
       details: { place: r.gamePlace, when },
       intro: standing
