@@ -83,6 +83,38 @@ async function gameRosterNames(gameId: string): Promise<{ count: number; names: 
   return { count: names.length, names };
 }
 
+type JoinRow = {
+  gamePlace: string | null; occDate: string | null; kickoffAt: Date | null; pollClosesAt: Date | null;
+  timezone: string | null; gameId: string | null; gameRecurDow: number | null;
+  gameRecurTime: string | null; gameScheduledStart: Date | null;
+};
+
+/** Live-dated intro + spot/time card for a join-confirmation email; empty when
+ *  the schedule can't be built (the caller then drops the send). JOIN_POLLING:
+ *  the game day + the poll-close day. JOIN_UPCOMING: the next playable recurrence
+ *  (the same helper the join used, so off/already-started weeks are skipped). */
+async function joinConfirmContent(kind: NotifKind, r: JoinRow, now: Date): Promise<{ intro?: string; details?: { place: string; when: string } }> {
+  if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
+    return {
+      details: { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) },
+      intro: `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`,
+    };
+  }
+  if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
+    const tz = r.timezone ?? "America/Chicago";
+    const nextDate = await nextPlayableOccurrence(
+      { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
+      now,
+    );
+    const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, tz);
+    return {
+      details: { place: r.gamePlace, when: whenOccurrence(nextDate, kickoff) },
+      intro: `you're on the roster at ${r.gamePlace}. the next game is ${whenOccurrence(nextDate, kickoff)} - we'll email you when the weekly poll opens so you can confirm.`,
+    };
+  }
+  return {};
+}
+
 /**
  * Send the backlog of claimed-but-unsent email notifications. Runs from the tick
  * cron, OUTSIDE any DB transaction. Each row is claimed atomically before send,
@@ -197,31 +229,12 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       const rsvp = kind === "WEEK_ON"
         ? ((r.attStatus as "in" | "out" | null) ?? (r.rosterDefault as "in" | "out" | null) ?? "out")
         : undefined;
-      // Join-confirmation emails carry live dates in the intro + a spot/time card.
-      // JOIN_POLLING: the game day + the day the poll closes ("you'll find out
-      // by …"). JOIN_UPCOMING (no occurrence yet): the next recurrence, computed
-      // from the series schedule + site timezone.
-      let joinIntro: string | undefined;
-      let joinDetails: typeof details;
-      if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
-        joinDetails = { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) };
-        joinIntro = `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`;
-      } else if (kind === "JOIN_UPCOMING" && r.gameId && r.gamePlace && r.gameRecurDow != null && r.gameRecurTime && r.gameScheduledStart) {
-        const tz = r.timezone ?? "America/Chicago";
-        // Use the same date the join used (nextPlayableOccurrence skips off /
-        // started weeks) — a naive next-recurrence could name an off week.
-        const nextDate = await nextPlayableOccurrence(
-          { id: r.gameId, isStanding: true, recurDow: r.gameRecurDow, recurTime: r.gameRecurTime, scheduledStart: r.gameScheduledStart.toISOString(), timezone: tz },
-          now,
-        );
-        const kickoff = zonedWallTimeToUtc(nextDate, r.gameRecurTime, tz);
-        joinDetails = { place: r.gamePlace, when: whenOccurrence(nextDate, kickoff) };
-        joinIntro = `you're on the roster at ${r.gamePlace}. the next game is ${whenOccurrence(nextDate, kickoff)} - we'll email you when the weekly poll opens so you can confirm.`;
-      }
-      // A join-confirmation with no schedule to show would fall back to static
-      // copy that promises timing it can't back up — drop it. Shouldn't happen: a
-      // standing game carries recur config and its occurrence carries a poll-close.
-      if ((kind === "JOIN_POLLING" || kind === "JOIN_UPCOMING") && !joinIntro) {
+      // Join-confirmation emails carry a live-dated intro + spot/time card. If the
+      // schedule can't be built, the static COPY would promise timing it can't
+      // show — drop the row instead (shouldn't happen for a standing game).
+      const isJoin = kind === "JOIN_POLLING" || kind === "JOIN_UPCOMING";
+      const { intro: joinIntro, details: joinDetails } = isJoin ? await joinConfirmContent(kind, r, now) : {};
+      if (isJoin && !joinIntro) {
         console.warn("[email] join-confirmation missing schedule data - dropping", { id: r.id, kind });
         skipped++;
         continue;
