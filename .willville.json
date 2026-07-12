@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "New feature: when you join an established weekly game, you now get an email right away about the next game — a game-on / not-this-week heads-up, or a 'you're in, here's when it meets' note if the poll hasn't run yet. Added that confirmation email to the splash gallery too.",
-    "direction": "Pushing it up on the splash-gallery branch and sailing it green.",
+    "status": "The production deploy has been silently failing for days — a flaky mobile test kept red-lining it with no retries, so nothing recent actually shipped. Adding CI retries so a one-off flake stops blocking releases.",
+    "direction": "Get this merged so the deploy goes green and everything (plus the pending database updates) finally ships to production.",
     "last_update": "2026-07-12T00:00:00Z"
   }
 }
