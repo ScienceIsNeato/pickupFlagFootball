@@ -2,6 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { joinConfirmKind } from "@/lib/email/joinConfirm";
 import { buildNotificationEmail } from "@/lib/email/templates";
+import { whenOccurrence } from "@/lib/email/flush";
+
+test("whenOccurrence: kickoff time renders in the game's timezone, not the server's", () => {
+  // 6:00 pm Chicago (CDT, UTC-5) on Jul 13 is 23:00 UTC — a UTC host must still
+  // print "6:00 pm", and the same instant is a different wall time elsewhere.
+  const kickoff = new Date("2026-07-13T23:00:00Z");
+  assert.match(whenOccurrence("2026-07-13", kickoff, "America/Chicago"), /Monday, Jul 13 at 6:00 pm/);
+  assert.match(whenOccurrence("2026-07-13", kickoff, "America/New_York"), /at 7:00 pm/);
+});
 
 test("joinConfirmKind: decided weeks reuse the game-on / not-this-week emails", () => {
   assert.equal(joinConfirmKind("scheduled", false), "WEEK_ON");

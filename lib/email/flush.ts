@@ -47,12 +47,15 @@ function dayText(d: Date, tz: string | null): string {
   return new Date(d).toLocaleDateString("en-US", { timeZone: tz ?? "America/Chicago", weekday: "long", month: "short", day: "numeric" });
 }
 
-/** Human "when" for a weekly occurrence: its date + kickoff time. */
-function whenOccurrence(date: string, kickoff: Date): string {
-  const d = new Date(`${date}T00:00:00`);
-  const k = new Date(kickoff);
-  const time = `${((k.getHours() + 11) % 12) + 1}:${String(k.getMinutes()).padStart(2, "0")} ${k.getHours() < 12 ? "am" : "pm"}`;
-  return `${d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
+/** Human "when" for a weekly occurrence: its date + kickoff time, both rendered
+ *  in the game's local timezone (not the server's — a UTC host would otherwise
+ *  print the wrong wall-clock kickoff even though the instant is correct). */
+export function whenOccurrence(date: string, kickoff: Date, tz: string | null): string {
+  // `date` is a wall date — render it as-is (local noon avoids any midnight/DST
+  // date shift). Only the kickoff *instant* needs the game's zone.
+  const day = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  const time = new Date(kickoff).toLocaleTimeString("en-US", { timeZone: tz ?? "America/Chicago", hour: "numeric", minute: "2-digit" }).toLowerCase();
+  return `${day} at ${time}`;
 }
 
 /** The players who are effectively "in" for an occurrence, by display name —
@@ -95,18 +98,19 @@ type JoinRow = {
 function joinConfirmContent(kind: NotifKind, r: JoinRow): { intro?: string; details?: { place: string; when: string } } {
   if (kind === "JOIN_POLLING" && r.gamePlace && r.occDate && r.kickoffAt && r.pollClosesAt) {
     return {
-      details: { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) },
+      details: { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt, r.timezone) },
       intro: `you joined while this week's poll is still open, so you're marked in for ${dateText(r.occDate)}. you'll find out by ${dayText(r.pollClosesAt, r.timezone)} whether enough players are in - we'll email you either way.`,
     };
   }
   if (kind === "JOIN_UPCOMING" && r.gamePlace && r.contextDate) {
     // The date was stamped at join time (contextDate) — render it verbatim, no
-    // re-derivation. Standing games show the recurring kickoff time; a one-off
-    // shows its single scheduled time.
+    // re-derivation. Standing games kick off at the recurring time; a one-off at
+    // its single scheduled instant. Both rendered in the game's timezone.
+    const tz = r.timezone ?? "America/Chicago";
     const standing = r.gameRecurDow != null && !!r.gameRecurTime;
-    const when = standing
-      ? whenOccurrence(r.contextDate, zonedWallTimeToUtc(r.contextDate, r.gameRecurTime!, r.timezone ?? "America/Chicago"))
-      : r.gameScheduledStart ? whenText(r.gameScheduledStart, null, null) : dateText(r.contextDate);
+    const kickoff = standing ? zonedWallTimeToUtc(r.contextDate, r.gameRecurTime!, tz) : r.gameScheduledStart;
+    if (!kickoff) return {};
+    const when = whenOccurrence(r.contextDate, kickoff, tz);
     return {
       details: { place: r.gamePlace, when },
       intro: standing
@@ -210,7 +214,7 @@ export async function flushNotificationEmails(now: Date, limit = 50): Promise<{ 
       const details = (kind === "GAME_PROPOSED" || kind === "GAME_ON") && r.placeText && r.proposedStart
         ? { place: r.placeText, when: whenText(r.proposedStart, r.recurDow, r.recurTime) }
         : OCCURRENCE_KINDS.has(kind) && r.gamePlace && r.occDate && r.kickoffAt
-        ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt) }
+        ? { place: r.gamePlace, when: whenOccurrence(r.occDate, r.kickoffAt, r.timezone) }
         // Series notices show the venue; pause adds an expected-return date, retire has no "when".
         : kind === "SERIES_PAUSED" && r.gamePlace
         ? { place: r.gamePlace, when: r.pausedUntil ? `back around ${dateText(r.pausedUntil)}` : undefined }
