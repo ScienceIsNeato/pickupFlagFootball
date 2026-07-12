@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { cellToParent, cellToLatLng } from "h3-js";
+import { cellToLatLng } from "h3-js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   interestSignals, areas, games, gameRoster, formationAttempts,
 } from "@/lib/db/schema";
-import { bigIntToH3 } from "@/lib/geo/h3";
+import { bigIntToH3, cellToParentSafe } from "@/lib/geo/h3";
 import { gameColor } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     const color = g.color ?? gameColor(g.id);
     gameInfo.set(g.id, { lat: g.placeLat ?? g.centerLat, lng: g.placeLng ?? g.centerLng, color });
     if (g.status === "retired") retiredIds.add(g.id);
-    const parent = cellToParent(bigIntToH3(g.h3Cell), res);
+    const parent = cellToParentSafe(bigIntToH3(g.h3Cell), res);
     const prev = gameAtCell.get(parent);
     // One badge per display cell. First placed wins, EXCEPT a live game displaces
     // a retired one — so when areas collapse to a single cell at low zoom an
@@ -129,7 +129,7 @@ export async function GET(req: Request) {
       // (the newest overwrites), not query-plan dependent.
       .orderBy(asc(formationAttempts.createdAt));
     for (const a of openAttempts) {
-      const parent = cellToParent(bigIntToH3(a.h3Cell), res);
+      const parent = cellToParentSafe(bigIntToH3(a.h3Cell), res);
       formingCells.add(parent);
       // Fall back to the area centroid when the proposal has no exact venue coords:
       // /api/proposed matches at placeLat/Lng ?? area.centerLat/Lng, so the badge has
@@ -142,7 +142,7 @@ export async function GET(req: Request) {
   const free = new Map<string, Set<string>>();
   const claims = new Map<string, Map<string, Set<string>>>(); // cell → gameId → users
   for (const s of signals) {
-    const parent = cellToParent(bigIntToH3(s.h3Base), res);
+    const parent = cellToParentSafe(bigIntToH3(s.h3Base), res);
     // A user rostered on multiple games gets one claim per game (rendered as one
     // colored flag per game). gameInfo is already mine-filtered above.
     const gids = (claimsByUser.get(s.userId) ?? []).filter((g) => gameInfo.has(g));

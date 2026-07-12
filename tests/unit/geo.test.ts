@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { haversineKm, milesToKm, kmToMiles } from "@/lib/geo/distance";
 import { geocodeAddress } from "@/lib/geo/geocode";
+import { cellToParentSafe } from "@/lib/geo/h3";
+import { latLngToCell, cellToParent, getResolution } from "h3-js";
 
 const approx = (a: number, b: number, tol: number) =>
   assert.ok(Math.abs(a - b) <= tol, `${a} not within ${tol} of ${b}`);
@@ -29,6 +31,28 @@ test("mile/km conversions round-trip and match defaults", () => {
   approx(milesToKm(25), 40.23, 0.1);   // the default travel radius
   approx(kmToMiles(40), 24.85, 0.1);
   approx(kmToMiles(milesToKm(13)), 13, 1e-9);
+});
+
+test("cellToParentSafe: a cell coarser than the target res is returned as-is (guards H3 E_RES_MISMATCH)", () => {
+  // Regression for the /api/map "Cell arguments had incompatible resolutions
+  // (code 12)" crash: aggregating a res-5 cell up to a *finer* res-7 parent
+  // throws in raw h3, which 500'd the whole map feed.
+  const coarse = latLngToCell(41.68, -91.6, 5);
+  assert.throws(() => cellToParent(coarse, 7)); // the raw call is the bug
+  assert.equal(cellToParentSafe(coarse, 7), coarse); // the guard clamps to res 5
+  assert.equal(getResolution(cellToParentSafe(coarse, 7)), 5);
+});
+
+test("cellToParentSafe: a finer cell rolls up to the requested parent resolution", () => {
+  const fine = latLngToCell(41.68, -91.6, 7);
+  const parent = cellToParentSafe(fine, 5);
+  assert.equal(getResolution(parent), 5);
+  assert.equal(parent, cellToParent(fine, 5)); // matches the normal roll-up
+});
+
+test("cellToParentSafe: equal resolution is the identity", () => {
+  const cell = latLngToCell(41.68, -91.6, 6);
+  assert.equal(cellToParentSafe(cell, 6), cell);
 });
 
 test("geocodeAddress: no street line → null without any network call", async () => {

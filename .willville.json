@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Another round of report-review fixes: a skipped week (too few players) now shows the current week in yellow with the reason instead of jumping ahead; the 'game on' email no longer offers 'play after all' to people already in; the account page's donation panel moved to the far right; and the test report stopped repeating the confirm-email step in every test.",
-    "direction": "Full test run to confirm green, then pushing up for review.",
-    "last_update": "2026-07-09T13:00:00Z"
+    "status": "Chasing down the Sentry errors — fixed the map crash where zooming past a coarse cluster blew up the whole map feed, and tagged where errors come from (prod/dev/local) so my own local runs stop looking like production incidents.",
+    "direction": "Pushing this up as its own small PR and sailing it green, then marking the old map error resolved and watching that it stays quiet.",
+    "last_update": "2026-07-11T00:00:00Z"
   }
 }

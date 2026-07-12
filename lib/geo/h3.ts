@@ -1,4 +1,4 @@
-import { latLngToCell, cellToLatLng, cellToParent, gridDisk } from "h3-js";
+import { latLngToCell, cellToLatLng, cellToParent, gridDisk, getResolution } from "h3-js";
 
 export type H3Cells = {
   r5: bigint;
@@ -14,6 +14,15 @@ export function h3ToBigInt(cell: string): bigint {
 
 export function bigIntToH3(n: bigint): string {
   return n.toString(16).padStart(15, "0");
+}
+
+/** Parent of `cell` at `res`, clamped so we never ask for a resolution finer
+ *  than the cell itself — h3's cellToParent throws E_RES_MISMATCH (code 12) in
+ *  that case, which would 500 the whole map feed. A cell already coarser than
+ *  `res` is returned as-is (at res === its own resolution, cellToParent is the
+ *  identity). Guards aggregation against any mixed-resolution stored cells. */
+export function cellToParentSafe(cell: string, res: number): string {
+  return cellToParent(cell, Math.min(res, getResolution(cell)));
 }
 
 /** The catchment for a base cell: the cell plus its k-ring of neighbors, as
