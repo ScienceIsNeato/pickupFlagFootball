@@ -19,7 +19,13 @@ export function RegisterInterestForm() {
   // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
   // → "create an account" → here). Only same-origin relative paths.
   const [dest, setDest] = useState("/play");
+  // Submit runs on the client (onSubmit → registerWithPassword → signIn), so it
+  // only works once React has hydrated. Gate the button on that: a click before
+  // hydration (a slow connection, or a fast bot on a loaded CI runner) would
+  // otherwise land on a dead handler and silently do nothing.
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
+    setHydrated(true);
     const n = new URLSearchParams(window.location.search).get("next");
     if (n && /^\/(?![/\\])/.test(n)) setDest(n);
   }, []);
@@ -122,7 +128,7 @@ export function RegisterInterestForm() {
         including its assumption of risk and release of liability, and the{" "}
         <Link href="/privacy">privacy policy</Link>.
       </p>
-      <button type="submit" className="btn-green" disabled={busy}>
+      <button type="submit" className="btn-green" disabled={busy || !hydrated}>
         {busy ? "…" : "count me in"}
       </button>
       <p className="reg-note">

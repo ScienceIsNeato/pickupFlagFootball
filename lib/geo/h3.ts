@@ -1,4 +1,4 @@
-import { latLngToCell, cellToLatLng, cellToParent, gridDisk, getResolution } from "h3-js";
+import { latLngToCell, cellToLatLng, cellToParent, gridDisk, getResolution, isValidCell } from "h3-js";
 
 export type H3Cells = {
   r5: bigint;
@@ -16,12 +16,16 @@ export function bigIntToH3(n: bigint): string {
   return n.toString(16).padStart(15, "0");
 }
 
-/** Parent of `cell` at `res`, clamped so we never ask for a resolution finer
- *  than the cell itself — h3's cellToParent throws E_RES_MISMATCH (code 12) in
- *  that case, which would 500 the whole map feed. A cell already coarser than
- *  `res` is returned as-is (at res === its own resolution, cellToParent is the
- *  identity). Guards aggregation against any mixed-resolution stored cells. */
-export function cellToParentSafe(cell: string, res: number): string {
+/** Parent of `cell` at `res`, or null if the cell is unusable. Clamps `res` to
+ *  the cell's own resolution so h3 never sees a finer-than-cell target (which
+ *  throws E_RES_MISMATCH, code 12), and returns null for a malformed cell rather
+ *  than letting getResolution/cellToParent throw E_RES_DOMAIN (code 4) and 500
+ *  the whole map feed. Callers skip a null. One bad row must never break the map. */
+export function cellToParentSafe(cell: string, res: number): string | null {
+  if (!isValidCell(cell)) {
+    console.warn("[h3] cellToParentSafe: skipping invalid cell", JSON.stringify(cell));
+    return null;
+  }
   return cellToParent(cell, Math.min(res, getResolution(cell)));
 }
 
