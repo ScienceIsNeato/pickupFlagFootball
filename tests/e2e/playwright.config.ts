@@ -14,6 +14,10 @@ export default defineConfig({
   // Shared DB reset per scenario → must run serially (no cross-scenario clobber).
   workers: 1,
   fullyParallel: false,
+  // Retry in CI only: the mobile (Pixel 5) project is timing-sensitive on shared
+  // runners and flakes intermittently, which — with no retries — was red-lining
+  // the prod deploy on a single flaky test. Locally keep 0 so real failures surface.
+  retries: process.env.CI ? 2 : 0,
   // Paths below are resolved relative to this config's dir (tests/e2e).
   outputDir: "test-results",
   reporter: [
