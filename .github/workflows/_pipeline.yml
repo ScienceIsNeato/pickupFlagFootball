@@ -56,6 +56,16 @@ jobs:
       - name: e2e (full stack — Postgres + Mailpit + Playwright)
         if: ${{ inputs.run_e2e }}
         run: npm run test:e2e
+      - name: Upload e2e traces + story report on failure
+        if: ${{ failure() && inputs.run_e2e }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts-${{ inputs.environment }}
+          path: |
+            tests/e2e/test-results/**
+            tests/e2e/report/output/**
+          retention-days: 7
+          if-no-files-found: ignore
 
   build-and-push:
     needs: test

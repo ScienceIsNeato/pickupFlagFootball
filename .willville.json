@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The production deploy has been silently failing for days — a flaky mobile test kept red-lining it with no retries, so nothing recent actually shipped. Adding CI retries so a one-off flake stops blocking releases.",
-    "direction": "Get this merged so the deploy goes green and everything (plus the pending database updates) finally ships to production.",
-    "last_update": "2026-07-12T00:00:00Z"
+    "status": "The prod deploy keeps failing on the mobile tests, and the real reason isn't visible — the app errors only on the CI machine, not locally. Adding a step so every PR runs those tests and saves the failure evidence, so I can finally see what's actually going wrong and fix it.",
+    "direction": "Once the evidence lands, pinpoint and fix the real bug so the deploy goes green and everything ships.",
+    "last_update": "2026-07-13T00:00:00Z"
   }
 }

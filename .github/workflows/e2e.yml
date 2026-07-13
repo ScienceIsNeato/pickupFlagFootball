@@ -1,0 +1,33 @@
+# Full e2e suite on every PR. The deploy pipeline only ran e2e on push-to-main,
+# right before deploying — so a PR could sail green while the prod deploy stayed
+# red on the same tests (which is exactly what happened for days). Running it here
+# catches that class pre-merge, and uploads Playwright traces + the story report
+# on failure so a runner-only failure is debuggable off the box.
+name: e2e
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: e2e (full stack — Postgres + Mailpit + Playwright)
+        run: npm run test:e2e
+      - name: Upload traces + story report on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            tests/e2e/test-results/**
+            tests/e2e/report/output/**
+          retention-days: 7
+          if-no-files-found: ignore
