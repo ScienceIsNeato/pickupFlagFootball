@@ -17,11 +17,18 @@ const MOBILE_VP = { width: 393, height: 727 }; // Pixel 5 CSS viewport (devices[
 // Independent, deterministic scenarios: reset DB + inbox before each. Also clear the
 // module-scoped capture caches — a reused worker carries them across scenarios, so
 // stale dedupe state would suppress a legit beat and the maps would grow all run.
-Before(async () => {
+Before(async ({ page }) => {
   await resetData();
   await clearMailpit();
   lastShotHash.clear();
   seenEmailIds.clear();
+  // Diagnostic: echo client-side JS errors + console.errors into the test output,
+  // so a failure that only reproduces on the CI runner is debuggable straight from
+  // the log (not just Sentry). Cheap and harmless; remove once the CI flake is nailed.
+  page.on("pageerror", (e) => console.log(`\n[pageerror] ${e.message}\n${e.stack ?? ""}\n`));
+  page.on("console", (m) => {
+    if (m.type() === "error") console.log(`[console.error] ${m.text()}`);
+  });
 });
 
 function stepTitle($step: unknown): string {
