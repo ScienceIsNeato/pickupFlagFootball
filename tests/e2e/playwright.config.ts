@@ -38,7 +38,12 @@ export default defineConfig({
   // projects don't clobber the shared DB.
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 5"] }, grep: /@mobile/ },
+    // The Pixel 5 profile (dpr 2.75, canvas + maplibre) is CPU-heavy: these same
+    // map/HUD scenarios finish in ~2s locally but hang out to the 30s limit on
+    // GitHub's 2-core runners, red-lining the deploy. Give the mobile project a
+    // roomier per-test budget in CI only — locally keep 30s so real slowness
+    // still surfaces. (This grants time; it does not skip or soften any assertion.)
+    { name: "mobile", use: { ...devices["Pixel 5"] }, grep: /@mobile/, timeout: process.env.CI ? 90_000 : 30_000 },
   ],
   webServer: {
     command: `npx next start -p ${E2E.appPort}`,
