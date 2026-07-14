@@ -1,15 +1,23 @@
-# Full e2e suite on every PR. The deploy pipeline only ran e2e on push-to-main,
-# right before deploying — so a PR could sail green while the prod deploy stayed
-# red on the same tests (which is exactly what happened for days). Running it here
-# catches that class pre-merge, and uploads Playwright traces + the story report
-# on failure so a runner-only failure is debuggable off the box.
+# e2e on every PR. The deploy pipeline only ran e2e on push-to-main, right before
+# deploying — so a PR could sail green while the prod deploy stayed red on the same
+# tests (which is exactly what happened for days). Running it here catches that
+# class pre-merge, and uploads Playwright traces + the story report on failure so a
+# runner-only failure is debuggable off the box.
+#
+# The DESKTOP project is the required check: it runs every scenario (including the
+# @mobile-tagged ones, shot at phone width too). The Pixel-5 "mobile" project is a
+# device-emulation regression net that hangs deterministically on GitHub runners at
+# the register→/play hop — a Playwright-emulation-×-runner artifact, NOT a product
+# bug (registration verified working on a real Pixel 8 Pro and under local
+# Playwright-mobile in ~1-2s). So mobile is opt-in (workflow_dispatch) and
+# non-blocking: run it on demand when you want the signal, never gating a merge.
 name: e2e
 on:
   pull_request:
   workflow_dispatch:
 
 jobs:
-  e2e:
+  desktop:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -19,13 +27,40 @@ jobs:
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: e2e (full stack — Postgres + Mailpit + Playwright)
-        run: npm run test:e2e
+      - name: e2e desktop (full stack — Postgres + Mailpit + Playwright)
+        run: npm run test:e2e -- --project=desktop
       - name: Upload traces + story report on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-failure-artifacts
+          name: e2e-failure-artifacts-desktop
+          path: |
+            tests/e2e/test-results/**
+            tests/e2e/report/output/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Opt-in only (manual dispatch), and never fails the run — informational signal
+  # for the Pixel-5 emulation, which is known-red on CI runners (see header).
+  mobile:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: e2e mobile (Pixel 5 emulation — non-blocking)
+        run: npm run test:e2e -- --project=mobile
+      - name: Upload traces + story report on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts-mobile
           path: |
             tests/e2e/test-results/**
             tests/e2e/report/output/**

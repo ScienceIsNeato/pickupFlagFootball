@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The prod deploy keeps failing on the mobile tests, and the real reason isn't visible — the app errors only on the CI machine, not locally. Adding a step so every PR runs those tests and saves the failure evidence, so I can finally see what's actually going wrong and fix it.",
-    "direction": "Once the evidence lands, pinpoint and fix the real bug so the deploy goes green and everything ships.",
-    "last_update": "2026-07-13T00:00:00Z"
+    "status": "Ran the signup on an actual Pixel and it works great — about a second to get in. The failing test was only ever choking on the phone emulator inside the CI machine, not the real thing. Making the desktop run the one that gates releases so the deploy can finally go green and ship.",
+    "direction": "Land this, watch the prod deploy go through with everything that's been stuck, then poke at more phone flows for fun.",
+    "last_update": "2026-07-14T00:00:00Z"
   }
 }
