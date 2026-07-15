@@ -43,6 +43,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Job budget sits above the e2e step's own timeout, so a hung suite is killed
+    # at the STEP (leaving the job alive to upload evidence) rather than at the job.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -62,10 +65,17 @@ jobs:
       # local Playwright-mobile in ~1-2s). It runs non-blocking in e2e.yml on PRs
       # so we keep the signal without letting an emulation quirk red-line prod.
       - name: e2e (full stack — Postgres + Mailpit + Playwright)
+        id: e2e
         if: ${{ inputs.run_e2e }}
+        # Bounded here rather than only at the job level: a hang trips THIS step,
+        # so the upload below still gets to run and capture the evidence.
+        timeout-minutes: 30
         run: npm run test:e2e -- --project=desktop
-      - name: Upload e2e traces + story report on failure
-        if: ${{ failure() && inputs.run_e2e }}
+      # always() + step outcome, not failure(): a step killed by its timeout, or a
+      # cancelled run, won't reliably trip failure() — and those are exactly the
+      # cases where the traces matter most. Upload whenever e2e didn't succeed.
+      - name: Upload e2e traces + story report
+        if: ${{ always() && inputs.run_e2e && steps.e2e.outcome != 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-failure-artifacts-${{ inputs.environment }}

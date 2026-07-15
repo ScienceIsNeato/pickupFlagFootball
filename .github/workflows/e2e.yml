@@ -16,10 +16,19 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A full-stack suite (docker + build + Playwright) is expensive. Without this, every
+# push to a PR branch piles another run onto the same ref, burning runner minutes and
+# pushing real feedback further out. Keep only the latest commit's run alive.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Above the step timeout below, so a hang trips the STEP (job stays alive to
+    # upload evidence) instead of the job being killed with nothing to show.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -28,9 +37,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: e2e desktop (full stack — Postgres + Mailpit + Playwright)
+        id: e2e
+        timeout-minutes: 30
         run: npm run test:e2e -- --project=desktop
-      - name: Upload traces + story report on failure
-        if: ${{ failure() }}
+      # always() + step outcome, not failure(): a step killed by its timeout, or a
+      # cancelled run, won't reliably trip failure() — and those are exactly the
+      # cases where the traces matter most.
+      - name: Upload traces + story report
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-failure-artifacts-desktop
@@ -45,7 +59,7 @@ jobs:
   mobile:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
@@ -55,9 +69,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: e2e mobile (Pixel 5 emulation — non-blocking)
+        id: e2e
+        timeout-minutes: 30
         run: npm run test:e2e -- --project=mobile
-      - name: Upload traces + story report on failure
-        if: ${{ failure() }}
+      - name: Upload traces + story report
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-failure-artifacts-mobile
