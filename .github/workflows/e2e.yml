@@ -26,9 +26,12 @@ concurrency:
 jobs:
   desktop:
     runs-on: ubuntu-latest
-    # Above the step timeout below, so a hang trips the STEP (job stays alive to
-    # upload evidence) instead of the job being killed with nothing to show.
-    timeout-minutes: 40
+    # Deliberately generous, and NOT the real bound — the e2e step's own 30m timeout
+    # is. This cap covers every step (npm ci, Playwright install, e2e, upload), so it
+    # must clear setup + 30m + the upload with room to spare; otherwise a slow install
+    # could trip the JOB cap first and kill the run before the step timeout fires,
+    # losing the traces. 60 leaves ~30m of slack.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
@@ -59,7 +62,8 @@ jobs:
   mobile:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Same reasoning as desktop: the step timeout is the real bound, this is slack.
+    timeout-minutes: 60
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5

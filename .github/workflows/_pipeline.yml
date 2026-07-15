@@ -43,9 +43,12 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Job budget sits above the e2e step's own timeout, so a hung suite is killed
-    # at the STEP (leaving the job alive to upload evidence) rather than at the job.
-    timeout-minutes: 40
+    # Deliberately generous, and NOT the real bound — the e2e step's own 30m timeout
+    # is. This cap covers every step (checkout, npm ci, unit tests, Playwright
+    # install, e2e, upload), so it has to clear setup + 30m + the upload with room
+    # to spare; otherwise a slow install could trip the JOB cap first and kill the
+    # run before the step timeout fires, losing the traces. 60 leaves ~30m of slack.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
