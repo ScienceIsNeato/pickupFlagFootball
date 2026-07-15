@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The production deploy has been silently failing for days — a flaky mobile test kept red-lining it with no retries, so nothing recent actually shipped. Adding CI retries so a one-off flake stops blocking releases.",
-    "direction": "Get this merged so the deploy goes green and everything (plus the pending database updates) finally ships to production.",
-    "last_update": "2026-07-12T00:00:00Z"
+    "status": "Ran the signup on an actual Pixel and it works great — about a second to get in. The failing test was only ever choking on the phone emulator inside the CI machine, not the real thing. Making the desktop run the one that gates releases so the deploy can finally go green and ship.",
+    "direction": "Land this, watch the prod deploy go through with everything that's been stuck, then poke at more phone flows for fun.",
+    "last_update": "2026-07-14T00:00:00Z"
   }
 }

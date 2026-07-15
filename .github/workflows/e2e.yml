@@ -1,0 +1,88 @@
+# e2e on every PR. The deploy pipeline only ran e2e on push-to-main, right before
+# deploying — so a PR could sail green while the prod deploy stayed red on the same
+# tests (which is exactly what happened for days). Running it here catches that
+# class pre-merge, and uploads Playwright traces + the story report on failure so a
+# runner-only failure is debuggable off the box.
+#
+# The DESKTOP project is the required check: it runs every scenario (including the
+# @mobile-tagged ones, shot at phone width too). The Pixel-5 "mobile" project is a
+# device-emulation regression net that hangs deterministically on GitHub runners at
+# the register→/play hop — a Playwright-emulation-×-runner artifact, NOT a product
+# bug (registration verified working on a real Pixel 8 Pro and under local
+# Playwright-mobile in ~1-2s). So mobile is opt-in (workflow_dispatch) and
+# non-blocking: run it on demand when you want the signal, never gating a merge.
+name: e2e
+on:
+  pull_request:
+  workflow_dispatch:
+
+# A full-stack suite (docker + build + Playwright) is expensive. Without this, every
+# push to a PR branch piles another run onto the same ref, burning runner minutes and
+# pushing real feedback further out. Keep only the latest commit's run alive.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    # Deliberately generous, and NOT the real bound — the e2e step's own 30m timeout
+    # is. This cap covers every step (npm ci, Playwright install, e2e, upload), so it
+    # must clear setup + 30m + the upload with room to spare; otherwise a slow install
+    # could trip the JOB cap first and kill the run before the step timeout fires,
+    # losing the traces. 60 leaves ~30m of slack.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: e2e desktop (full stack — Postgres + Mailpit + Playwright)
+        id: e2e
+        timeout-minutes: 30
+        run: npm run test:e2e -- --project=desktop
+      # always() + step outcome, not failure(): a step killed by its timeout, or a
+      # cancelled run, won't reliably trip failure() — and those are exactly the
+      # cases where the traces matter most.
+      - name: Upload traces + story report
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts-desktop
+          path: |
+            tests/e2e/test-results/**
+            tests/e2e/report/output/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Opt-in only (manual dispatch), and never fails the run — informational signal
+  # for the Pixel-5 emulation, which is known-red on CI runners (see header).
+  mobile:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    # Same reasoning as desktop: the step timeout is the real bound, this is slack.
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: e2e mobile (Pixel 5 emulation — non-blocking)
+        id: e2e
+        timeout-minutes: 30
+        run: npm run test:e2e -- --project=mobile
+      - name: Upload traces + story report
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts-mobile
+          path: |
+            tests/e2e/test-results/**
+            tests/e2e/report/output/**
+          retention-days: 7
+          if-no-files-found: ignore

@@ -40,19 +40,25 @@ test("cellToParentSafe: a cell coarser than the target res is returned as-is (gu
   const coarse = latLngToCell(41.68, -91.6, 5);
   assert.throws(() => cellToParent(coarse, 7)); // the raw call is the bug
   assert.equal(cellToParentSafe(coarse, 7), coarse); // the guard clamps to res 5
-  assert.equal(getResolution(cellToParentSafe(coarse, 7)), 5);
+  assert.equal(getResolution(coarse), 5);
 });
 
 test("cellToParentSafe: a finer cell rolls up to the requested parent resolution", () => {
   const fine = latLngToCell(41.68, -91.6, 7);
   const parent = cellToParentSafe(fine, 5);
-  assert.equal(getResolution(parent), 5);
   assert.equal(parent, cellToParent(fine, 5)); // matches the normal roll-up
+  assert.equal(getResolution(parent!), 5);
 });
 
 test("cellToParentSafe: equal resolution is the identity", () => {
   const cell = latLngToCell(41.68, -91.6, 6);
   assert.equal(cellToParentSafe(cell, 6), cell);
+});
+
+test("cellToParentSafe: a malformed cell returns null instead of throwing (E_RES_DOMAIN guard)", () => {
+  // A garbage index must not 500 the map — it's dropped, not thrown.
+  assert.equal(cellToParentSafe("000000000000000", 7), null);
+  assert.equal(cellToParentSafe("zzz", 5), null);
 });
 
 test("geocodeAddress: no street line → null without any network call", async () => {
