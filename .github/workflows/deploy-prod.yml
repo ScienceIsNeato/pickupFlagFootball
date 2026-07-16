@@ -19,6 +19,7 @@ jobs:
       app_base_url: https://pickupflagfootball.com
       db_secret: pff-database-url
       db_unpooled_secret: pff-database-url-unpooled
+      neon_parent_branch_id: br-winter-truth-a65nis6r   # prod branch (mime-ff project)
       # Stripe LIVE mode on prod:
       stripe_secret_key_secret: pff-stripe-secret-key
       stripe_webhook_secret_secret: pff-stripe-webhook-secret

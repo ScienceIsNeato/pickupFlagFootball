@@ -87,6 +87,31 @@ try {
     console.log("[migrate] database is up to date");
     process.exit(0);
   }
+  // Refuse to "bootstrap" a database that has history the ledger doesn't
+  // describe. If the very first migration file looks pending but the schema
+  // already has tables, the ledger is out of sync with the files (classic
+  // cause: migration files renamed/squashed after this DB ran the old ones).
+  // Charging ahead would die mid-DDL on the first duplicate object — fail
+  // BEFORE any DDL with instructions instead. A truly fresh DB (no tables)
+  // and any ledger that knows the first file both proceed normally.
+  if (pending[0] === files[0]) {
+    const { rows: [{ n }] } = await client.query(
+      `SELECT count(*)::int AS n FROM pg_tables
+       WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`,
+    );
+    if (n > 0) {
+      console.error(
+        `[migrate] REFUSING to apply ${files[0]}: the database already has ${n} table(s) ` +
+          `but the ledger has no record of it.\n` +
+          `[migrate] This usually means migration files were renamed or squashed after ` +
+          `this database was migrated under the old filenames.\n` +
+          `[migrate] Run 'status' to inspect; if the schema truly matches a file's ` +
+          `content, adopt it by inserting its filename into schema_migrations (or run ` +
+          `'baseline' ONLY if every pending file's content is already present).`,
+      );
+      process.exit(1);
+    }
+  }
   for (const f of pending) {
     const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
     process.stdout.write(`[migrate] applying ${f} … `);
