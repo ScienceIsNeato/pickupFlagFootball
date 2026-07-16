@@ -193,23 +193,40 @@ jobs:
       # branch is deleted on exit; expires_at is the backstop if the runner dies.
       - name: Rehearse migrations on a disposable Neon branch
         env:
+          # Everything from GitHub context comes in as env vars, never inlined
+          # into the script body — inlining `${{ … }}` into bash is a template-
+          # injection hazard (zizmor), even for values we control today.
           NEON_PARENT_BRANCH_ID: ${{ inputs.neon_parent_branch_id }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          NEON_PROJECT_ID: ${{ env.NEON_PROJECT_ID }}
         run: |
           set -euo pipefail
           KEY="$(gcloud secrets versions access latest \
             --secret="${{ env.NEON_API_KEY_SECRET }}" --project="${{ env.PROJECT_ID }}")"
           EXPIRES="$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)"
+          # Build the payload with jq so every value is properly JSON-escaped.
+          PAYLOAD="$(jq -n \
+            --arg parent "$NEON_PARENT_BRANCH_ID" \
+            --arg name "rehearse-$DEPLOY_ENVIRONMENT-$RUN_ID-$RUN_ATTEMPT" \
+            --arg expires "$EXPIRES" \
+            '{branch: {parent_id: $parent, name: $name, expires_at: $expires},
+              endpoints: [{type: "read_write"}]}')"
           RESP="$(curl -sS --fail-with-body -X POST \
-            "https://console.neon.tech/api/v2/projects/${{ env.NEON_PROJECT_ID }}/branches" \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
             -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-            -d "{\"branch\":{\"parent_id\":\"$NEON_PARENT_BRANCH_ID\",\"name\":\"rehearse-${{ inputs.environment }}-${{ github.run_id }}-${{ github.run_attempt }}\",\"expires_at\":\"$EXPIRES\"},\"endpoints\":[{\"type\":\"read_write\"}]}")"
+            -d "$PAYLOAD")"
           BRANCH_ID="$(jq -r '.branch.id // empty' <<<"$RESP")"
           URI="$(jq -r '.connection_uris[0].connection_uri // empty' <<<"$RESP")"
-          [ -n "$BRANCH_ID" ] || { echo "::error::Neon branch create returned no id: $(head -c 300 <<<"$RESP")"; exit 1; }
+          # Never echo the raw response: on success it contains connection URIs
+          # with embedded credentials for the branch. Surface only the API's
+          # error message field on failure.
+          [ -n "$BRANCH_ID" ] || { echo "::error::Neon branch create failed: $(jq -r '.message // "no id in response"' <<<"$RESP")"; exit 1; }
           [ -n "$URI" ] || { echo "::error::Neon branch create returned no connection_uri"; exit 1; }
           cleanup() {
             curl -sS -X DELETE \
-              "https://console.neon.tech/api/v2/projects/${{ env.NEON_PROJECT_ID }}/branches/$BRANCH_ID" \
+              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" \
               -H "Authorization: Bearer $KEY" >/dev/null || true
           }
           trap cleanup EXIT

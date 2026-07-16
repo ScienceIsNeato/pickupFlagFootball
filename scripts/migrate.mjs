@@ -92,8 +92,10 @@ try {
   // already has tables, the ledger is out of sync with the files (classic
   // cause: migration files renamed/squashed after this DB ran the old ones).
   // Charging ahead would die mid-DDL on the first duplicate object — fail
-  // BEFORE any DDL with instructions instead. A truly fresh DB (no tables)
-  // and any ledger that knows the first file both proceed normally.
+  // with instructions before any migration-file DDL runs instead (the ledger
+  // table itself is created above; that's the runner's own bookkeeping, not a
+  // migration). A truly fresh DB (no tables) and any ledger that knows the
+  // first file both proceed normally.
   if (pending[0] === files[0]) {
     const { rows: [{ n }] } = await client.query(
       `SELECT count(*)::int AS n FROM pg_tables

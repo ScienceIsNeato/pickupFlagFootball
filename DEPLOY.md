@@ -143,7 +143,7 @@ granularity, so hourly is plenty. Dev keeps its own `pff-dev-mime-tick` job.)
 gcloud scheduler jobs create http pff-mime-tick \
   --location=$REGION --schedule="0 * * * *" \
   --uri="$APP_BASE_URL/api/mime/tick" --http-method=POST \
-  --headers="Authorization=Bearer=THE_CRON_SECRET" \
+  --headers="Authorization=Bearer THE_CRON_SECRET" \
   --project=$PROJECT
 ```
 
