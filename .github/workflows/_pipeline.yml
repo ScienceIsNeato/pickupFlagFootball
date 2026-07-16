@@ -16,6 +16,7 @@ on:
       stripe_webhook_secret_secret: { type: string, required: true }   # …for STRIPE_WEBHOOK_SECRET
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
+      neon_parent_branch_id: { type: string, required: true }  # Neon branch this env's DB lives on — rehearsal branches off it
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -39,6 +40,10 @@ env:
   AUTH_GOOGLE_SECRET_SECRET: pff-auth-google-secret
   CRON_SECRET_SECRET: pff-cron-secret
   BREVO_API_KEY_SECRET: pff-brevo-api-key
+  NEON_API_KEY_SECRET: pff-neon-api-key
+  # One Neon project holds both envs' branches (prod + dev); rehearsal needs it
+  # to create/delete the disposable copies. Branch ids come in per-env as inputs.
+  NEON_PROJECT_ID: sparkling-salad-59807641
 
 jobs:
   test:
@@ -167,7 +172,7 @@ jobs:
             "${{ env.AUTH_SECRET_SECRET }}" "${{ env.AUTH_GOOGLE_ID_SECRET }}" \
             "${{ env.AUTH_GOOGLE_SECRET_SECRET }}" "${{ env.CRON_SECRET_SECRET }}" \
             "${{ inputs.stripe_secret_key_secret }}" "${{ inputs.stripe_webhook_secret_secret }}" \
-            "${{ env.BREVO_API_KEY_SECRET }}"; do
+            "${{ env.BREVO_API_KEY_SECRET }}" "${{ env.NEON_API_KEY_SECRET }}"; do
             gcloud secrets versions access latest --secret="$s" --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 \
               || { echo "::error::Missing/inaccessible secret: $s"; fail=1; }
           done
@@ -180,6 +185,59 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      # Dress rehearsal before the real thing: branch this env's ACTUAL database
+      # (copy-on-write, seconds, free) and run the exact same migrate against the
+      # copy. This exercises the one path e2e can't — upgrade-from-real-history,
+      # real ledger included — so ledger drift or a bad migration fails HERE,
+      # against a disposable copy, never mid-deploy against the live DB. The
+      # branch is deleted on exit; expires_at is the backstop if the runner dies.
+      - name: Rehearse migrations on a disposable Neon branch
+        env:
+          # Everything from GitHub context comes in as env vars, never inlined
+          # into the script body — inlining `${{ … }}` into bash is a template-
+          # injection hazard (zizmor), even for values we control today.
+          NEON_PARENT_BRANCH_ID: ${{ inputs.neon_parent_branch_id }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          NEON_PROJECT_ID: ${{ env.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          KEY="$(gcloud secrets versions access latest \
+            --secret="${{ env.NEON_API_KEY_SECRET }}" --project="${{ env.PROJECT_ID }}")"
+          EXPIRES="$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)"
+          # Build the payload with jq so every value is properly JSON-escaped.
+          PAYLOAD="$(jq -n \
+            --arg parent "$NEON_PARENT_BRANCH_ID" \
+            --arg name "rehearse-$DEPLOY_ENVIRONMENT-$RUN_ID-$RUN_ATTEMPT" \
+            --arg expires "$EXPIRES" \
+            '{branch: {parent_id: $parent, name: $name, expires_at: $expires},
+              endpoints: [{type: "read_write"}]}')"
+          RESP="$(curl -sS --fail-with-body -X POST \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
+            -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+            -d "$PAYLOAD")"
+          BRANCH_ID="$(jq -r '.branch.id // empty' <<<"$RESP")"
+          URI="$(jq -r '.connection_uris[0].connection_uri // empty' <<<"$RESP")"
+          # Never echo the raw response: on success it contains connection URIs
+          # with embedded credentials for the branch. Surface only the API's
+          # error message field on failure.
+          [ -n "$BRANCH_ID" ] || { echo "::error::Neon branch create failed: $(jq -r '.message // "no id in response"' <<<"$RESP")"; exit 1; }
+          [ -n "$URI" ] || { echo "::error::Neon branch create returned no connection_uri"; exit 1; }
+          cleanup() {
+            curl -sS -X DELETE \
+              "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" \
+              -H "Authorization: Bearer $KEY" >/dev/null || true
+          }
+          trap cleanup EXIT
+          echo "rehearsing on $BRANCH_ID (disposable copy of $NEON_PARENT_BRANCH_ID)"
+          # A fresh branch endpoint can take a few seconds to accept connections.
+          for i in $(seq 1 12); do
+            if DATABASE_URL_UNPOOLED="$URI" node scripts/migrate.mjs status; then break; fi
+            [ "$i" = 12 ] && { echo "::error::rehearsal branch never became reachable"; exit 1; }
+            sleep 5
+          done
+          DATABASE_URL_UNPOOLED="$URI" node scripts/migrate.mjs apply
       - name: Apply database migrations
         run: |
           DATABASE_URL_UNPOOLED="$(gcloud secrets versions access latest \

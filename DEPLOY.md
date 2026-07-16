@@ -112,15 +112,38 @@ To change the schema: edit `lib/db/schema.ts`, run
 `npm run db:check` (also run by the e2e suite) fails the build if migrations
 and the ORM disagree.
 
+**Migration files are append-only once merged.** Renaming or squashing applied
+migrations orphans the `schema_migrations` ledger of every existing database —
+the runner then mistakes a live DB for a fresh one and dies replaying the
+baseline (this took prod down for a night in July 2026). If a squash is ever
+truly necessary, the same PR must ship a reconciliation step for every
+existing database's ledger.
+
+**Migration rehearsal (in the deploy pipeline).** Before touching the real
+database, the deploy job creates a disposable Neon branch of that env's DB
+(copy-on-write), runs `migrate.mjs apply` against the copy, and deletes it.
+This tests the upgrade-from-real-history path that the e2e suite's
+fresh-bootstrap can't — ledger drift or a bad migration fails against the
+copy, never the live DB. Requires the `pff-neon-api-key` secret in Secret
+Manager (a Neon org API key) and the env's Neon branch id passed as the
+`neon_parent_branch_id` input from deploy-{dev,prod}.yml. `migrate.mjs` also
+refuses to apply the first migration file into a non-empty database whose
+ledger doesn't record it — the orphaned-ledger signature — instead of failing
+mid-DDL.
+
 ## 6. Cron (replaces the old Vercel cron)
 
-Cloud Scheduler hits the tick route every 15 min with the `CRON_SECRET` bearer:
+Cloud Scheduler hits the tick route hourly with the `CRON_SECRET` bearer.
+(Hourly, not more often: each tick wakes the Neon compute, which then idles a
+fixed 5 minutes before scale-to-zero — at 15-min frequency that idle tail alone
+burned ~60 of the 100 free CU-hours/month. The FSM only needs day-level
+granularity, so hourly is plenty. Dev keeps its own `pff-dev-mime-tick` job.)
 
 ```bash
 gcloud scheduler jobs create http pff-mime-tick \
-  --location=$REGION --schedule="*/15 * * * *" \
+  --location=$REGION --schedule="0 * * * *" \
   --uri="$APP_BASE_URL/api/mime/tick" --http-method=POST \
-  --headers="Authorization=Bearer=THE_CRON_SECRET" \
+  --headers="Authorization=Bearer THE_CRON_SECRET" \
   --project=$PROJECT
 ```
 
@@ -172,8 +195,9 @@ down" is a Cloud Monitoring alert, not an app event.
    Slack **notification channel** pointing at `#mime-alerts`
    (Console → Monitoring → Alerting → Edit notification channels → Slack).
 2. Create two alert policies on that channel:
-   - **Missed tick** — 0 successful (2xx) requests to `/api/mime/tick` in 30 min
-     (covers scheduler-paused / route-down).
+   - **Missed tick** — 0 successful (2xx) requests to `/api/mime/tick` in 130 min
+     = two missed hourly ticks (covers scheduler-paused / route-down). Keep this
+     window ≥ 2× the cron interval or it false-alarms between ticks.
    - **Tick errors** — any `severity>=ERROR` log from the `pickupflagfootball-prod`
      Cloud Run service (covers the engine throwing *and* the email-flush failures,
      which log an error but still return 200).

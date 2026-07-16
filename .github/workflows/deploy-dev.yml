@@ -20,6 +20,7 @@ jobs:
       app_base_url: https://dev.pickupflagfootball.com
       db_secret: pff-dev-database-url
       db_unpooled_secret: pff-dev-database-url-unpooled
+      neon_parent_branch_id: br-purple-hall-a6k2m6m4    # dev branch (mime-ff project)
       # Stripe TEST mode on dev:
       stripe_secret_key_secret: pff-dev-stripe-secret-key
       stripe_webhook_secret_secret: pff-dev-stripe-webhook-secret

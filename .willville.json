@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Ran the signup on an actual Pixel and it works great — about a second to get in. The failing test was only ever choking on the phone emulator inside the CI machine, not the real thing. Making the desktop run the one that gates releases so the deploy can finally go green and ship.",
-    "direction": "Land this, watch the prod deploy go through with everything that's been stuck, then poke at more phone flows for fun.",
-    "last_update": "2026-07-14T00:00:00Z"
+    "status": "We're live! Site deployed and serving. Now making sure last night's database scare can't repeat - every deploy first does a dress rehearsal of its database changes on a throwaway copy, so a bad one fails harmlessly before it ever touches the real thing.",
+    "direction": "Land the rehearsal safety net, then keep an eye on the database usage meter through end of month.",
+    "last_update": "2026-07-16T00:00:00Z"
   }
 }
