@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Fixing the 'empty site still burns money' problem - the game engine used to get poked awake on a timer all day whether or not anyone was playing. Now it sets its own alarm for exactly when the next game event needs handling, so a quiet site costs nothing.",
-    "direction": "Get it reviewed and shipped, flip the old timers off, then watch the usage meter to confirm the bill flatlines.",
+    "status": "Chased down the error reports from last week - turns out none of them came from real users. Our own test runs were phoning home errors they trigger on purpose, drowning the dashboard. Muting test runs so the error feed only ever shows real problems from real people.",
+    "direction": "Land the muting fix, close out the stale reports, then keep the site warm for the incoming visitors.",
     "last_update": "2026-07-22T00:00:00Z"
   }
 }

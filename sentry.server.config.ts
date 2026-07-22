@@ -3,6 +3,8 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
+  // Silent in e2e builds — see instrumentation-client.ts for the why.
+  enabled: process.env.NEXT_PUBLIC_E2E !== "1",
   dsn: "https://ec97ba0ad8dd2fc1b5bb73d98fac0bb5@o4511528005533696.ingest.us.sentry.io/4511698052841472",
   // dev vs production share one Sentry project — label events so incidents
   // don't mix (set per Cloud Run service via SENTRY_ENVIRONMENT in the deploy;

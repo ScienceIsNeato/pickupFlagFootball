@@ -3,6 +3,11 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
+  // e2e builds (NEXT_PUBLIC_E2E=1, inlined at build time) must NOT report:
+  // CI test runs were flooding Sentry with synthetic errors indistinguishable
+  // from real ones (213 "code 4" events in one debugging week, all from CI).
+  // Tests exercise error paths on purpose — that's signal for CI logs, not Sentry.
+  enabled: process.env.NEXT_PUBLIC_E2E !== "1",
   dsn: "https://ec97ba0ad8dd2fc1b5bb73d98fac0bb5@o4511528005533696.ingest.us.sentry.io/4511698052841472",
   // Client env label is inlined at build time (per-env Docker build), since the
   // browser has no runtime env — keeps dev/prod browser events labeled too.
