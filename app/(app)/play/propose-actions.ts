@@ -138,6 +138,9 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
   });
 
   // Activity feed: a new site was proposed (the attempt committed above).
+  // (No scheduleNextTick here: resolveProposal below runs unconditionally and
+  // re-arms the wake after resolution — arming twice would just burn a serial
+  // network round-trip in this user action.)
   const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
   const whenStr = recurDow != null
     ? `${DOW[recurDow]}${recurTime ? ` ${recurTime.slice(0, 5)}` : ""}`

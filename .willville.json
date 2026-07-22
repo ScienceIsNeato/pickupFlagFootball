@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "We're live! Site deployed and serving. Now making sure last night's database scare can't repeat - every deploy first does a dress rehearsal of its database changes on a throwaway copy, so a bad one fails harmlessly before it ever touches the real thing.",
-    "direction": "Land the rehearsal safety net, then keep an eye on the database usage meter through end of month.",
-    "last_update": "2026-07-16T00:00:00Z"
+    "status": "Fixing the 'empty site still burns money' problem - the game engine used to get poked awake on a timer all day whether or not anyone was playing. Now it sets its own alarm for exactly when the next game event needs handling, so a quiet site costs nothing.",
+    "direction": "Get it reviewed and shipped, flip the old timers off, then watch the usage meter to confirm the bill flatlines.",
+    "last_update": "2026-07-22T00:00:00Z"
   }
 }

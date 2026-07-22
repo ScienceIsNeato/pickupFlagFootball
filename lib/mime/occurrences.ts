@@ -73,6 +73,37 @@ async function nextOpenableDate(
   return null;
 }
 
+/** The next moment this game's poll should OPEN for a week that has no
+ *  occurrence row yet. Weeks WITH a row (any status) are skipped — once a row
+ *  exists, its own stored poll_closes_at / kickoff_at drive the next boundary,
+ *  so counting its poll-open again would just schedule no-op wakes. Used by
+ *  computeNextTickAt (event-driven tick) to know when to wake the engine;
+ *  a past return value simply means "due now". Null ⇒ no upcoming week. */
+export async function nextPollOpensAt(
+  db: EngineDb,
+  game: { game_id: string; recur_dow: number; recur_time: string; scheduled_start: string; timezone: string; offset_s: number },
+  now: Date,
+): Promise<Date | null> {
+  const rec = { isStanding: true, recurDow: game.recur_dow, scheduledStart: game.scheduled_start };
+  let date = nextOccurrenceYMD(rec, now);
+  for (let guard = 0; guard < 26; guard++) {
+    const existing = (await db.select({ s: gameOccurrences.status }).from(gameOccurrences)
+      .where(and(eq(gameOccurrences.gameId, game.game_id), eq(gameOccurrences.occurrenceDate, date)))
+      .limit(1))[0];
+    if (!existing) {
+      const kickoff = kickoffAt(date, game.recur_time, game.timezone);
+      if (now < kickoff) return new Date(kickoff.getTime() - game.offset_s * 1000);
+      // no row and kickoff already passed: the week was missed entirely — walk on
+    }
+    const after = new Date(`${date}T12:00:00`);
+    after.setDate(after.getDate() + 1);
+    const nextDate = nextOccurrenceYMD(rec, after);
+    if (nextDate === date) return null; // one-off / no further recurrence
+    date = nextDate;
+  }
+  return null;
+}
+
 // ── 1. open polls ────────────────────────────────────────────────────────────
 /** For each active standing game whose next occurrence's poll window has opened,
  *  lazily create the occurrence row (status=polling) and email the roster the

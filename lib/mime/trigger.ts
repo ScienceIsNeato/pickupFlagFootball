@@ -3,6 +3,7 @@ import { txnDb } from "@/lib/db/pool";
 import { formationAttempts } from "@/lib/db/schema";
 import { resolveAttempt } from "./engine";
 import { evaluateOccurrence } from "./occurrences";
+import { scheduleNextTick } from "./scheduleTick";
 import type { EngineDb } from "./engine";
 import { notifyResolve } from "@/lib/slack";
 
@@ -34,6 +35,11 @@ export async function resolveProposal(attemptId: string): Promise<void> {
       attemptId,
       error: e instanceof Error ? e.message : String(e),
     });
+  } finally {
+    // Re-arm even when resolution failed: the attempt's deadline is still the
+    // next boundary, and the armed wake is what retries it — otherwise a failed
+    // resolve would idle the engine until the daily backstop. Never throws.
+    await scheduleNextTick(txnDb as unknown as EngineDb);
   }
 }
 
@@ -47,5 +53,9 @@ export async function runOccurrence(gameId: string): Promise<void> {
       gameId,
       error: e instanceof Error ? e.message : String(e),
     });
+  } finally {
+    // Re-arm even on failure — the boundary that made this game due still needs
+    // a wake to retry it (see resolveProposal above). Never throws.
+    await scheduleNextTick(txnDb as unknown as EngineDb);
   }
 }
