@@ -26,5 +26,8 @@ jobs:
       stripe_price_id: price_1Tmqd97dX3bjywYI5k8NaeTU     # live-mode price
       slack_webhook_secret: pff-slack-webhook-url         # → #mime-ff-activity-feed-prod
       run_e2e: true             # full Playwright gate before prod
-      min_instances: "1"
+      # Scale to zero: an always-warm instance idles at ~$7/mo — real money at
+      # current traffic for saving the first visitor a ~2-3s cold start. Raise
+      # back to "1" when traffic makes cold starts a felt problem, not before.
+      min_instances: "0"
     secrets: inherit
