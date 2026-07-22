@@ -31,6 +31,14 @@ export async function computeNextTickAt(db: EngineDb, now: Date): Promise<Date |
       select min(o.kickoff_at) from game_occurrences o
         where o.status = 'awaiting_game'
           and exists (select 1 from games g where g.id = o.game_id and g.status = 'active')
+      union all
+      -- Decided-but-unnotified rows (a crash between tally and notify strands
+      -- them; normally both happen in one run). notifyDecided has no time gate —
+      -- this work is due NOW — so surface a past-due boundary (its updated_at),
+      -- which the enqueuer clamps to an immediate wake.
+      select min(o.updated_at) from game_occurrences o
+        where o.status in ('scheduled', 'skipped') and o.notified_at is null
+          and exists (select 1 from games g where g.id = o.game_id and g.status = 'active')
     ) x`);
   const raw = (((res as { rows?: { next: string | Date | null }[] }).rows ?? [])[0]?.next) ?? null;
   let best: Date | null = raw ? new Date(raw) : null;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { World } from "../sim/harness/world";
 import {
-  activityTypes, areas, formationAttempts, games, gameRoster, users,
+  activityTypes, areas, formationAttempts, games, gameOccurrences, gameRoster, users,
 } from "@/lib/db/schema";
 import { latLngToCell } from "h3-js";
 import { runOccurrences } from "@/lib/mime/occurrences";
@@ -91,6 +91,24 @@ test("computeNextTickAt: an OPEN proposal's deadline wins when it's the earliest
   });
   const next = await computeNextTickAt(db, BEFORE_OPEN);
   assert.equal(next?.toISOString(), deadline.toISOString());
+});
+
+test("computeNextTickAt: a decided-but-unnotified occurrence is a past-due boundary (crash between tally and notify)", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { gameId } = await seedGame(db, 41.76, -91.66, 6);
+  await runOccurrences(db, DURING_POLL); // row exists (polling)
+  // Simulate the stranded state: decided, never notified — as if the process
+  // died after tallyClosedPolls committed but before notifyDecided ran.
+  const decidedAt = new Date("2026-07-03T10:30:00Z");
+  await db.update(gameOccurrences)
+    .set({ status: "scheduled", inCount: 6, notifiedAt: null, updatedAt: decidedAt })
+    .where(eq(gameOccurrences.gameId, gameId));
+  const next = await computeNextTickAt(db, AFTER_CLOSE);
+  // Past-due (≤ now) ⇒ the enqueuer wakes immediately instead of waiting for
+  // the kickoff or next week's poll-open.
+  assert.ok(next && next <= AFTER_CLOSE, `expected past-due boundary, got ${next?.toISOString()}`);
+  assert.equal(next?.toISOString(), decidedAt.toISOString());
 });
 
 test("computeNextTickAt: paused series generates no wakes", async () => {
