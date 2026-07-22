@@ -5,7 +5,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { txnDb } from "@/lib/db/pool";
-import { scheduleNextTick } from "@/lib/mime/scheduleTick";
 import { cellToLatLng, latLngToCell } from "h3-js";
 import {
   activityTypes, areas, formationAttempts, attemptInterest, notificationsSent, areaCaptains, users, areaOptouts,
@@ -138,11 +137,10 @@ export async function proposeGame(_prev: ProposeResult | null, formData: FormDat
     return a.id;
   });
 
-  // Arm the engine's wake for this attempt's interest deadline (event-driven
-  // tick — no frequent cron watches for it anymore). Non-fatal by contract.
-  await scheduleNextTick(edb());
-
   // Activity feed: a new site was proposed (the attempt committed above).
+  // (No scheduleNextTick here: resolveProposal below runs unconditionally and
+  // re-arms the wake after resolution — arming twice would just burn a serial
+  // network round-trip in this user action.)
   const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
   const whenStr = recurDow != null
     ? `${DOW[recurDow]}${recurTime ? ` ${recurTime.slice(0, 5)}` : ""}`

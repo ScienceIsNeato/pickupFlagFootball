@@ -13,9 +13,10 @@ import { nextPollOpensAt } from "./occurrences";
  * FSM step is idempotent and processes anything past-due, so late is safe.
  */
 
-/** The earliest future moment the engine has scheduled work: the tightest of
- *  open proposals' deadlines, open polls' closes, scheduled kickoffs, and each
- *  active standing game's next poll-open. Null ⇒ nothing on the calendar. */
+/** The engine's next scheduled boundary: the tightest of open proposals'
+ *  deadlines, open polls' closes, scheduled kickoffs, and each active standing
+ *  game's next poll-open. May be PAST-due (e.g. a stalled attempt deadline) —
+ *  callers treat that as "wake now". Null ⇒ nothing on the calendar. */
 export async function computeNextTickAt(db: EngineDb, now: Date): Promise<Date | null> {
   // Stored boundaries, one round trip. active-series guard matches occurrences.ts:
   // a paused/retired series must not generate wakes.
@@ -82,28 +83,43 @@ export async function scheduleNextTick(db: EngineDb): Promise<Date | null> {
     if (!token) return null; // off-GCP with TASKS_* set — misconfig, not fatal
 
     const parent = `projects/${project}/locations/${location}/queues/${queue}`;
-    // Minute-bucketed task name: N concurrent callers arming the same boundary
-    // create ONE task — Cloud Tasks rejects the duplicates with 409, which is
-    // the dedupe working, not an error. (Names can't be reused for ~1h after a
-    // task completes; a given minute only comes around once, so that's moot.)
-    const name = `${parent}/tasks/tick-${Math.floor(when.getTime() / 60_000)}`;
-    const res = await fetch(`https://cloudtasks.googleapis.com/v2/${parent}/tasks`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        task: {
-          name,
-          scheduleTime: when.toISOString(),
-          httpRequest: {
-            httpMethod: "POST",
-            url: `${base}/api/mime/tick`,
-            headers: { Authorization: `Bearer ${secret}` },
+    const createTask = (t: Date) =>
+      fetch(`https://cloudtasks.googleapis.com/v2/${parent}/tasks`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          task: {
+            // Minute-bucketed name: N concurrent callers arming the same boundary
+            // create ONE task — duplicates get 409, which is the dedupe working.
+            name: `${parent}/tasks/tick-${Math.floor(t.getTime() / 60_000)}`,
+            scheduleTime: t.toISOString(),
+            httpRequest: {
+              httpMethod: "POST",
+              url: `${base}/api/mime/tick`,
+              headers: { Authorization: `Bearer ${secret}` },
+            },
           },
-        },
-      }),
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!res.ok && res.status !== 409) {
+        }),
+        signal: AbortSignal.timeout(5_000),
+      });
+
+    let res = await createTask(when);
+    if (res.status === 409) {
+      // 409 is ambiguous: usually a concurrent caller just armed this minute
+      // (fine — a task is pending), but a name is also tombstoned for ~1h after
+      // its task COMPLETES, in which case nothing is pending and this arm would
+      // be silently lost. One retry a minute later covers the tombstone case; a
+      // spurious 60s-late duplicate wake is a harmless idempotent no-op.
+      const bumped = new Date(when.getTime() + 60_000);
+      res = await createTask(bumped);
+      if (res.status === 409) return when; // both minutes taken ⇒ genuinely armed
+      if (!res.ok) {
+        console.error("[mime] scheduleNextTick retry enqueue failed", res.status, (await res.text()).slice(0, 200));
+        return null;
+      }
+      return bumped;
+    }
+    if (!res.ok) {
       console.error("[mime] scheduleNextTick enqueue failed", res.status, (await res.text()).slice(0, 200));
       return null;
     }

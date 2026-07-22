@@ -31,7 +31,7 @@ async function seedGame(db: EngineDb, lat: number, lng: number, rosterIn: number
   }).returning({ id: areas.id });
   const [game] = await db.insert(games).values({
     activityTypeId: act.id, areaId: area.id, placeText: "The Field",
-    placeLat: lat, placeLng: lng, scheduledStart: new Date("2026-06-06T10:00:00"),
+    placeLat: lat, placeLng: lng, scheduledStart: new Date("2026-06-06T10:00:00Z"),
     status: "active", isStanding: true, recurDow: 6, recurTime: "10:00:00",
   }).returning({ id: games.id });
   for (let i = 0; i < rosterIn; i++) {
