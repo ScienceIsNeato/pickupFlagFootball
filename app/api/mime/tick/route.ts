@@ -4,6 +4,7 @@ import { tick } from "@/lib/mime/engine";
 import { runOccurrences } from "@/lib/mime/occurrences";
 import { freezeOccurrences } from "@/lib/mime/freeze";
 import { flushNotificationEmails } from "@/lib/email/flush";
+import { scheduleNextTick } from "@/lib/mime/scheduleTick";
 import type { EngineDb } from "@/lib/mime/engine";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,11 @@ async function handle(req: Request) {
     console.error("[cron] email flush failed", e);
     email = { error: true };
   }
-  return NextResponse.json({ ok: true, ranAt: now.toISOString(), email });
+  // Re-arm: enqueue a one-shot wake for the engine's next time boundary. This is
+  // what makes the tick self-sustaining without a frequent cron; the remaining
+  // daily cron is only the dead-man backstop. Never throws (see scheduleTick).
+  const nextTickAt = await scheduleNextTick(txnDb as unknown as EngineDb);
+  return NextResponse.json({ ok: true, ranAt: now.toISOString(), email, nextTickAt });
 }
 
 export const GET = handle;

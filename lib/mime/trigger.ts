@@ -3,6 +3,7 @@ import { txnDb } from "@/lib/db/pool";
 import { formationAttempts } from "@/lib/db/schema";
 import { resolveAttempt } from "./engine";
 import { evaluateOccurrence } from "./occurrences";
+import { scheduleNextTick } from "./scheduleTick";
 import type { EngineDb } from "./engine";
 import { notifyResolve } from "@/lib/slack";
 
@@ -29,6 +30,9 @@ export async function resolveProposal(attemptId: string): Promise<void> {
       return att ? await resolveAttempt(db, att, new Date()) : null;
     });
     if (outcome) notifyResolve(outcome); // activity feed — after the txn commits
+    // The resolution may have changed the engine's next boundary (attempt closed,
+    // occurrence created) — re-arm the event-driven wake. Never throws.
+    await scheduleNextTick(txnDb as unknown as EngineDb);
   } catch (e) {
     console.error("[mime] resolveProposal failed (cron will retry)", {
       attemptId,
@@ -42,6 +46,8 @@ export async function resolveProposal(attemptId: string): Promise<void> {
 export async function runOccurrence(gameId: string): Promise<void> {
   try {
     await evaluateOccurrence(txnDb as unknown as EngineDb, gameId, new Date());
+    // The FSM may have advanced (poll opened/decided) — re-arm the next wake.
+    await scheduleNextTick(txnDb as unknown as EngineDb);
   } catch (e) {
     console.error("[mime] runOccurrence failed (cron will retry)", {
       gameId,
