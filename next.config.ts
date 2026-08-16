@@ -28,6 +28,9 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   // Upload the wider client source-map set for prettier browser stack traces.
   widenClientFileUpload: true,
+  // Stamp our bundles so thirdPartyErrorFilterIntegration (instrumentation-client)
+  // can tell our frames from injected third-party ones (webviews, extensions).
+  applicationKey: "mime-ff",
   webpack: {
     // Tree-shake Sentry's debug logging out of the bundle.
     treeshake: { removeDebugLogging: true },
