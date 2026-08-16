@@ -17,6 +17,19 @@ Sentry.init({
   // eat the free tier fast). Add them back with sensible sample rates when
   // there's traffic worth the volume.
   tracesSampleRate: 0,
+  integrations: [
+    // Drop errors whose stacks contain NONE of our code. Real visitors arrive in
+    // app webviews (Instagram/Facebook in-app browsers) and with extensions that
+    // inject scripts; their crashes (e.g. the Meta bridge's logLoginFormFocused →
+    // postMessage InvalidAccessError) surface as unhandled rejections we can't
+    // fix. Our bundles are stamped via next.config's `applicationKey`; an event
+    // with zero stamped frames is someone else's bug. The "exclusively" behaviour
+    // keeps anything that touches our code even partially.
+    Sentry.thirdPartyErrorFilterIntegration({
+      filterKeys: ["mime-ff"],
+      behaviour: "drop-error-if-exclusively-contains-third-party-frames",
+    }),
+  ],
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
