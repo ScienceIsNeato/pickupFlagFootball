@@ -34,6 +34,37 @@ Then("my account keeps name {string} and travel {string}", async ({ page }, name
   await expect(page.locator("input[name=displayName]")).toHaveValue(name);
 });
 
+// Chat email cadence. "off" is the checkbox, not a fourth radio, so the two controls
+// can't disagree — asserting both together is the point.
+Then("my chat emails are grouped", async ({ page }) => {
+  await expect(page.locator("input[name=chat_email_on]")).toBeChecked();
+  await expect(page.locator("input[name=chat_email_freq][value=hourly]")).toBeChecked();
+});
+
+When("I set chat emails to a daily summary", async ({ page }) => {
+  await page.check("input[name=chat_email_freq][value=daily]");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+Then("my chat emails stay a daily summary", async ({ page }) => {
+  await page.reload();
+  await expect(page.locator("input[name=chat_email_on]")).toBeChecked();
+  await expect(page.locator("input[name=chat_email_freq][value=daily]")).toBeChecked();
+});
+
+When("I turn off chat emails", async ({ page }) => {
+  await page.uncheck("input[name=chat_email_on]");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+// Unchecking wins over whatever the radio still shows.
+Then("chat emails stay off", async ({ page }) => {
+  await page.reload();
+  await expect(page.locator("input[name=chat_email_on]")).not.toBeChecked();
+});
+
 When("I turn off game emails", async ({ page }) => {
   await page.uncheck("input[name=email_opt_in]");
   await page.getByRole("button", { name: "Save Changes" }).click();

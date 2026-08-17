@@ -43,6 +43,11 @@ export const notificationChannelEnum = pgEnum("notification_channel", ["push", "
 // Self-declared donation preference. Drives the (Phase 6) email donation footer:
 // only "unset" gets the reminder; "subscribed" and "declined" both suppress it.
 export const donationStatusEnum = pgEnum("donation_status", ["unset", "subscribed", "declined"]);
+// How often chat messages are emailed to a user. ONE column rather than a boolean
+// plus a mode, which could disagree ("emails off, grouped"): "off" IS the checkbox
+// being unchecked. "each" sends on the next tick after a message; "hourly" groups a
+// clock hour; "daily" sends one summary at a local hour. See docs/design/game-chat.md §8.
+export const chatEmailPrefEnum = pgEnum("chat_email_pref", ["off", "each", "hourly", "daily"]);
 
 // ── zip_centroids ──────────────────────────────────────────────────────────
 export const zipCentroids = pgTable("zip_centroids", {
@@ -120,6 +125,10 @@ export const users = pgTable("users", {
   passwordResetExpires: timestamp("password_reset_expires", { withTimezone: true }),
   pushSubscription: jsonb("push_subscription"),
   emailOptIn:       boolean("email_opt_in").notNull().default(true),
+  // Chat email cadence. Defaults to "hourly": with no notifications at all, a chat
+  // nobody can discover is worse than none (docs/design/game-chat.md §8.1). Still
+  // subordinate to emailOptIn, which remains the global unsubscribe.
+  chatEmailPref:    chatEmailPrefEnum("chat_email_pref").notNull().default("hourly"),
   donationStatus:   donationStatusEnum("donation_status").notNull().default("unset"),
   // Stripe donation subscription — set by the checkout/webhook flow; the webhook
   // maps a Stripe customer back to the user to keep donationStatus in sync.

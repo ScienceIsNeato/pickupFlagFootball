@@ -834,6 +834,15 @@ section h2::after {
 .donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
+/* Message settings — chat email cadence. A bare fieldset (no border/padding) so the
+   radios read as a continuation of the checkbox above them, indented to show they
+   only apply when it's on. */
+.msg-freq { border: 0; margin: 10px 0 0; padding: 0 0 0 26px; display: flex; flex-direction: column; gap: 8px; }
+.msg-freq > .reg-section { margin: 0 0 2px; }
+/* The scoping hint is a sibling of the fieldset, so it needs its own gap - without
+   this it butts straight up against the last radio. */
+.msg-freq + .reg-hint { margin-top: 12px; }
+
 /* Account page — three columns: support · you · location. */
 .account { max-width: 1040px; position: relative; }
 .account-grid {

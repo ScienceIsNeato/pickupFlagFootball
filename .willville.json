@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Designing chat for each game and proposed game. Wrote up the plan and had it torn apart first - found that the 'only locals can read it' rule wouldn't actually have held, so that's fixed in the design before any code gets written.",
-    "direction": "Get a few open calls settled - mainly how tight the privacy gate should be and whether chat shows up on proposals too - then build it.",
-    "last_update": "2026-08-17T06:16:42Z"
+    "status": "Built the first piece of chat - the message settings on your account page, where you choose whether game chat gets emailed to you and how often: every message, grouped, or a daily summary.",
+    "direction": "Build the chat itself next, now that the settings it answers to exist.",
+    "last_update": "2026-08-17T17:10:12Z"
   }
 }
