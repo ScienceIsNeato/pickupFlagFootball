@@ -95,3 +95,28 @@ Then("trying to join tells me to confirm my email", async ({ page }) => {
   await expect(err).toContainText(/confirm your email/i);
   await err.scrollIntoViewIfNeeded(); // ensure the beat's screenshot shows the error
 });
+
+// ── per-game chat ────────────────────────────────────────────────────────────
+When("I open the chat tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "chat" }).click();
+  await expect(page.locator(".chat-comp textarea")).toBeVisible({ timeout: 10000 });
+});
+
+When("I post {string} in the chat", async ({ page }, body: string) => {
+  await page.locator(".chat-comp textarea").fill(body);
+  await page.getByRole("button", { name: "send" }).click();
+});
+
+Then("the chat shows {string}", async ({ page }, body: string) => {
+  await expect(page.locator(".chat-thread")).toContainText(body, { timeout: 10000 });
+});
+
+// Author self-delete is the only moderation in v1 — captain powers are blocked on
+// volunteerAsCaptain being self-service (design §9).
+When("I delete my chat message", async ({ page }) => {
+  await page.getByRole("button", { name: "delete" }).first().click();
+});
+
+Then("the chat no longer shows {string}", async ({ page }, body: string) => {
+  await expect(page.locator(".chat")).not.toContainText(body, { timeout: 10000 });
+});

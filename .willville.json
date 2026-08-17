@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Built the first piece of chat - the message settings on your account page, where you choose whether game chat gets emailed to you and how often: every message, grouped, or a daily summary.",
-    "direction": "Build the chat itself next, now that the settings it answers to exist.",
-    "last_update": "2026-08-17T17:10:12Z"
+    "status": "Chat is working on games and proposed games - open a game on the map, switch to the chat tab, post, delete your own. Only people who could actually play there can see it.",
+    "direction": "Wire up the unread dot so people know there's something new, then the email digests.",
+    "last_update": "2026-08-17T18:33:04Z"
   }
 }

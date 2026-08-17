@@ -6,6 +6,7 @@ import { useEscape } from "@/lib/useEscape";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { respondInterest } from "@/app/(app)/play/propose-actions";
 
+import { ChatPanel } from "@/components/ChatPanel";
 type Proposal = {
   attemptId: string; areaId: string; placeText: string;
   proposedStart: string; recurDow: number | null; recurTime: string | null;
@@ -78,6 +79,9 @@ export function ProposedDetailsModal({
   onClose: () => void;
 }) {
   const [state, setState] = useState<Data | "loading" | "error">("loading");
+  // Chat is a tab here for the same reason as the game card: the popup already
+  // scrolls, so a nested message list would leave the composer unanchored.
+  const [tab, setTab] = useState<"details" | "chat">("details");
   const [busy, setBusy] = useState(false);
   const [respondErr, setRespondErr] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
@@ -160,6 +164,15 @@ export function ProposedDetailsModal({
         {proposal && (
           <>
             <h2 id="proposed-details-title" className="game-h">proposed game site</h2>
+            <div className="game-tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={tab === "details"}
+                className={`game-tab${tab === "details" ? " game-tab-on" : ""}`}
+                onClick={() => setTab("details")}>details</button>
+              <button type="button" role="tab" aria-selected={tab === "chat"}
+                className={`game-tab${tab === "chat" ? " game-tab-on" : ""}`}
+                onClick={() => setTab("chat")}>chat</button>
+            </div>
+            <div hidden={tab !== "details"}>
             <dl className="game-dl">
               <dt>where</dt>
               <dd>{firstLine(proposal.placeText)}</dd>
@@ -194,6 +207,8 @@ export function ProposedDetailsModal({
                 aria-pressed={proposal.viewerInterested === false} disabled={busy} onClick={() => respond(false)}>not interested</button>
             </div>
             {respondErr && <p className="game-muted" role="alert">{respondErr}</p>}
+            </div>
+            {tab === "chat" && <ChatPanel attemptId={proposal.attemptId} isProposal />}
           </>
         )}
       </div>

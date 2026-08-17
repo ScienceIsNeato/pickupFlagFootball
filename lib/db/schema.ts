@@ -409,6 +409,90 @@ export const areaOptouts = pgTable("area_optouts", {
   index("idx_area_optouts_user").on(t.userId),
 ]);
 
+// ── chat ───────────────────────────────────────────────────────────────────
+// One thread per proposal or formed game (docs/design/game-chat.md). A proposal's
+// thread keeps its messages when the game forms: nothing is migrated, the link is
+// derived at read time from games.origin_attempt_id, so the formation engine holds
+// no chat code at all.
+//
+// CASCADE on both parents is load-bearing, not tidiness: seed-demo-interest.ts HARD
+// deletes games and formation_attempts and deploy_app.sh runs it under `set -e`, so
+// a NO ACTION row here would abort the dev deploy on a foreign-key violation.
+export const chatThreads = pgTable("chat_threads", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  attemptId:     uuid("attempt_id").references(() => formationAttempts.id, { onDelete: "cascade" }),
+  gameId:        uuid("game_id").references(() => games.id, { onDelete: "cascade" }),
+  locked:        boolean("locked").notNull().default(false),
+  // Denormalized so the unread check and the map badge never touch chat_messages.
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+  messageCount:  integer("message_count").notNull().default(0),
+  // Bumped on insert, soft-delete AND lock. An after-cursor only returns rows ABOVE
+  // it while moderation mutates rows BELOW it, so pollers watch this instead.
+  version:       integer("version").notNull().default(0),
+  // When this thread next owes somebody a digest email; null = owes nobody. The tick
+  // takes a min() over this, so quiet chat arms no wake at all (design §8.6).
+  digestDueAt:   timestamp("digest_due_at", { withTimezone: true }),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("uq_chat_thread_attempt").on(t.attemptId),
+  uniqueIndex("uq_chat_thread_game").on(t.gameId),
+  index("idx_chat_thread_digest").on(t.digestDueAt).where(sql`${t.digestDueAt} is not null`),
+  check("chk_chat_thread_parent", sql`${t.attemptId} is not null or ${t.gameId} is not null`),
+]);
+
+// `seq` is the poll cursor, NOT id and NOT created_at: ids are gen_random_uuid() so
+// they can't range-scan, and created_at defaults to now() = TRANSACTION START, so a
+// slow transaction commits with an earlier stamp than one that started later and a
+// timestamp cursor would skip it permanently. seq is assigned under the thread row
+// lock, which makes seq order equal commit order.
+export const chatMessages = pgTable("chat_messages", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  threadId:  uuid("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+  seq:       integer("seq").notNull(),
+  // SET NULL, not cascade: accounts are hard-deleted in live paths, and cascading
+  // would punch holes in everyone else's conversation. A null author renders as
+  // "removed player" and the thread stays readable.
+  userId:    uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  body:      text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Stamped at write time only so a future per-week view is a query change rather
+  // than a migration that guesses from created_at. Nothing reads it yet.
+  occurrenceDate: date("occurrence_date"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
+}, (t) => [
+  uniqueIndex("uq_chat_msg_seq").on(t.threadId, t.seq),
+  // Tombstone lookup ("what got deleted since I last polled") — a full thread scan
+  // on the seq index. Same partial-index idiom as idx_interest_area_active.
+  index("idx_chat_msg_deleted").on(t.threadId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
+  check("chk_chat_body_len", sql`length(${t.body}) between 1 and 1000`),
+]);
+
+// Per-user read state. Without this "3 new since you looked" is unbuildable —
+// last_message_at only supports "newest 2h ago". A localStorage marker is not a
+// substitute: the map gets hit from phone and laptop, so a device-local mark shows
+// phantom unreads on the second device forever.
+export const chatReads = pgTable("chat_reads", {
+  threadId:   uuid("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+  userId:     uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.threadId, t.userId] }),
+]);
+
+// Rate limiting. A count-then-insert takes no locks, so under READ COMMITTED two
+// concurrent sends both read 4, both pass, both insert — putting it in the same
+// transaction does NOT serialize it. This table makes the check a single atomic
+// upsert instead. An in-process bucket is not an option: min-instances=0 kills the
+// process every idle period and max-instances=10 means ten independent buckets.
+export const chatRate = pgTable("chat_rate", {
+  userId:      uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  n:           integer("n").notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.windowStart] }),
+]);
+
 // ── map_aggregates ─────────────────────────────────────────────────────────
 export const mapAggregates = pgTable("map_aggregates", {
   activityTypeId: uuid("activity_type_id").notNull().references(() => activityTypes.id),

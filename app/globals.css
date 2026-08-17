@@ -905,3 +905,75 @@ section h2::after {
   .hero h1 { font-size: 38px; }
   .nav nav a { margin-left: 12px; }
 }
+
+/* ── per-game chat (docs/design/game-chat.md) ───────────────────────────────
+   Chat is a TAB in the game card, not another collapsible section: the card
+   already scrolls, and nesting a scrolling message list inside it leaves the
+   composer stranded mid-page with nowhere to pin. */
+.game-tabs { display: flex; gap: 2px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+.game-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--muted);
+  padding: 7px 12px 8px; cursor: pointer;
+}
+.game-tab:hover { color: var(--ink); }
+.game-tab-on { color: var(--ink); border-bottom-color: var(--green); }
+.game-tab:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+
+.chat-who {
+  font-size: 12px; color: var(--faint); line-height: 1.45;
+  padding: 0 0 10px; margin: 0 0 12px; border-bottom: 1px solid var(--border);
+}
+.chat-empty { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 2px 0 0; }
+.chat-thread {
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 264px; overflow-y: auto; padding-right: 6px;
+  /* The default dark scrollbar is a heavy slab at this width — hairline it so the
+     thread reads as content rather than as a widget. */
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent;
+}
+.chat-thread::-webkit-scrollbar { width: 5px; }
+.chat-thread::-webkit-scrollbar-track { background: transparent; }
+.chat-thread::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 99px; }
+
+/* Flat list, no bubbles: at 360px a bubble wastes horizontal space and implies a
+   two-person conversation. Author, role and time on one line; body beneath. */
+.chat-msg { display: flex; flex-direction: column; gap: 2px; position: relative; }
+.chat-msg-h { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.chat-nm { font-size: 13px; font-weight: 700; color: var(--ink); }
+.chat-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 5px; border-radius: 4px; line-height: 1;
+}
+.chat-tag-cap { background: rgba(244,196,48,.16); color: var(--yellow); }
+.chat-tag-prop { background: rgba(70,137,68,.20); color: var(--grass-l); }
+.chat-when { font-size: 11px; color: var(--faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+.chat-txt { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.chat-del {
+  align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--faint); text-decoration: underline;
+}
+.chat-del:hover { color: var(--red); }
+
+.chat-comp { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.chat-comp textarea {
+  flex: 1; min-width: 0; background: var(--bg); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+  font: inherit; font-size: 13.5px; line-height: 1.45; resize: none; height: 64px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent;
+}
+.chat-comp textarea::placeholder { color: var(--faint); }
+.chat-send {
+  align-self: flex-end; background: var(--green); color: #fff; border: 0; border-radius: 8px;
+  font: inherit; font-size: 13px; font-weight: 700; padding: 9px 14px; cursor: pointer;
+}
+.chat-send:disabled { opacity: .5; cursor: default; }
+
+.chat-note {
+  margin-top: 14px; padding: 11px 12px; border-radius: 9px; font-size: 13px; line-height: 1.5;
+  border: 1px solid var(--border); background: rgba(255,255,255,.03); color: var(--muted);
+}
+.chat-note b { color: var(--ink); font-weight: 600; display: block; margin-bottom: 2px; }
+.chat-note-warn { border-color: rgba(244,196,48,.34); background: rgba(244,196,48,.07); }
+.chat-note-warn b { color: var(--yellow); }
+.chat-err { margin: 10px 0 0; font-size: 13px; color: #f08b81; }
