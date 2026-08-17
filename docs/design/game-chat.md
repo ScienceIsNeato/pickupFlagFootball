@@ -24,8 +24,8 @@ These were decided and are **not** reopened by this document.
 
 | Decision | Choice |
 |---|---|
-| Read scope | **Not public.** Signed in + eligible (see §4) |
-| Write scope | Read eligibility **+ verified email** |
+| Read scope | **Not public.** Signed in + **verified email** + eligible (§4). Q1 decided 2026-08-17 |
+| Write scope | Same predicate as read; plus the thread must not be locked |
 | Notifications | **Per-user email preference** — off / each / hourly / daily (§8). Reversed 2026-08-17; the original call was "none" |
 | Transport | Polling. No websockets, no SSE |
 | Granularity | **One thread per game series**, not per weekly occurrence |
@@ -72,11 +72,12 @@ One module, `lib/chat/eligibility.ts`, exporting `canReadThread(userId, threadId
 `canWriteThread(userId, threadId)`. The chat routes are its only callers.
 
 ```
-READ  = game_roster row for this game
-      OR area_captains row for this area
-      OR attempt_interest row on this attempt
-      OR venue within the user's own max_travel_km of their home
-WRITE = READ + isEmailVerified
+ELIGIBLE = game_roster row for this game
+        OR area_captains row for this area
+        OR attempt_interest row on this attempt
+        OR venue within the user's own max_travel_km of their home
+READ     = ELIGIBLE + isEmailVerified
+WRITE    = READ + thread not locked
 ```
 
 Radius alone is wrong in both directions. [`app/api/map/route.ts`](../../app/api/map/route.ts) states
@@ -97,9 +98,12 @@ the country and set `max_travel_km` to 100 miles behind nothing but a session ch
 cooldown, no rate limit. Reading a specific neighborhood's chat costs an attacker one throwaway
 registration and about a minute, after which they can flip home back.
 
-Requiring `isEmailVerified` for **read** as well as write is the cheap fix: it raises the cost from
-"60 seconds" to "control a mailbox", costs legitimate users nothing (write already requires it), and adds
-one boolean to a query already being run. See open question Q1.
+**Decided (Q1, 2026-08-17): read requires `isEmailVerified` too.** That raises the cost of a throwaway from
+"60 seconds" to "control a mailbox", costs legitimate users nothing, and adds one boolean to a query already
+being run. Note the consequence: read and write now share a single predicate, so `canReadThread` and
+`canWriteThread` differ only by the `locked` flag. The residual hole is unchanged and out of scope here —
+a determined attacker with a real mailbox can still self-declare a home ZIP; closing that is account-security
+work with a blast radius beyond chat (§12).
 
 `area_optouts` deliberately does **not** gate read — it means "stop courting me for formation here", not
 "hide this conversation". It *does* suppress that area's chat badge on the map. Written down because every
@@ -118,8 +122,10 @@ chat_threads
   last_message_at timestamptz
   message_count int not null default 0
   version int not null default 0        -- bumped on insert, soft-delete, AND lock
+  digest_due_at timestamptz null        -- §8.6: null = owes nobody email = no tick wake
   created_at timestamptz not null default now()
   CHECK (attempt_id is not null OR game_id is not null)
+  partial index (digest_due_at) where digest_due_at is not null
 
 chat_messages
   id uuid pk
@@ -297,11 +303,31 @@ exactly one attempt/occurrence parent that a chat digest doesn't have.
 the tick ([`app/api/mime/tick/route.ts`](../../app/api/mime/tick/route.ts)) and already does
 claim-before-send via `notifications_sent.emailed_at` — the exact pattern digests need.
 
-**There is one real integration point.** The tick is no longer a fixed 15-minute cron: it self-schedules
-via Cloud Tasks from `computeNextTickAt` ([`lib/mime/scheduleTick.ts`](../../lib/mime/scheduleTick.ts)),
-and an empty calendar means it sleeps. So on a quiet week with no games due, **nothing wakes and hourly
-digests would silently never fire**. `computeNextTickAt` must include the next pending chat-digest
-boundary. That is the entire infrastructure change.
+**There is one real integration point, and it follows the engine's existing pattern exactly.** The tick is
+no longer a fixed 15-minute cron: it self-schedules via Cloud Tasks from `computeNextTickAt`
+([`lib/mime/scheduleTick.ts`](../../lib/mime/scheduleTick.ts)), which is a `min()` over a `union all` of
+stored due-times, and an empty calendar means it sleeps.
+
+Chat must not wake the tick on a schedule — it should contribute a due-time **only when it actually owes
+someone an email**:
+
+- add `chat_threads.digest_due_at timestamptz null`, with a partial index where it is not null
+- the same thread-lock `UPDATE` that assigns `seq` sets
+  `digest_due_at = coalesce(digest_due_at, <next boundary>)` — earliest pending wins, so a burst of
+  messages never pushes the boundary outward
+- `computeNextTickAt` gains one branch:
+  `union all select min(digest_due_at) from chat_threads where digest_due_at is not null`
+- the digest pass clears it back to null once that thread's mail is flushed
+
+Quiet chat means every `digest_due_at` is null, the branch contributes nothing to the `min`, and **zero
+extra wakes happen** — the same "empty calendar, sleep" behaviour the engine already has. `each` mode sets
+a past-due boundary, which the enqueuer already clamps to an immediate wake (the same trick the
+decided-but-unnotified branch uses).
+
+One wrinkle to settle at build time: `daily` fires at a per-user local hour, so a thread whose only
+subscribers are on `daily` should arm its subscribers' next local send time rather than the next hour
+boundary, or it will wake hourly and no-op. `areas.timezone` already exists and is the sensible fallback
+when `users.timezone` is null.
 
 Cadence per mode:
 
@@ -374,7 +400,7 @@ Voice: lowercase, plain, blunt, hyphens not em dashes.
 | who can see | `anyone close enough to play this game can read this, plus everyone on the roster. nobody gets emailed - people see it when they come back to the map.` |
 | empty (game) | `nothing here yet. start it off - where to park, what to bring, what time you're actually showing up.` |
 | empty (proposal) | `nothing here yet. heads up - people who said "i'm in" by email won't see this unless they come back to the map.` |
-| unverified | `confirm your email to post. you can read without it.` |
+| unverified | `confirm your email to see this game's chat.` |
 | not eligible | `this chat is for people who play here.` |
 | locked | `a captain locked this thread. you can still read it.` |
 | rate limited | `slow down - 5 messages a minute.` |
@@ -407,13 +433,13 @@ with a blast radius well beyond chat — its own ADR).
 
 | # | Question | Recommendation |
 |---|---|---|
-| Q1 | Given §4.2, require `isEmailVerified` for **read** too? Or accept the gate as a speed bump and say so? | **Require it for read.** One boolean, big cost increase for throwaways, no cost to real users. |
+| Q1 | ~~Require `isEmailVerified` for read too?~~ | **DECIDED: yes.** Read and write now share one predicate. |
 | Q2 | Does a newly-eligible user see the entire backlog? (Eligibility is live, so moving in unlocks all history; moving out loses it.) | Live evaluation for v1, documented as a known property, bounded by Q3. |
 | Q3 | Retention — how long do messages live? | Delete older than 90 days on the existing cron. Bounds harvestable scrollback, keeps indexes irrelevant, one line in a cron that already runs. Awkward to retrofit once people expect permanence. |
 | Q4 | Slack mirror: bodies, metadata only, or none? | Metadata only. |
 | Q5 | Who moderates, given self-service captaincy? | v1: author self-delete only, you moderate by hand. Then tighten `volunteerAsCaptain` in its own change. |
 | Q6 | Ship proposal chat in v1, given its audience arrives by email and never returns? | Largely answered by §8 — email is the reach. Ship both. |
-| Q7 | Which threads email you: participation (roster / responded / posted-in) or everything you can read? | **Participation.** Radius-scoped email would mail people about strangers' games across their whole travel radius. |
-| Q8 | Default `chat_email_pref` for new *and* existing users? | `hourly`. `off` is the safe-looking choice but it recreates the discovery problem the reversal was meant to fix. Note this decides whether existing accounts get opted in — a consequential, user-visible change. |
+| Q7 | Which threads email you: participation (roster / responded / posted-in) or everything you can read? | **Participation** — proceeding on the recommendation, not yet explicitly confirmed. Radius-scoped email would mail people about strangers' games across their whole travel radius. |
+| Q8 | ~~Default `chat_email_pref`?~~ | **DECIDED: `hourly` (grouped)**, for new and existing accounts alike. |
 | Q9 | Daily summary: what local hour, and what fallback when `users.timezone` is null? | Early evening local (people plan the next day), fall back to the game's area rather than raw UTC. |
 | Q10 | Per-thread mute ("stop emailing me about *this* game")? | Out of v1, but it is the thing people ask for first once email is on. `chat_email_state` gives it a natural home later. |
