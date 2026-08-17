@@ -3,7 +3,7 @@
 Status: **Draft / decisions pending**
 Author: Will (designed with Claude)
 Date: 2026-08-16
-Scope: a chat thread per proposal/game, gated read, verified write, no notifications. Schema, access model, transport, discovery, moderation.
+Scope: a chat thread per proposal/game, gated read, verified write, per-user email preferences. Schema, access model, transport, discovery, digests, moderation.
 
 ---
 
@@ -26,7 +26,7 @@ These were decided and are **not** reopened by this document.
 |---|---|
 | Read scope | **Not public.** Signed in + eligible (see §4) |
 | Write scope | Read eligibility **+ verified email** |
-| Notifications | **None.** No email, no digest, no push |
+| Notifications | **Per-user email preference** — off / each / hourly / daily (§8). Reversed 2026-08-17; the original call was "none" |
 | Transport | Polling. No websockets, no SSE |
 | Granularity | **One thread per game series**, not per weekly occurrence |
 
@@ -234,7 +234,91 @@ window is 48 hours. So Alice types "east lot, gate code 1234" and it reaches nob
 
 ---
 
-## 8. Rate limiting and moderation
+## 8. Message settings and email digests
+
+### 8.1 Why this reversed
+
+"No notifications" is reversed as of 2026-08-17. §7 documented that with notifications off, the unread dot
+was the *only* reach mechanism, and that proposal chat — the highest-value window — reaches nobody, because
+the cohort arrives by one-click email and never loads `/play` before the 48-hour window closes. Email is
+what makes proposal chat work at all.
+
+### 8.2 The pane
+
+A new "message settings" pane on the account grid (<code>app/(app)/account/page.tsx</code>):
+
+- checkbox: **get emails when people post**
+- radio: **every message** / **grouped** / **daily summary**
+
+Stored as **one column**, not two:
+
+```sql
+users.chat_email_pref  enum('off','each','hourly','daily')  not null  default <see Q8>
+```
+
+The checkbox is `off` vs not-off; the radio picks among the other three. A separate boolean and mode can
+drift out of sync with each other; a single enum cannot. The UI stays exactly as described.
+
+### 8.3 Which threads email you — the spam fork
+
+Read eligibility is radius-based (§4), so "email me when people post" scoped to *everything you can read*
+would mail a user about strangers' games all over their travel radius. That is the fastest way to train
+people to unsubscribe. Email follows **participation, not proximity**:
+
+- games you're on the roster of
+- proposals you responded to (`attempt_interest`)
+- any thread you've posted in
+- for captains, threads in their area
+
+### 8.4 Suppression, applied in every mode
+
+- never your own messages
+- **never messages you already read in-app** (`chat_reads.last_read_at`) — this cuts volume hard and makes
+  the mail feel considered instead of robotic
+- `users.email_opt_in = false` suppresses everything; it is the global unsubscribe
+- unverified addresses are never mailed (deliverability)
+- soft-deleted messages never appear
+- every chat email carries a one-click "turn these off" link, reusing the HMAC pattern already in
+  [`interestLink.ts`](../../lib/interestLink.ts) / [`rsvpLink.ts`](../../lib/rsvpLink.ts)
+
+### 8.5 Digest bookkeeping
+
+```sql
+chat_email_state (user_id, thread_id, last_emailed_seq, primary key (user_id, thread_id))
+```
+
+Pairs with the `seq` cursor from §5: "send everything with `seq > last_emailed_seq`, minus suppressions",
+then advance. Simpler than modelling digests inside `notifications_sent`, whose CHECK constraint demands
+exactly one attempt/occurrence parent that a chat digest doesn't have.
+
+### 8.6 Infrastructure: it already exists
+
+**No lambdas and no new cron.** [`flushNotificationEmails`](../../lib/email/flush.ts) already runs inside
+the tick ([`app/api/mime/tick/route.ts`](../../app/api/mime/tick/route.ts)) and already does
+claim-before-send via `notifications_sent.emailed_at` — the exact pattern digests need.
+
+**There is one real integration point.** The tick is no longer a fixed 15-minute cron: it self-schedules
+via Cloud Tasks from `computeNextTickAt` ([`lib/mime/scheduleTick.ts`](../../lib/mime/scheduleTick.ts)),
+and an empty calendar means it sleeps. So on a quiet week with no games due, **nothing wakes and hourly
+digests would silently never fire**. `computeNextTickAt` must include the next pending chat-digest
+boundary. That is the entire infrastructure change.
+
+Cadence per mode:
+
+| Mode | Behaviour |
+|---|---|
+| `each` | sent on the next tick after the message — near-real-time, bounded by tick latency, not instant |
+| `hourly` | bucket by clock hour, send the previous hour's still-unread messages |
+| `daily` | one summary at a fixed local hour, using `users.timezone` (nullable text, already on the table) with a UTC fallback |
+
+### 8.7 Volume
+
+`each` on an active thread can burn a free-tier Brevo allowance quickly and is the mode most likely to
+generate unsubscribes. Hourly is the recommended default (Q8); treat `each` as the power-user option.
+
+---
+
+## 9. Rate limiting and moderation
 
 **Rate limit is one atomic statement**, not count-then-insert:
 
@@ -261,7 +345,7 @@ See Q5.
 
 ---
 
-## 9. Privacy
+## 10. Privacy
 
 - **The privacy page needs a line.** It currently covers display name and "other players" but says nothing
   about user-generated content. It must say that what you post in a game chat is readable by other players
@@ -279,7 +363,7 @@ See Q5.
 
 ---
 
-## 10. UI copy
+## 11. UI copy
 
 Voice: lowercase, plain, blunt, hyphens not em dashes.
 
@@ -299,7 +383,7 @@ Voice: lowercase, plain, blunt, hyphens not em dashes.
 
 ---
 
-## 11. Scope
+## 12. Scope
 
 **In v1**: the four tables; `lib/chat/eligibility.ts` as the single access definition; shared haversine
 helper; read-time thread resolution (no engine changes); `GET`/`POST /api/chat/{threadId}` with tombstones
@@ -307,7 +391,11 @@ and the atomic rate limit; unread folded into `/api/hud` + a nav dot; chat panel
 `ProposedDetailsModal`; author self-delete; widened session select; viewer-gated map badge; chat tables
 added to the e2e wipe list, the sim truncate list, and the seed delete-ordering comment.
 
-**Out of v1**: any notification (settled); websockets/SSE (settled); per-occurrence threads (`occurrence_date`
+Plus, from §8: the "message settings" account pane; `users.chat_email_pref`; `chat_email_state`; the
+digest builder inside the existing `flushNotificationEmails`; chat-digest boundaries added to
+`computeNextTickAt`; and a one-click "turn these off" link.
+
+**Out of v1**: websockets/SSE (settled); per-occurrence threads (`occurrence_date`
 is stamped only to keep a future split cheap); captain moderation powers (blocked on Q5); message editing;
 attachments, mentions, reactions, typing indicators, read receipts; a surface for FAILED-attempt threads;
 Slack body mirroring; tightening `registerWithPassword`/`saveAccount` (real gaps, but account-security work
@@ -315,7 +403,7 @@ with a blast radius well beyond chat — its own ADR).
 
 ---
 
-## 12. Open questions
+## 13. Open questions
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -324,4 +412,8 @@ with a blast radius well beyond chat — its own ADR).
 | Q3 | Retention — how long do messages live? | Delete older than 90 days on the existing cron. Bounds harvestable scrollback, keeps indexes irrelevant, one line in a cron that already runs. Awkward to retrofit once people expect permanence. |
 | Q4 | Slack mirror: bodies, metadata only, or none? | Metadata only. |
 | Q5 | Who moderates, given self-service captaincy? | v1: author self-delete only, you moderate by hand. Then tighten `volunteerAsCaptain` in its own change. |
-| Q6 | Ship proposal chat in v1, given its audience arrives by email and never returns? | Ship both **only if** the unread dot ships with it. A chat nobody can discover is worse than none, because the proposer will type real coordination info in and assume it landed. |
+| Q6 | Ship proposal chat in v1, given its audience arrives by email and never returns? | Largely answered by §8 — email is the reach. Ship both. |
+| Q7 | Which threads email you: participation (roster / responded / posted-in) or everything you can read? | **Participation.** Radius-scoped email would mail people about strangers' games across their whole travel radius. |
+| Q8 | Default `chat_email_pref` for new *and* existing users? | `hourly`. `off` is the safe-looking choice but it recreates the discovery problem the reversal was meant to fix. Note this decides whether existing accounts get opted in — a consequential, user-visible change. |
+| Q9 | Daily summary: what local hour, and what fallback when `users.timezone` is null? | Early evening local (people plan the next day), fall back to the game's area rather than raw UTC. |
+| Q10 | Per-thread mute ("stop emailing me about *this* game")? | Out of v1, but it is the thing people ask for first once email is on. `chat_email_state` gives it a natural home later. |
