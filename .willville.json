@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Chat is working on games and proposed games - open a game on the map, switch to the chat tab, post, delete your own. Only people who could actually play there can see it.",
-    "direction": "Wire up the unread dot so people know there's something new, then the email digests.",
-    "last_update": "2026-08-17T18:33:04Z"
+    "status": "Chat is live on games and proposals. Also stopped our own laptops from reporting errors into the same feed as real users - that's what the alert last night actually was.",
+    "direction": "Unread indicator next so people know there's something waiting, then the chat emails.",
+    "last_update": "2026-08-18T06:41:20Z"
   }
 }
