@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Simplified the chat email plan - emails and the in-app unread marker are now separate things that don't have to know about each other.",
-    "direction": "Build the chat emails: the grouped and daily digests people picked in message settings.",
-    "last_update": "2026-08-18T07:21:17Z"
+    "status": "Chat emails work now - post in a game and the other players get it, either right away, bundled hourly, or once a day, whichever they picked. Set up your machine so you can try it locally.",
+    "direction": "You test it with two accounts; I'll fix whatever that turns up.",
+    "last_update": "2026-08-18T07:57:42Z"
   }
 }

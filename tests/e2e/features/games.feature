@@ -33,3 +33,12 @@ Feature: Finding & joining a game
     And I open the chat tab
     And I reload the map
     Then the chat unread dot is gone
+
+  Scenario: a teammate's chat message arrives by email
+    Given an established weekly game near me
+    And I am a confirmed player "Mail Getter" with email "mailgetter@example.com" in ZIP "78701"
+    And I am on that game's roster
+    And I get an email for every chat message
+    And another player posted in that game's chat
+    When the engine ticks
+    Then a chat email reaches "mailgetter@example.com"

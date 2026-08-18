@@ -615,7 +615,16 @@ export async function seedChatMessageFromOther(
   );
   await pool.query(
     `UPDATE chat_threads SET message_count = message_count + 1, last_message_at = now(),
-            version = version + 1 WHERE id = $1`,
+            version = version + 1, digest_due_at = coalesce(digest_due_at, now())
+      WHERE id = $1`,
     [t[0].id],
   );
+}
+
+/** Set a user's chat email cadence, so a scenario doesn't have to wait out the
+ *  default hourly window to see mail. */
+export async function setChatEmailPref(
+  email: string, pref: "off" | "each" | "hourly" | "daily",
+): Promise<void> {
+  await pool.query(`UPDATE users SET chat_email_pref = $2 WHERE email = $1`, [email, pref]);
 }

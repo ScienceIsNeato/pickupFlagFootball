@@ -493,6 +493,24 @@ export const chatRate = pgTable("chat_rate", {
   primaryKey({ columns: [t.userId, t.windowStart] }),
 ]);
 
+// Per (user, thread) send state for chat digests. Deliberately NOT modelled in
+// notifications_sent, whose CHECK demands exactly one attempt/occurrence parent that
+// a chat digest doesn't have.
+//
+// last_emailed_seq is what "already sent" means — it does NOT consult chat_reads.
+// The unread dot is in-app state and this is send state; keeping them independent
+// means neither has to be reasoned about when changing the other (design §8.4).
+// last_emailed_at is what enforces the cadence: "at most one an hour" / "one a day",
+// exactly as the account page words it.
+export const chatEmailState = pgTable("chat_email_state", {
+  userId:         uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  threadId:       uuid("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+  lastEmailedSeq: integer("last_emailed_seq").notNull().default(0),
+  lastEmailedAt:  timestamp("last_emailed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.threadId] }),
+]);
+
 // ── map_aggregates ─────────────────────────────────────────────────────────
 export const mapAggregates = pgTable("map_aggregates", {
   activityTypeId: uuid("activity_type_id").notNull().references(() => activityTypes.id),

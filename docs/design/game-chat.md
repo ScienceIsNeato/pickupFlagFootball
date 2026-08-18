@@ -318,9 +318,12 @@ Chat must not wake the tick on a schedule — it should contribute a due-time **
 someone an email**:
 
 - add `chat_threads.digest_due_at timestamptz null`, with a partial index where it is not null
-- the same thread-lock `UPDATE` that assigns `seq` sets
-  `digest_due_at = coalesce(digest_due_at, <next boundary>)` — earliest pending wins, so a burst of
-  messages never pushes the boundary outward
+- the same thread-lock `UPDATE` that assigns `seq` sets `digest_due_at = coalesce(digest_due_at, now())`.
+  It means "there is mail to consider", **not** a cadence boundary — arming the next hour here would make
+  an `each` subscriber wait up to an hour for the thing they asked to get immediately. `coalesce` keeps the
+  earliest pending time, so a burst never pushes the wake outward
+- the digest pass applies each recipient's cadence (`each` / at most one an hour / one a day, matching the
+  account page wording) and re-arms `digest_due_at` to the earliest window still pending
 - `computeNextTickAt` gains one branch:
   `union all select min(digest_due_at) from chat_threads where digest_due_at is not null`
 - the digest pass clears it back to null once that thread's mail is flushed

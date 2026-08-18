@@ -193,10 +193,13 @@ async function send(userId: string, subj: ChatSubject, threadId: string | null, 
          set message_count = message_count + 1,
              last_message_at = now(),
              version = version + 1,
-             -- Arm the next digest boundary only if one isn't already pending, so a
-             -- burst of messages can't push the wake outward. Null everywhere means
-             -- chat owes nobody mail and the tick arms no wake at all (design §8.6).
-             digest_due_at = coalesce(digest_due_at, date_trunc('hour', now()) + interval '1 hour')
+             -- "There is mail to consider" — NOT a cadence boundary. Arming the next
+             -- hour here would make an "every message" subscriber wait up to an hour
+             -- for the thing they explicitly asked to get immediately. The digest pass
+             -- applies each recipient's cadence and re-arms this to the earliest window
+             -- still pending, so a burst can't push the wake outward and a thread that
+             -- owes nobody ends up null = no wake at all (design §8.6).
+             digest_due_at = coalesce(digest_due_at, now())
        where id = ${id}::uuid`);
     return { seq, threadId: id };
   });
