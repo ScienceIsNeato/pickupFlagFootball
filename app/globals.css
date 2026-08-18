@@ -986,3 +986,20 @@ section h2::after {
   border-radius: 50%; background: var(--green);
   box-shadow: 0 0 0 2px rgba(12, 19, 38, .9);
 }
+
+/* Share posts: expandable, with the text on screen. A copy button that reveals
+   nothing looks broken when the clipboard call is denied — and looks like something
+   worse when it isn't. */
+.map-hud-post { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+.map-hud-post-toggle {
+  display: block; width: 100%; text-align: left; cursor: pointer; padding: 8px 10px;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+  background: none; border: 0;
+}
+.map-hud-post-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--border); }
+.map-hud-post-text {
+  display: block; width: calc(100% - 20px); margin: 10px; padding: 8px 9px;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--border);
+  border-radius: 6px; font: inherit; font-size: 12.5px; line-height: 1.5; resize: vertical;
+}
+.map-hud-post .map-hud-copy { margin: 0 10px 10px; }

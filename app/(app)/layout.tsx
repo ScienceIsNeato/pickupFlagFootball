@@ -5,8 +5,8 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { skin } from "@/lib/skin";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, gameRoster, games } from "@/lib/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { users, gameRoster, games, gameAttendance, gameOccurrences } from "@/lib/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
 import { DonationReminderBanner } from "@/components/DonationReminderBanner";
 
@@ -30,7 +30,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .from(gameRoster).innerJoin(games, eq(games.id, gameRoster.gameId))
         .where(and(eq(gameRoster.userId, uid), inArray(games.status, ["active", "paused"])))
         .limit(1);
-      remindDonate = mine.length > 0;
+      // Played at least 3 weeks, not merely rostered. Joining is a click; showing
+      // up three times is the point at which someone actually knows whether this
+      // thing is worth money to them. Asking on day one reads as a toll booth.
+      const played = await db.select({ n: sql<number>`count(*)::int` })
+        .from(gameAttendance)
+        .innerJoin(gameOccurrences, and(
+          eq(gameOccurrences.gameId, gameAttendance.gameId),
+          eq(gameOccurrences.occurrenceDate, gameAttendance.occurrenceDate),
+        ))
+        .where(and(
+          eq(gameAttendance.userId, uid),
+          eq(gameAttendance.status, "in"),
+          eq(gameOccurrences.status, "played"),
+        ));
+      remindDonate = mine.length > 0 && (played[0]?.n ?? 0) >= 3;
     }
   }
   return (

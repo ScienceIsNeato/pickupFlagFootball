@@ -628,3 +628,28 @@ export async function setChatEmailPref(
 ): Promise<void> {
   await pool.query(`UPDATE users SET chat_email_pref = $2 WHERE email = $1`, [email, pref]);
 }
+
+/** Mark N past weeks as played with this user in attendance. The support nudge is
+ *  gated on having actually shown up 3 times, not on merely being rostered, so any
+ *  scenario about that banner has to build real history. */
+export async function seedPlayedWeeks(gameId: string, email: string, n: number): Promise<void> {
+  const { rows } = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
+  const userId = rows[0].id;
+  for (let i = 1; i <= n; i++) {
+    const { rows: occ } = await pool.query(
+      `INSERT INTO game_occurrences (game_id, occurrence_date, status, kickoff_at, poll_opens_at, poll_closes_at)
+       VALUES ($1, (current_date - ($2 || ' days')::interval)::date, 'played',
+               now() - ($2 || ' days')::interval, now() - ($2 || ' days')::interval,
+               now() - ($2 || ' days')::interval)
+       ON CONFLICT (game_id, occurrence_date) DO UPDATE SET status = 'played'
+       RETURNING occurrence_date`,
+      [gameId, String(i * 7)],
+    );
+    await pool.query(
+      `INSERT INTO game_attendance (game_id, user_id, occurrence_date, status)
+       VALUES ($1, $2, $3, 'in')
+       ON CONFLICT (game_id, user_id, occurrence_date) DO UPDATE SET status = 'in'`,
+      [gameId, userId, occ[0].occurrence_date],
+    );
+  }
+}

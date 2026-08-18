@@ -42,7 +42,18 @@ Then("the HUD's FAQ explains how a game forms, with the live threshold", async (
 Then("the HUD offers a copyable share post", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-write"]);
   await expandHud(page);
-  const btn = page.locator(".map-hud-copy").first();
+  // The post expands to reveal its text — a button that silently takes the
+  // clipboard and shows nothing is indistinguishable from a broken one.
+  const post = page.locator(".map-hud-post").first();
+  // Idempotent, like expandHud above: this step runs at more than one point in the
+  // walkthrough and the post's open state correctly survives the scenario change in
+  // between, so a blind click would CLOSE what the previous call opened.
+  const toggle = post.locator(".map-hud-post-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  const text = post.locator(".map-hud-post-text");
+  await expect(text).toBeVisible();
+  await expect(text).not.toHaveValue("");
+  const btn = post.locator(".map-hud-copy");
   await expect(btn).toBeVisible();
   await btn.click();
   await expect(btn).toContainText(/copied/i);

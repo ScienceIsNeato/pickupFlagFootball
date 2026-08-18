@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Made the local start script do the whole job in one command - it now clears out any old server and runs the app's heartbeat alongside it, so chat emails actually go out on your machine without you poking anything.",
-    "direction": "You run the two-account chat test; I'll fix what it turns up.",
-    "last_update": "2026-08-18T16:35:40Z"
+    "status": "Fixed four things you spotted: the donation ask now waits until someone's actually played three weeks, the map's explainer no longer claims there are no games when there are, dropped the defensive 'nothing is fake' line, and the share buttons now open up to show the post instead of silently grabbing your clipboard.",
+    "direction": "Back to you for the two-account chat test.",
+    "last_update": "2026-08-18T21:31:03Z"
   }
 }
