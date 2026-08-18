@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Chat emails work now - post in a game and the other players get it, either right away, bundled hourly, or once a day, whichever they picked. Set up your machine so you can try it locally.",
-    "direction": "You test it with two accounts; I'll fix whatever that turns up.",
-    "last_update": "2026-08-18T07:57:42Z"
+    "status": "Made the local start script do the whole job in one command - it now clears out any old server and runs the app's heartbeat alongside it, so chat emails actually go out on your machine without you poking anything.",
+    "direction": "You run the two-account chat test; I'll fix what it turns up.",
+    "last_update": "2026-08-18T16:35:40Z"
   }
 }
