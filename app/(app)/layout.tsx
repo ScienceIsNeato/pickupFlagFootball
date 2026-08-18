@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Ball } from "@/components/Ball";
+import { ChatUnreadDot } from "@/components/ChatUnreadDot";
 import { AccountMenu } from "@/components/AccountMenu";
 import { skin } from "@/lib/skin";
 import { auth } from "@/lib/auth";
@@ -41,7 +42,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <div className="nav-right">
           <nav>
-            <Link href="/play">find a game</Link>
+            <span className="nav-with-dot">
+              <Link href="/play">find a game</Link>
+              {loggedIn && <ChatUnreadDot />}
+            </span>
             {loggedIn && <Link href="/my-games">my games</Link>}
             <Link href="/account">account</Link>
           </nav>

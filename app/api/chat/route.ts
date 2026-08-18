@@ -182,6 +182,12 @@ async function send(userId: string, subj: ChatSubject, threadId: string | null, 
     const seq = Number(((next as unknown as { rows?: { seq: number }[] }).rows ?? [])[0]?.seq ?? 1);
 
     await tx.insert(chatMessages).values({ threadId: id, seq, userId, body });
+    // Your own message must not light your own unread dot.
+    await tx.insert(chatReads).values({ threadId: id, userId, lastReadAt: new Date() })
+      .onConflictDoUpdate({
+        target: [chatReads.threadId, chatReads.userId],
+        set: { lastReadAt: new Date() },
+      });
     await tx.execute(sql`
       update chat_threads
          set message_count = message_count + 1,

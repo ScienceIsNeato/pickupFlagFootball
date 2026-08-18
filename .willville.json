@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Chat is live on games and proposals. Also stopped our own laptops from reporting errors into the same feed as real users - that's what the alert last night actually was.",
-    "direction": "Unread indicator next so people know there's something waiting, then the chat emails.",
-    "last_update": "2026-08-18T06:41:20Z"
+    "status": "Added the unread dot - if someone posts in a game you're part of, a small marker shows on the map link so you know to look. Clears once you've read it.",
+    "direction": "Chat emails next: the daily and grouped digests people picked in message settings.",
+    "last_update": "2026-08-18T07:18:18Z"
   }
 }

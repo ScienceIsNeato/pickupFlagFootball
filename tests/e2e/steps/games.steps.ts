@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import type { World } from "./world";
-import { seedStandingGame, markEmailVerified } from "../support/db";
+import { seedStandingGame, markEmailVerified, seedChatMessageFromOther } from "../support/db";
 import { registerViaUi } from "../support/flows";
 import { clearMailpit } from "../support/mailpit";
 
@@ -119,4 +119,23 @@ When("I delete my chat message", async ({ page }) => {
 
 Then("the chat no longer shows {string}", async ({ page }, body: string) => {
   await expect(page.locator(".chat")).not.toContainText(body, { timeout: 10000 });
+});
+
+// ── unread dot ───────────────────────────────────────────────────────────────
+Given("another player posted in that game's chat", async ({ world }) => {
+  await seedChatMessageFromOther(
+    world.game!.gameId!, "otherchat@example.com", "Other Otto", "who's bringing cones?",
+  );
+});
+
+Then("I see the chat unread dot", async ({ page }) => {
+  await expect(page.locator(".chat-dot")).toBeVisible({ timeout: 15000 });
+});
+
+When("I reload the map", async ({ page }) => {
+  await page.goto("/play");
+});
+
+Then("the chat unread dot is gone", async ({ page }) => {
+  await expect(page.locator(".chat-dot")).toHaveCount(0, { timeout: 15000 });
 });

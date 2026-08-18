@@ -22,3 +22,14 @@ Feature: Finding & joining a game
     Then the chat shows "east lot, gate code 1234"
     When I delete my chat message
     Then the chat no longer shows "east lot, gate code 1234"
+
+  Scenario: someone else's message lights the unread dot
+    Given an established weekly game near me
+    And I am a confirmed player "Dot Reader" with email "dotreader@example.com" in ZIP "78701"
+    And another player posted in that game's chat
+    When I open the map
+    Then I see the chat unread dot
+    When I open the game on the map
+    And I open the chat tab
+    And I reload the map
+    Then the chat unread dot is gone

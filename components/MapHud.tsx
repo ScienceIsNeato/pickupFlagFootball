@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { AreaScenario } from "@/lib/mime/areaScenario";
 import { buildShareTemplates } from "@/lib/shareTemplates";
 import { skin } from "@/lib/skin";
+import { CHAT_UNREAD_EVENT } from "@/components/ChatUnreadDot";
 
 type Place = { city: string | null; zip: string | null } | null;
 type Faq = { q: string; a: string };
@@ -101,8 +102,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       try {
         const r = await fetch("/api/hud", { cache: "no-store" });
         if (!r.ok || cancelled || seq !== seqRef.current) return;
-        const data = (await r.json()) as { scenario: AreaScenario | null; place: Place };
+        const data = (await r.json()) as { scenario: AreaScenario | null; place: Place; chatUnread?: number };
         if (cancelled || seq !== seqRef.current) return;
+        // Rebroadcast chat unread so the nav dot stays live off THIS poll instead
+        // of running a second always-on timer of its own.
+        window.dispatchEvent(new CustomEvent(CHAT_UNREAD_EVENT, { detail: data.chatUnread ?? 0 }));
         // scenario: null means "no area yet" (an invariant violation this
         // component doesn't expect while mounted) — keep showing the last
         // known-good state rather than guess, same as a transient fetch error.

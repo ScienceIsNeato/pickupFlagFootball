@@ -205,14 +205,43 @@ export async function tombstonesSince(threadId: string, sinceIso: string | null)
   return rows.map((r) => Number(r.seq));
 }
 
-/** Unread = anything newer than this user's last read. Cheap: both sides are
- *  denormalized, so this never touches chat_messages. */
-export async function unreadThreadIds(userId: string): Promise<string[]> {
-  const rows = await db.execute(sql`
-    select t.id
+/**
+ * How many chats have something this user hasn't seen. The eligibility union from
+ * chatAccess() is inlined here rather than looped per thread: a naive
+ * "last_message_at > last_read_at" would count threads the viewer isn't allowed to
+ * read at all, which both inflates the dot and leaks that a conversation exists
+ * somewhere they're gated out of.
+ *
+ * Cheap by construction — last_message_at is denormalized, so this never touches
+ * chat_messages.
+ */
+export async function unreadChatCount(userId: string): Promise<number> {
+  const res = await db.execute(sql`
+    select count(*)::int as n
       from chat_threads t
-      left join chat_reads r on r.thread_id = t.id and r.user_id = ${userId}::uuid
+      left join games g on g.id = t.game_id
+      left join formation_attempts fa on fa.id = t.attempt_id
+      -- a thread keyed on the proposal whose game has since formed
+      left join games ga on ga.origin_attempt_id = t.attempt_id
+      join areas a on a.id = coalesce(g.area_id, fa.area_id)
+      join users u on u.id = ${userId}::uuid
+      left join chat_reads r on r.thread_id = t.id and r.user_id = u.id
      where t.last_message_at is not null
-       and (r.last_read_at is null or t.last_message_at > r.last_read_at)`);
-  return ((rows as unknown as { rows?: { id: string }[] }).rows ?? []).map((r) => r.id);
+       and (r.last_read_at is null or t.last_message_at > r.last_read_at)
+       and u.email_verified is not null
+       and (
+         exists (select 1 from game_roster gr
+                  where gr.game_id = coalesce(g.id, ga.id) and gr.user_id = u.id)
+         or exists (select 1 from area_captains ac
+                     where ac.area_id = a.id and ac.user_id = u.id)
+         or exists (select 1 from attempt_interest ai
+                     where ai.attempt_id = t.attempt_id and ai.user_id = u.id)
+         or 6371 * 2 * asin(least(1, sqrt(
+              power(sin(radians(u.home_lat - coalesce(g.place_lat, fa.place_lat, a.center_lat)) / 2), 2)
+              + cos(radians(coalesce(g.place_lat, fa.place_lat, a.center_lat))) * cos(radians(u.home_lat))
+              * power(sin(radians(u.home_lng - coalesce(g.place_lng, fa.place_lng, a.center_lng)) / 2), 2)
+            ))) <= u.max_travel_km
+       )`);
+  const row = ((res as unknown as { rows?: { n: number }[] }).rows ?? [])[0];
+  return Number(row?.n ?? 0);
 }

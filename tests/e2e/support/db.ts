@@ -7,6 +7,13 @@ const pool = new Pool({ connectionString: E2E.dbUrl });
 // Every table EXCEPT the fixed reference data (activity_types, zip_centroids),
 // which the seed owns and scenarios never mutate.
 const WIPE = [
+  // Chat first, and listed EXPLICITLY rather than left to CASCADE: an implicit
+  // cascade from games/formation_attempts has to take its locks second, which
+  // deadlocks against a chat poll still in flight from the previous scenario.
+  "chat_rate",
+  "chat_reads",
+  "chat_messages",
+  "chat_threads",
   "interest_signals",
   "area_captains",
   "game_attendance",
@@ -580,4 +587,35 @@ export async function seedScheduledOccurrence(gameId: string, notifyEmail?: stri
     );
   }
   return occId;
+}
+
+/** Post a chat message on a game AS SOMEONE ELSE, so the viewer's unread dot has a
+ *  reason to light up. Mirrors what the send route does: create the thread on first
+ *  message, take seq under the thread, and stamp last_message_at. */
+export async function seedChatMessageFromOther(
+  gameId: string, email: string, name: string, body: string,
+): Promise<void> {
+  const { rows: u } = await pool.query(
+    `INSERT INTO users (email, display_name, zip, home_lat, home_lng, email_verified)
+     VALUES ($1, $2, '78701', 30.27, -97.74, now())
+     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, email_verified = now()
+     RETURNING id`,
+    [email, name],
+  );
+  const { rows: t } = await pool.query(
+    `INSERT INTO chat_threads (game_id) VALUES ($1)
+     ON CONFLICT (game_id) DO UPDATE SET game_id = EXCLUDED.game_id
+     RETURNING id`,
+    [gameId],
+  );
+  await pool.query(
+    `INSERT INTO chat_messages (thread_id, seq, user_id, body)
+     VALUES ($1, (SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE thread_id = $1), $2, $3)`,
+    [t[0].id, u[0].id, body],
+  );
+  await pool.query(
+    `UPDATE chat_threads SET message_count = message_count + 1, last_message_at = now(),
+            version = version + 1 WHERE id = $1`,
+    [t[0].id],
+  );
 }

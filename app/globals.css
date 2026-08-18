@@ -977,3 +977,12 @@ section h2::after {
 .chat-note-warn { border-color: rgba(244,196,48,.34); background: rgba(244,196,48,.07); }
 .chat-note-warn b { color: var(--yellow); }
 .chat-err { margin: 10px 0 0; font-size: 13px; color: #f08b81; }
+
+/* Unread chat dot on the map link. No count on the dot itself: at this volume the
+   number is noise, and "there is something to look at" is the whole message. */
+.nav-with-dot { position: relative; display: inline-flex; align-items: center; }
+.chat-dot {
+  position: absolute; top: -2px; right: -10px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 0 2px rgba(12, 19, 38, .9);
+}
