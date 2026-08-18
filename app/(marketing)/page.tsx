@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { skin } from "@/lib/skin";
 import Gallery from "./Gallery";
+import { InstallApp } from "@/components/InstallApp";
 
 export default function Home() {
   return (
@@ -14,6 +15,10 @@ export default function Home() {
           {skin.hero.body2 && <p className="lead">{skin.hero.body2}</p>}
           <Link href="/show-interest" className="btn">{skin.hero.cta}</Link>
         </div>
+        {/* Right rail on wide screens, and it falls under the CTA on narrow ones —
+            the hero column itself stays centered and untouched. Renders nothing at
+            all unless the browser can actually install. */}
+        <InstallApp />
       </section>
 
       <main>

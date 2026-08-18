@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Fixed four things you spotted: the donation ask now waits until someone's actually played three weeks, the map's explainer no longer claims there are no games when there are, dropped the defensive 'nothing is fake' line, and the share buttons now open up to show the post instead of silently grabbing your clipboard.",
-    "direction": "Back to you for the two-account chat test.",
-    "last_update": "2026-08-18T21:31:03Z"
+    "status": "Added an 'install as an app' panel to the right side of the splash page - one tap on Android/Chrome, and the add-to-home-screen steps on iPhone, since Apple gives no button. The site can actually be installed now; it couldn't before.",
+    "direction": "Still waiting on the two-account chat test whenever you get to it.",
+    "last_update": "2026-08-18T22:34:49Z"
   }
 }
