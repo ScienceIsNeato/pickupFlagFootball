@@ -226,8 +226,8 @@ request and currently selects only id/email/name. Adding `home_lat`, `home_lng`,
 `email_verified` to that existing query makes the eligibility haversine and the write gate effectively
 free, collapsing the poll to one additional statement.
 
-**Discovery is the whole product risk.** With notifications off by decision, the unread dot is the *only*
-reach mechanism — so `chat_reads` is v1, not v1.1. Unread is
+**Discovery matters on its own terms.** The unread dot is the in-app reach mechanism, independent of email
+(§8.4) — so `chat_reads` is v1, not v1.1. Unread is
 `thread.last_message_at > coalesce(chat_reads.last_read_at, '-infinity')`, surfaced as a dot in the app nav
 ([`layout.tsx`](<../../app/(app)/layout.tsx>)). A localStorage marker is not a substitute: the map is the
 primary surface and people hit it from phone and laptop, so a device-local marker shows phantom unreads on
@@ -279,13 +279,19 @@ people to unsubscribe. Email follows **participation, not proximity**:
 ### 8.4 Suppression, applied in every mode
 
 - never your own messages
-- **never messages you already read in-app** (`chat_reads.last_read_at`) — this cuts volume hard and makes
-  the mail feel considered instead of robotic
 - `users.email_opt_in = false` suppresses everything; it is the global unsubscribe
 - unverified addresses are never mailed (deliverability)
 - soft-deleted messages never appear
 - every chat email carries a one-click "turn these off" link, reusing the HMAC pattern already in
   [`interestLink.ts`](../../lib/interestLink.ts) / [`rsvpLink.ts`](../../lib/rsvpLink.ts)
+
+**Email does NOT consult `chat_reads`.** An earlier draft suppressed anything the recipient had already
+read in-app, on the theory that it made the mail feel considered. That was optimizing for a case that
+barely exists: almost nobody is sitting in the app when a message lands, so the overlap is rare, and the
+cost of chasing it is welding the unread dot and the mail pipeline into one system that has to be reasoned
+about together. They stay independent — the dot is in-app state, the digest is send state
+(`chat_email_state.last_emailed_seq`), and neither reads the other. The worst case is that someone who
+happened to be reading also gets an email about it, which is fine.
 
 ### 8.5 Digest bookkeeping
 
