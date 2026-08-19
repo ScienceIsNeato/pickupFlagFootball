@@ -438,7 +438,7 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
             </div>
             {tab === "chat" && (
               <div role="tabpanel" id="game-panel-chat" aria-labelledby="game-tab-chat">
-                tab === "chat" && <ChatPanel gameId={game.gameId} />
+                <ChatPanel gameId={game.gameId} />
               </div>
             )}
           </>

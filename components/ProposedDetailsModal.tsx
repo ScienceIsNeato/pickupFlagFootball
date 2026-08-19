@@ -206,7 +206,7 @@ export function ProposedDetailsModal({
             </div>
             {tab === "chat" && (
               <div role="tabpanel" id="proposed-panel-chat" aria-labelledby="proposed-tab-chat">
-                tab === "chat" && <ChatPanel attemptId={proposal.attemptId} isProposal />
+                <ChatPanel attemptId={proposal.attemptId} isProposal />
               </div>
             )}
           </>

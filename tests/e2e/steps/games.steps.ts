@@ -101,6 +101,10 @@ Then("trying to join tells me to confirm my email", async ({ page }) => {
 When("I open the chat tab", async ({ page }) => {
   await page.getByRole("tab", { name: "chat" }).click();
   await expect(page.locator(".chat-comp textarea")).toBeVisible({ timeout: 10000 });
+  // Guard against leaked JSX: a condition written as JSX *children* instead of an
+  // expression compiles fine and renders as visible source text next to a working
+  // panel, so every existing assertion still passed while the UI showed garbage.
+  await expect(page.locator(".chat")).not.toContainText("===");
 });
 
 When("I post {string} in the chat", async ({ page }, body: string) => {
