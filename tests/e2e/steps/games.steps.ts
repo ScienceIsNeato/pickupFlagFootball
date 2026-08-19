@@ -104,7 +104,10 @@ When("I open the chat tab", async ({ page }) => {
   // Guard against leaked JSX: a condition written as JSX *children* instead of an
   // expression compiles fine and renders as visible source text next to a working
   // panel, so every existing assertion still passed while the UI showed garbage.
-  await expect(page.locator(".chat")).not.toContainText("===");
+  // Scoped to the TABPANEL, not .chat: the regression this guards against sat as a
+  // SIBLING of ChatPanel inside the panel, so asserting on .chat would have sailed
+  // straight past it (caught in review — the first version of this guard did).
+  await expect(page.locator('[role="tabpanel"][id$="-panel-chat"]')).not.toContainText("===");
 });
 
 When("I post {string} in the chat", async ({ page }, body: string) => {
