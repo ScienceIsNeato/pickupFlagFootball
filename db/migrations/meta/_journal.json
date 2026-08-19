@@ -50,6 +50,27 @@
       "when": 1783845961136,
       "tag": "0006_small_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786985923164,
+      "tag": "0007_sharp_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786989682345,
+      "tag": "0008_free_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787038826560,
+      "tag": "0009_square_nemesis",
+      "breakpoints": true
     }
   ]
 }

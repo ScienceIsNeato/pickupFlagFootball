@@ -39,6 +39,10 @@ export async function computeNextTickAt(db: EngineDb, now: Date): Promise<Date |
       select min(o.updated_at) from game_occurrences o
         where o.status in ('scheduled', 'skipped') and o.notified_at is null
           and exists (select 1 from games g where g.id = o.game_id and g.status = 'active')
+      union all
+      -- Chat digests owed. null everywhere = chat owes nobody = no wake from chat,
+      -- the same "empty calendar, sleep" rule the rest of this query follows.
+      select min(digest_due_at) from chat_threads where digest_due_at is not null
     ) x`);
   const raw = (((res as { rows?: { next: string | Date | null }[] }).rows ?? [])[0]?.next) ?? null;
   let best: Date | null = raw ? new Date(raw) : null;

@@ -144,6 +144,12 @@ stop_deployment() {
   pid=$(jq_field "$data" "pid"); port=$(jq_field "$data" "port")
   # Only stop the tracked process (+ its children) — never blanket-kill by port,
   # which could terminate an unrelated service that reused the port.
+  local tick_pid; tick_pid=$(jq_field "$data" "tickPid")
+  if [[ -n "$tick_pid" ]] && is_pid_alive "$tick_pid"; then
+    echo "Stopping tick loop (pid $tick_pid)"
+    pkill -P "$tick_pid" 2>/dev/null || true
+    kill "$tick_pid" 2>/dev/null || true
+  fi
   if [[ -n "$pid" ]] && is_pid_alive "$pid"; then
     echo "Stopping server on :$port (pid $pid)"
     pkill -P "$pid" 2>/dev/null || true
@@ -184,6 +190,59 @@ reclaim_port() {
   sleep 0.5
   pids=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
   [[ -z "$pids" ]] || die "Could not free port $port (pid(s) $(echo $pids | tr '\n' ' '))."
+}
+
+# stop_deployment only knows about processes we started. A server launched outside
+# the script (a stray `next dev`, an orphan from a crashed run) still holds the
+# preferred port, and find_free_port would silently drift to the next one — which is
+# how you end up with two builds and no idea which one you're looking at. Reclaim the
+# port, but ONLY from a process whose cwd is this repo: killing by port alone could
+# take down an unrelated service that happens to be on 3000.
+reclaim_own_port() {
+  local port="$1" root="$2" pids pid cwd
+  pids=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+  [[ -z "$pids" ]] && return 0
+  for pid in $pids; do
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+    if [[ "$cwd" == "$root" ]]; then
+      echo "  Reclaiming :$port from an untracked server in this repo (pid $pid)"
+      kill "$pid" 2>/dev/null || true
+      pkill -P "$pid" 2>/dev/null || true
+    else
+      echo "  NOTE: :$port is held by pid $pid (${cwd:-unknown dir}) — not ours, leaving it."
+    fi
+  done
+  for _ in $(seq 1 20); do
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || return 0
+    sleep 0.25
+  done
+}
+
+# The tick is the app's heartbeat: formation deadlines, weekly polls and chat
+# digests all fire from it. In dev/prod it self-schedules through Cloud Tasks, which
+# doesn't exist locally — so without this, a local deploy is an app whose engine
+# never runs, and mail simply never arrives. Runs as a child of the deploy and dies
+# with it.
+start_tick() {
+  local port="$1" root="$2" log="$3" secret interval
+  secret=$(grep -E '^CRON_SECRET=' "$root/.env.local" 2>/dev/null | cut -d= -f2- | tr -d "\"'" || true)
+  if [[ -z "$secret" ]]; then
+    echo "  (no CRON_SECRET in .env.local — tick loop not started)"
+    TICK_PID=""
+    return 0
+  fi
+  interval="${TICK_INTERVAL:-60}"
+  # Secret goes through the environment, not argv, so it stays out of `ps`.
+  CRON_SECRET="$secret" \
+  TICK_URL="http://127.0.0.1:$port/api/mime/tick" \
+  TICK_INTERVAL="$interval" \
+  nohup bash -c 'while true; do
+      curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" "$TICK_URL" >/dev/null 2>&1 || true
+      sleep "$TICK_INTERVAL"
+    done' >>"$log" 2>&1 </dev/null &
+  TICK_PID=$!
+  disown "$TICK_PID" 2>/dev/null || true
+  echo "  Tick loop running every ${interval}s (pid $TICK_PID)"
 }
 
 show_status() {
@@ -277,6 +336,9 @@ run_seed
 echo "Cleaning stale deployments..."
 cleanup_stale
 stop_deployment "$ROOT"
+# ...and take back the preferred port if an untracked server of ours is squatting it,
+# so a re-deploy lands where you expect instead of quietly moving to the next port.
+reclaim_own_port "$PORT_RANGE_START" "$ROOT"
 
 echo "Building..."
 npm run build
@@ -308,11 +370,16 @@ if [[ "$READY" != "1" ]]; then
   exit 1
 fi
 
+echo "Starting tick loop..."
+start_tick "$PORT_TO_USE" "$ROOT" "$LOG_FILE"
+
 NOW=$(date +%s)
 ROOT="$ROOT" BRANCH="$BRANCH" PORT="$PORT_TO_USE" PID="$SERVER_PID" NOW="$NOW" LOG="$LOG_FILE" \
+  TICK_PID="${TICK_PID:-}" \
   node -e "process.stdout.write(JSON.stringify({
     dir: process.env.ROOT, branch: process.env.BRANCH,
     port: Number(process.env.PORT), pid: Number(process.env.PID),
+    tickPid: process.env.TICK_PID ? Number(process.env.TICK_PID) : null,
     startedAt: Number(process.env.NOW), log: process.env.LOG,
   }) + '\n')" > "$(lockfile_for "$ROOT")"
 
@@ -326,6 +393,7 @@ echo ""
 echo "  Branch: $BRANCH"
 echo "  PID:    $SERVER_PID"
 echo "  Log:    $LOG_FILE"
+[[ -n "${TICK_PID:-}" ]] && echo "  Tick:   every ${TICK_INTERVAL:-60}s (pid $TICK_PID)"
 echo "  Stop:   scripts/deploy_app.sh --stop"
 echo "  Status: scripts/deploy_app.sh --status"
 echo "  Logs:   scripts/deploy_app.sh --logs"

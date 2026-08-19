@@ -53,6 +53,16 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
   // same flag). Honored by the notification flush + engine catchment.
   update.emailOptIn = formData.get("email_opt_in") != null;
 
+  // Chat email cadence. The checkbox IS the "off" state, so an unchecked box wins
+  // over whatever the radio says and the two can never disagree. An unrecognized
+  // radio value (hand-rolled POST) falls back to the default rather than throwing —
+  // this is a preference, not a security boundary. Still subordinate to emailOptIn
+  // above: the global unsubscribe suppresses chat mail regardless of this setting.
+  const freq = str(formData.get("chat_email_freq"));
+  update.chatEmailPref = formData.get("chat_email_on") == null
+    ? "off"
+    : (["each", "hourly", "daily"] as const).find((v) => v === freq) ?? "hourly";
+
   // Did the user edit any location field? Keep this separate from "is the ZIP
   // valid": a malformed ZIP edit must surface an error, not silently fall through
   // to a name-only save that reports success while quietly dropping the move.
@@ -90,44 +100,20 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
     await db.update(users).set(update).where(eq(users.id, uid));
   }
 
-  // Donation reminder — only ours to set when they're not an active subscriber
-  // (that status is webhook-managed). Checkbox present+checked → remind; else stop.
-  if (cur?.donationStatus !== "subscribed" && !cur?.subId) {
-    await setReminder(uid, formData.get("remind") != null);
+  // Self-declared donation status (honor system) from the two checkboxes — skip for a
+  // legacy Stripe subscriber (that status is webhook-managed). "I've donated" wins;
+  // otherwise the reminder checkbox picks ask (unset) vs stop-asking (declined).
+  if (!cur?.subId) {
+    const supporter = formData.get("supporter") != null;
+    const remind = formData.get("remind") != null;
+    await db.update(users)
+      .set({ donationStatus: supporter ? "subscribed" : remind ? "unset" : "declined", updatedAt: new Date() })
+      .where(eq(users.id, uid));
   }
 
   // Refresh the account AND the app-wide donation banner (it keys off this pref).
   revalidatePath("/", "layout");
   return { ok: true };
-}
-
-// Donation preference is self-declared and independent of location.
-const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
-type DonationStatus = (typeof DONATION_STATUSES)[number];
-
-export async function updateDonationPref(formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/?signin=1&next=/account");
-
-  // An active Stripe subscriber's status is webhook-managed — ignore a direct
-  // POST (the UI hides the control for them) so they can't desync to unset/declined
-  // and lose the billing-portal link.
-  const [u] = await db.select({ subId: users.stripeSubscriptionId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (u?.subId) redirect("/account");
-
-  const value = str(formData.get("donation_status"));
-  // "subscribed" is Stripe-managed (set by the webhook), never self-declared.
-  if (value !== "unset" && value !== "declined") {
-    throw new Error("invalid donation status");
-  }
-
-  await db
-    .update(users)
-    .set({ donationStatus: value as DonationStatus, updatedAt: new Date() })
-    .where(eq(users.id, session.user.id));
-
-  redirect("/account");
 }
 
 // Shared write for the reminder preference: checked → remind ("unset"),

@@ -7,7 +7,12 @@ test("the shipped skin parses clean (no placeholders, all urls real)", () => {
   const skin = SkinSchema.parse(raw); // throws = fail
   // the two donation links that shipped as REPLACE_ME once — never again
   const tip = skin.donate.methods.find((m) => !m.action && m.url?.startsWith("http"));
-  assert.ok(tip?.url?.includes("buymeacoffee.com/pickupFlagFootball"), "tip link is the real BMC page");
+  // Case-insensitive: BMC URLs are, and the point of this assertion is "not a
+  // REPLACE_ME placeholder", not which capitalisation of the handle we typed.
+  assert.ok(
+    tip?.url?.toLowerCase().includes("buymeacoffee.com/pickupflagfootball"),
+    "tip link is the real BMC page",
+  );
 });
 
 test("a placeholder anywhere in the skin fails the parse (build/server dies)", () => {

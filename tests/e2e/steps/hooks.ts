@@ -38,6 +38,10 @@ AfterStep(async ({ page, $step, $testInfo, world }) => {
   // The @mobile project is a real-phone pass/fail regression net, not a report
   // source — it drives the same steps on a touch device but attaches no beats.
   if ($testInfo.project.name === "mobile") return;
+  // Beat capture costs two full-page screenshots and two viewport resizes PER STEP.
+  // That's the price of the story report, but it shouldn't be the price of asking
+  // "did I break anything" — E2E_NO_BEATS=1 buys the fast answer.
+  if (process.env.E2E_NO_BEATS === "1") return;
 
   const id = $testInfo.testId;
   const title = stepTitle($step);

@@ -9,7 +9,6 @@ import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
 import { ChangeEmail } from "@/components/ChangeEmail";
 import { OptedOutAreas } from "@/components/OptedOutAreas";
-import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account - MIME-FF" };
@@ -27,6 +26,7 @@ export default async function AccountPage() {
       city: users.city, state: users.state, zip: users.zip,
       maxTravelKm: users.maxTravelKm,
       emailOptIn: users.emailOptIn,
+      chatEmailPref: users.chatEmailPref,
       donationStatus: users.donationStatus,
       stripeSubscriptionId: users.stripeSubscriptionId,
     })
@@ -34,10 +34,13 @@ export default async function AccountPage() {
   const me = u ?? {
     email: session.user.email ?? "", emailVerified: null, passwordHash: null,
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
-    emailOptIn: true, donationStatus: "unset" as const, stripeSubscriptionId: null,
+    emailOptIn: true, chatEmailPref: "hourly" as const,
+    donationStatus: "unset" as const, stripeSubscriptionId: null,
   };
   const travelMiles = Math.round(kmToMiles(me.maxTravelKm ?? 24.14));
   const supporting = me.donationStatus === "subscribed";
+  // "off" is the checkbox being unchecked; the radio only picks among the rest.
+  const chatEmailOn = me.chatEmailPref !== "off";
 
   // Game-membership vitals (middle column): the games I'm on, my regular/
   // occasional default per game, and whether I captain its area.
@@ -155,12 +158,45 @@ export default async function AccountPage() {
           </div>
         </section>
 
+        {/* message settings — chat email cadence. The checkbox is the "off" state of
+            chat_email_pref, so the two can never disagree; the radio picks the rest.
+            Still subordinate to the global email opt-in above. */}
+        <section className="account-col">
+          <h2 className="account-col-h">message settings</h2>
+          <label className="donate-opt">
+            <input type="checkbox" name="chat_email_on" defaultChecked={chatEmailOn} />
+            <span>get emails when people post in a game chat</span>
+          </label>
+          {/* Deliberately not disabled when the box is unchecked: this page is a server
+              component, so a disabled state computed here wouldn't react to the toggle
+              until save, and a control that greys out one render late is worse than one
+              that never does. Unchecked wins at save time regardless of the radio. */}
+          <fieldset className="msg-freq">
+            <legend className="reg-section">how often</legend>
+            {([
+              ["each", "every message"],
+              ["hourly", "grouped - at most one an hour"],
+              ["daily", "one daily summary"],
+            ] as const).map(([value, label]) => (
+              <label className="donate-opt" key={value}>
+                <input type="radio" name="chat_email_freq" value={value}
+                  defaultChecked={(chatEmailOn ? me.chatEmailPref : "hourly") === value} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </fieldset>
+          <p className="reg-hint">
+            only for games you&apos;re in - on the roster, said you&apos;re interested, or
+            posted in. never for every game near you.
+          </p>
+        </section>
+
         {/* supporting the project — secondary, so it sits far right / bottom */}
         <section className="account-col account-col--support">
           <h2 className="account-col-h">supporting the project</h2>
           <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
             <span className="acct-membership-label">membership</span>
-            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
+            <span className="acct-membership-level">{supporting ? "supporter 💚" : "free"}</span>
           </div>
           {supporting ? (
             <>
@@ -168,29 +204,33 @@ export default async function AccountPage() {
                 thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
                 people like you find games in brand-new areas.
               </p>
-              {me.stripeSubscriptionId ? (
+              {me.stripeSubscriptionId && (
                 <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
                   manage subscription
-                </button>
-              ) : (
-                <button type="submit" formAction={updateDonationPref} formNoValidate
-                  name="donation_status" value="unset" className="game-leave">
-                  no longer donating? reset this
                 </button>
               )}
             </>
           ) : (
             <>
               <p className="reg-hint">
-                free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
+                free and pay-what-you-can. a <strong>$3/month</strong> donation keeps the servers on and
                 helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              <label className="donate-opt">
-                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
-                <span>remind me to make a small monthly donation once I find a game</span>
-              </label>
             </>
+          )}
+          {/* Self-declared, honor-system: Buy Me a Coffee is external (no webhook back),
+              so you tell us you've chipped in and we thank you + stop asking. Saved with
+              everything else on "Save Changes". */}
+          <label className="donate-opt">
+            <input type="checkbox" name="supporter" defaultChecked={supporting} />
+            <span>I&apos;ve donated - count me as a supporter</span>
+          </label>
+          {!supporting && (
+            <label className="donate-opt">
+              <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+              <span>remind me to make a small monthly donation once I find a game</span>
+            </label>
           )}
         </section>
       </div>

@@ -38,6 +38,10 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Install Playwright browsers
+        # Bounded: this hung for the full 60-minute job budget on PR #88 and the
+        # e2e step never ran, so the run looked like a test failure when nothing
+        # had been tested. Fail fast and retry instead.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
       - name: e2e desktop (full stack — Postgres + Mailpit + Playwright)
         id: e2e
@@ -71,6 +75,10 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Install Playwright browsers
+        # Bounded: this hung for the full 60-minute job budget on PR #88 and the
+        # e2e step never ran, so the run looked like a test failure when nothing
+        # had been tested. Fail fast and retry instead.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
       - name: e2e mobile (Pixel 5 emulation — non-blocking)
         id: e2e

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolveViewerAreaScenario } from "@/lib/mime/areaScenario";
 import { skin } from "@/lib/skin";
+import { unreadChatCount } from "@/lib/chat/eligibility";
 import type { EngineDb } from "@/lib/mime/engine";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,11 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const resolved = await resolveViewerAreaScenario(db as unknown as EngineDb, skin.slug, session.user.id);
-  return NextResponse.json(resolved ?? { scenario: null, place: null });
+  // Chat unread rides this existing 15s poll rather than standing up a second
+  // always-on timer that would pay its own auth() round trip for nothing.
+  const [resolved, chatUnread] = await Promise.all([
+    resolveViewerAreaScenario(db as unknown as EngineDb, skin.slug, session.user.id),
+    unreadChatCount(session.user.id),
+  ]);
+  return NextResponse.json({ ...(resolved ?? { scenario: null, place: null }), chatUnread });
 }

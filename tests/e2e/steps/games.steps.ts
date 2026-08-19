@@ -1,7 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import type { World } from "./world";
-import { seedStandingGame, markEmailVerified } from "../support/db";
+import { allEmails } from "../support/mailpit";
+import { seedStandingGame, markEmailVerified, seedChatMessageFromOther, setChatEmailPref } from "../support/db";
 import { registerViaUi } from "../support/flows";
 import { clearMailpit } from "../support/mailpit";
 
@@ -94,4 +95,71 @@ Then("trying to join tells me to confirm my email", async ({ page }) => {
   const err = page.locator(".game-err");
   await expect(err).toContainText(/confirm your email/i);
   await err.scrollIntoViewIfNeeded(); // ensure the beat's screenshot shows the error
+});
+
+// ── per-game chat ────────────────────────────────────────────────────────────
+When("I open the chat tab", async ({ page }) => {
+  await page.getByRole("tab", { name: "chat" }).click();
+  await expect(page.locator(".chat-comp textarea")).toBeVisible({ timeout: 10000 });
+  // Guard against leaked JSX: a condition written as JSX *children* instead of an
+  // expression compiles fine and renders as visible source text next to a working
+  // panel, so every existing assertion still passed while the UI showed garbage.
+  // Scoped to the TABPANEL, not .chat: the regression this guards against sat as a
+  // SIBLING of ChatPanel inside the panel, so asserting on .chat would have sailed
+  // straight past it (caught in review — the first version of this guard did).
+  await expect(page.locator('[role="tabpanel"][id$="-panel-chat"]')).not.toContainText("===");
+});
+
+When("I post {string} in the chat", async ({ page }, body: string) => {
+  await page.locator(".chat-comp textarea").fill(body);
+  await page.getByRole("button", { name: "send" }).click();
+});
+
+Then("the chat shows {string}", async ({ page }, body: string) => {
+  await expect(page.locator(".chat-thread")).toContainText(body, { timeout: 10000 });
+});
+
+// Author self-delete is the only moderation in v1 — captain powers are blocked on
+// volunteerAsCaptain being self-service (design §9).
+When("I delete my chat message", async ({ page }) => {
+  await page.getByRole("button", { name: "delete" }).first().click();
+});
+
+Then("the chat no longer shows {string}", async ({ page }, body: string) => {
+  await expect(page.locator(".chat")).not.toContainText(body, { timeout: 10000 });
+});
+
+// ── unread dot ───────────────────────────────────────────────────────────────
+Given("another player posted in that game's chat", async ({ world }) => {
+  await seedChatMessageFromOther(
+    world.game!.gameId!, "otherchat@example.com", "Other Otto", "who's bringing cones?",
+  );
+});
+
+Then("I see the chat unread dot", async ({ page }) => {
+  await expect(page.locator(".chat-dot")).toBeVisible({ timeout: 15000 });
+});
+
+When("I reload the map", async ({ page }) => {
+  await page.goto("/play");
+});
+
+Then("the chat unread dot is gone", async ({ page }) => {
+  await expect(page.locator(".chat-dot")).toHaveCount(0, { timeout: 15000 });
+});
+
+// ── chat digests ─────────────────────────────────────────────────────────────
+Given("I get an email for every chat message", async ({ world }) => {
+  await setChatEmailPref(world.email!, "each");
+});
+
+// The digest never includes your OWN messages, so this asserts on the mail a
+// SECOND player's post generates (design §8.4).
+Then("a chat email reaches {string}", async ({}, email: string) => {
+  await expect.poll(
+    async () => (await allEmails()).some(
+      (e) => e.to.toLowerCase() === email.toLowerCase() && /posted about|new messages about/i.test(e.subject),
+    ),
+    { timeout: 15000 },
+  ).toBe(true);
 });

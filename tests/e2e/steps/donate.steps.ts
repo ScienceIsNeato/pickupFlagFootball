@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, When, Then } from "./world";
 import { E2E } from "../support/env";
-import { getUserId, getDonationStatus, seedRosterMember } from "../support/db";
+import { getUserId, getDonationStatus, seedRosterMember, seedPlayedWeeks } from "../support/db";
 // Relative import so it resolves under playwright-bdd's loader.
 import Stripe from "stripe";
 
@@ -98,4 +98,22 @@ When("I turn on the donation reminder in account settings", async ({ page }) => 
   await page.locator('input[name="remind"]').check();
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+// The nudge waits until someone has actually shown up three times — joining is a
+// click, but three weeks means they know whether this is worth money to them.
+Given("I've played 3 weeks", async ({ world }) => {
+  await seedPlayedWeeks(world.game!.gameId!, world.email!, 3);
+});
+
+// ── self-declared supporter (honor system; BMC has no webhook back) ──────────
+When("I mark myself as a supporter in account settings", async ({ page }) => {
+  await page.goto("/account");
+  await page.locator('input[name="supporter"]').check();
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+Then("I'm marked as a supporter", async ({ world }) => {
+  await expect.poll(() => getDonationStatus(world.email!), { timeout: 10000 }).toBe("subscribed");
 });
