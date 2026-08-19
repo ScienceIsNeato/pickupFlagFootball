@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Looked into tonight's error reports - great news hiding in them: two real people signed up and verified, and nothing actually broke. The errors were the social-app in-app browser crashing on its own injected code, not us. Shipped a filter so only problems in our own code ever reach the dashboard.",
-    "direction": "Merge the filter, then keep the dashboard trustworthy as more folks arrive from shared links.",
-    "last_update": "2026-08-16T04:11:51Z"
+    "status": "Chased down why a test was taking 30 seconds - turns out the app is fast, it's the screenshot capture for the visual test report that's slow. Whole suite drops from ~9 minutes to under 3 with it off. Gave the timeout enough room so busy machines stop reporting false failures.",
+    "direction": "Worth deciding whether the picture-taking should run every time or only when we want the report.",
+    "last_update": "2026-08-18T23:59:43Z"
   }
 }

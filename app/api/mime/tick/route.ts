@@ -4,6 +4,7 @@ import { tick } from "@/lib/mime/engine";
 import { runOccurrences } from "@/lib/mime/occurrences";
 import { freezeOccurrences } from "@/lib/mime/freeze";
 import { flushNotificationEmails } from "@/lib/email/flush";
+import { flushChatDigests } from "@/lib/chat/digest";
 import { scheduleNextTick } from "@/lib/mime/scheduleTick";
 import type { EngineDb } from "@/lib/mime/engine";
 
@@ -47,8 +48,12 @@ async function handle(req: Request) {
   // from the engine result: a Brevo hiccup must not 500 a successful tick (which
   // would trigger noisy retries / duplicate engine work).
   let email: unknown;
+  let chat: { sent: number; failed: number } = { sent: 0, failed: 0 };
   try {
     email = await flushNotificationEmails(now);
+    // Chat digests ride the same tick and the same non-fatal contract: a Brevo
+    // hiccup must not 500 an otherwise successful tick.
+    chat = await flushChatDigests(now);
   } catch (e) {
     console.error("[cron] email flush failed", e);
     email = { error: true };
@@ -60,7 +65,7 @@ async function handle(req: Request) {
   if (engineErr) {
     return NextResponse.json({ error: "engine step failed", nextTickAt }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, ranAt: now.toISOString(), email, nextTickAt });
+  return NextResponse.json({ ok: true, ranAt: now.toISOString(), email, chat, nextTickAt });
 }
 
 export const GET = handle;

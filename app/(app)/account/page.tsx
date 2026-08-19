@@ -27,6 +27,7 @@ export default async function AccountPage() {
       city: users.city, state: users.state, zip: users.zip,
       maxTravelKm: users.maxTravelKm,
       emailOptIn: users.emailOptIn,
+      chatEmailPref: users.chatEmailPref,
       donationStatus: users.donationStatus,
       stripeSubscriptionId: users.stripeSubscriptionId,
     })
@@ -34,10 +35,13 @@ export default async function AccountPage() {
   const me = u ?? {
     email: session.user.email ?? "", emailVerified: null, passwordHash: null,
     displayName: "", addressLine1: "", addressLine2: "", city: "", state: "", zip: "", maxTravelKm: 24.14,
-    emailOptIn: true, donationStatus: "unset" as const, stripeSubscriptionId: null,
+    emailOptIn: true, chatEmailPref: "hourly" as const,
+    donationStatus: "unset" as const, stripeSubscriptionId: null,
   };
   const travelMiles = Math.round(kmToMiles(me.maxTravelKm ?? 24.14));
   const supporting = me.donationStatus === "subscribed";
+  // "off" is the checkbox being unchecked; the radio only picks among the rest.
+  const chatEmailOn = me.chatEmailPref !== "off";
 
   // Game-membership vitals (middle column): the games I'm on, my regular/
   // occasional default per game, and whether I captain its area.
@@ -153,6 +157,39 @@ export default async function AccountPage() {
               are from you - never shown to anyone. <Link href="/privacy">privacy</Link>.
             </p>
           </div>
+        </section>
+
+        {/* message settings — chat email cadence. The checkbox is the "off" state of
+            chat_email_pref, so the two can never disagree; the radio picks the rest.
+            Still subordinate to the global email opt-in above. */}
+        <section className="account-col">
+          <h2 className="account-col-h">message settings</h2>
+          <label className="donate-opt">
+            <input type="checkbox" name="chat_email_on" defaultChecked={chatEmailOn} />
+            <span>get emails when people post in a game chat</span>
+          </label>
+          {/* Deliberately not disabled when the box is unchecked: this page is a server
+              component, so a disabled state computed here wouldn't react to the toggle
+              until save, and a control that greys out one render late is worse than one
+              that never does. Unchecked wins at save time regardless of the radio. */}
+          <fieldset className="msg-freq">
+            <legend className="reg-section">how often</legend>
+            {([
+              ["each", "every message"],
+              ["hourly", "grouped - at most one an hour"],
+              ["daily", "one daily summary"],
+            ] as const).map(([value, label]) => (
+              <label className="donate-opt" key={value}>
+                <input type="radio" name="chat_email_freq" value={value}
+                  defaultChecked={(chatEmailOn ? me.chatEmailPref : "hourly") === value} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </fieldset>
+          <p className="reg-hint">
+            only for games you&apos;re in - on the roster, said you&apos;re interested, or
+            posted in. never for every game near you.
+          </p>
         </section>
 
         {/* supporting the project — secondary, so it sits far right / bottom */}

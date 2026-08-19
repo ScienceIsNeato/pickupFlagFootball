@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { AreaScenario } from "@/lib/mime/areaScenario";
 import { buildShareTemplates } from "@/lib/shareTemplates";
 import { skin } from "@/lib/skin";
+import { CHAT_UNREAD_EVENT } from "@/components/ChatUnreadDot";
 
 type Place = { city: string | null; zip: string | null } | null;
 type Faq = { q: string; a: string };
@@ -27,14 +28,14 @@ function buildFaq(scenario: AreaScenario, activity: string): Faq[] {
         { q: "so what do i actually do?",
           a: "get a few neighbors on the map first. the buttons below give you a ready-made post - drop it in a group chat, a local subreddit, a flyer, wherever your neighbors actually are." },
         { q: "what do people have to do to join?",
-          a: "name, email, and a rough location - about 30 seconds, no app to install. everyone on this map is a real person who did exactly that." },
+          a: "name, email, and a rough location - about 30 seconds, no app to install." },
       ];
     case "ambient-interest":
       return [
         { q: "what am i looking at?",
           a: `your neighborhood, with everyone who wants a ${activity} game here on the map. ${scenario.totalCount} of you are interested, but nobody's picked a spot and time yet - real demand, just no game on the calendar.` },
         { q: `who are these ${scenario.totalCount} people?`,
-          a: `neighbors who put themselves on the map and can travel to a game here. nothing on this map is seeded or fake - every flag is a real person.` },
+          a: `neighbors who put themselves on the map and can travel to a game here.` },
         { q: "what happens if i propose?",
           a: `everyone in range of your spot - about ${scenario.totalCount} people right now - gets an email with the day and time, asking if they're in. once ${scenario.pMin} say yes before the window closes, the game is on - and it repeats weekly from there.` },
         { q: "what if not enough say yes?",
@@ -101,8 +102,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       try {
         const r = await fetch("/api/hud", { cache: "no-store" });
         if (!r.ok || cancelled || seq !== seqRef.current) return;
-        const data = (await r.json()) as { scenario: AreaScenario | null; place: Place };
+        const data = (await r.json()) as { scenario: AreaScenario | null; place: Place; chatUnread?: number };
         if (cancelled || seq !== seqRef.current) return;
+        // Rebroadcast chat unread so the nav dot stays live off THIS poll instead
+        // of running a second always-on timer of its own.
+        window.dispatchEvent(new CustomEvent(CHAT_UNREAD_EVENT, { detail: data.chatUnread ?? 0 }));
         // scenario: null means "no area yet" (an invariant violation this
         // component doesn't expect while mounted) — keep showing the last
         // known-good state rather than guess, same as a transient fetch error.
@@ -162,6 +166,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
     return () => clearInterval(id);
   }, [scenario]);
 
+  const [openPost, setOpenPost] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   useEffect(() => { setUrl(window.location.origin); }, []);
 
@@ -232,10 +237,32 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
         {scenario.kind === "ambient-interest" || scenario.kind === "alone" ? (
           <div className="map-hud-share">
             <p className="map-hud-share-label">share this to grow {where}</p>
+            {/* Expand to reveal the post rather than silently writing to the
+                clipboard: a button that grabs your clipboard and shows nothing is
+                indistinguishable from a broken one — and if the clipboard call is
+                denied, nothing whatsoever happened. The text is on screen either
+                way, so select-and-copy always works. */}
             {templates.map((t, i) => (
-              <button key={t.label} type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
-                {copiedIdx === i ? "copied ✓" : `copy ${t.label} post`}
-              </button>
+              <div key={t.label} className="map-hud-post">
+                {/* Open state lives in React, not in a native <details>: this panel
+                    re-renders on the HUD's 15s poll, and DOM-only open state would
+                    collapse the post out from under someone mid-copy. */}
+                <button type="button" className="map-hud-post-toggle"
+                  aria-expanded={openPost === t.label}
+                  onClick={() => setOpenPost((v) => (v === t.label ? null : t.label))}>
+                  {openPost === t.label ? "▾" : "▸"} {t.label} post
+                </button>
+                {openPost === t.label && (
+                  <>
+                    <textarea className="map-hud-post-text" readOnly value={t.text}
+                      rows={Math.min(8, t.text.split("\n").length + 2)}
+                      onFocus={(e) => e.currentTarget.select()} />
+                    <button type="button" className="map-hud-copy" onClick={() => copy(t.text, i)}>
+                      {copiedIdx === i ? "copied ✓" : "copy to clipboard"}
+                    </button>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         ) : (

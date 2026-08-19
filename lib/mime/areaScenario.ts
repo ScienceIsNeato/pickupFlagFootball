@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   games, formationAttempts, attemptInterest, areas, areaOptouts, activityTypes, interestSignals,
 } from "@/lib/db/schema";
@@ -33,12 +33,26 @@ export async function detectAreaScenario(
   // isStanding excludes a one-off (non-recurring) confirmed game, which
   // shouldn't get the "runs weekly here" copy; activityTypeId guards against
   // cross-activity leakage if the DB ever has inconsistent rows.
-  const liveGames = await db.select({ id: games.id, placeText: games.placeText })
-    .from(games)
-    .where(and(
-      eq(games.areaId, areaId), eq(games.activityTypeId, activityTypeId),
-      eq(games.isStanding, true), inArray(games.status, ["active", "paused"]),
-    ));
+  // Reachability, not cell membership. Areas are r7 H3 cells and a travel radius
+  // spans several of them, so an area-scoped check called the viewer "alone with
+  // ambient interest" while the map right in front of them showed games they were
+  // already rostered on. Every other gate in the app (proposeGame, respondInterest,
+  // chat eligibility) asks "is it within YOUR radius" — this now matches.
+  const gamesRes = await db.execute(sql`
+    select g.id, g.place_text
+      from games g
+      join areas a on a.id = g.area_id
+      join users u on u.id = ${viewerUserId}::uuid
+     where g.activity_type_id = ${activityTypeId}::uuid
+       and g.is_standing = true
+       and g.status in ('active', 'paused')
+       and 6371 * 2 * asin(least(1, sqrt(
+             power(sin(radians(u.home_lat - coalesce(g.place_lat, a.center_lat)) / 2), 2)
+             + cos(radians(coalesce(g.place_lat, a.center_lat))) * cos(radians(u.home_lat))
+             * power(sin(radians(u.home_lng - coalesce(g.place_lng, a.center_lng)) / 2), 2)
+           ))) <= u.max_travel_km`);
+  const liveGames = ((gamesRes as unknown as { rows?: { id: string; place_text: string }[] }).rows ?? [])
+    .map((r) => ({ id: r.id, placeText: r.place_text }));
   if (liveGames.length > 0) {
     return {
       kind: "games",

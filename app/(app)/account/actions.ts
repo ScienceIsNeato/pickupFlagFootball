@@ -53,6 +53,16 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
   // same flag). Honored by the notification flush + engine catchment.
   update.emailOptIn = formData.get("email_opt_in") != null;
 
+  // Chat email cadence. The checkbox IS the "off" state, so an unchecked box wins
+  // over whatever the radio says and the two can never disagree. An unrecognized
+  // radio value (hand-rolled POST) falls back to the default rather than throwing —
+  // this is a preference, not a security boundary. Still subordinate to emailOptIn
+  // above: the global unsubscribe suppresses chat mail regardless of this setting.
+  const freq = str(formData.get("chat_email_freq"));
+  update.chatEmailPref = formData.get("chat_email_on") == null
+    ? "off"
+    : (["each", "hourly", "daily"] as const).find((v) => v === freq) ?? "hourly";
+
   // Did the user edit any location field? Keep this separate from "is the ZIP
   // valid": a malformed ZIP edit must surface an error, not silently fall through
   // to a name-only save that reports success while quietly dropping the move.

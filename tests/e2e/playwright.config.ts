@@ -18,6 +18,14 @@ export default defineConfig({
   // runners and flakes intermittently, which — with no retries — was red-lining
   // the prod deploy on a single flaky test. Locally keep 0 so real failures surface.
   retries: process.env.CI ? 2 : 0,
+  // Playwright's default is 30s, which was set for a bare test and never adjusted
+  // for what the story report costs: beat capture takes TWO full-page screenshots
+  // and two viewport resizes per step, so the same scenario runs 4.2s with
+  // E2E_NO_BEATS=1 and 29.6s with beats. Real runtimes were sitting on top of the
+  // limit, so any load spike (a second suite, a busy laptop) read as a product
+  // failure and sent people debugging the app instead of the harness. Budget for
+  // the instrumentation rather than pretending it's free.
+  timeout: process.env.E2E_NO_BEATS === "1" ? 30_000 : 90_000,
   // Paths below are resolved relative to this config's dir (tests/e2e).
   outputDir: "test-results",
   reporter: [

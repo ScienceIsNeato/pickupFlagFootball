@@ -7,10 +7,17 @@ Feature: Donations (Stripe subscription)
     When Stripe reports their subscription cancelled
     Then the donation reminder is back on
 
+  Scenario: the support nudge waits until you've actually played
+    Given I am a confirmed player "Newly Joined" with email "newjoin@example.com" in ZIP "78701"
+    And an established weekly game near me
+    And I am on that game's roster
+    Then I do not see the support banner on the map
+
   Scenario: an active member sees the support nudge and can switch it off
     Given I am a confirmed player "Member Mike" with email "mike@example.com" in ZIP "78701"
     And an established weekly game near me
     And I am on that game's roster
+    And I've played 3 weeks
     When I open the map
     Then I see the support banner
     When I dismiss the support banner with "stop asking for contributions"
@@ -21,6 +28,7 @@ Feature: Donations (Stripe subscription)
     Given I am a confirmed player "Toggle Tina" with email "tina@example.com" in ZIP "78701"
     And an established weekly game near me
     And I am on that game's roster
+    And I've played 3 weeks
     When I turn off the donation reminder in account settings
     Then the donation reminder is off
     And I do not see the support banner on the map

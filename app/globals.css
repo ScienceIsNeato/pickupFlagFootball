@@ -834,6 +834,15 @@ section h2::after {
 .donate-opt input { width: auto; height: auto; accent-color: var(--green); margin: 0; }
 .reg-done { font-size: 15px; color: var(--link); margin: 8px 0 0; line-height: 1.6; }
 
+/* Message settings — chat email cadence. A bare fieldset (no border/padding) so the
+   radios read as a continuation of the checkbox above them, indented to show they
+   only apply when it's on. */
+.msg-freq { border: 0; margin: 10px 0 0; padding: 0 0 0 26px; display: flex; flex-direction: column; gap: 8px; }
+.msg-freq > .reg-section { margin: 0 0 2px; }
+/* The scoping hint is a sibling of the fieldset, so it needs its own gap - without
+   this it butts straight up against the last radio. */
+.msg-freq + .reg-hint { margin-top: 12px; }
+
 /* Account page — three columns: support · you · location. */
 .account { max-width: 1040px; position: relative; }
 .account-grid {
@@ -895,4 +904,139 @@ section h2::after {
 @media (max-width: 560px) {
   .hero h1 { font-size: 38px; }
   .nav nav a { margin-left: 12px; }
+}
+
+/* ── per-game chat (docs/design/game-chat.md) ───────────────────────────────
+   Chat is a TAB in the game card, not another collapsible section: the card
+   already scrolls, and nesting a scrolling message list inside it leaves the
+   composer stranded mid-page with nowhere to pin. */
+.game-tabs { display: flex; gap: 2px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+.game-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--muted);
+  padding: 7px 12px 8px; cursor: pointer;
+}
+.game-tab:hover { color: var(--ink); }
+.game-tab-on { color: var(--ink); border-bottom-color: var(--green); }
+.game-tab:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+
+.chat-who {
+  font-size: 12px; color: var(--faint); line-height: 1.45;
+  padding: 0 0 10px; margin: 0 0 12px; border-bottom: 1px solid var(--border);
+}
+.chat-empty { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 2px 0 0; }
+.chat-thread {
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 264px; overflow-y: auto; padding-right: 6px;
+  /* The default dark scrollbar is a heavy slab at this width — hairline it so the
+     thread reads as content rather than as a widget. */
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent;
+}
+.chat-thread::-webkit-scrollbar { width: 5px; }
+.chat-thread::-webkit-scrollbar-track { background: transparent; }
+.chat-thread::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 99px; }
+
+/* Flat list, no bubbles: at 360px a bubble wastes horizontal space and implies a
+   two-person conversation. Author, role and time on one line; body beneath. */
+.chat-msg { display: flex; flex-direction: column; gap: 2px; position: relative; }
+.chat-msg-h { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.chat-nm { font-size: 13px; font-weight: 700; color: var(--ink); }
+.chat-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 5px; border-radius: 4px; line-height: 1;
+}
+.chat-tag-cap { background: rgba(244,196,48,.16); color: var(--yellow); }
+.chat-tag-prop { background: rgba(70,137,68,.20); color: var(--grass-l); }
+.chat-when { font-size: 11px; color: var(--faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+.chat-txt { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.chat-del {
+  align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--faint); text-decoration: underline;
+}
+.chat-del:hover { color: var(--red); }
+
+.chat-comp { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.chat-comp textarea {
+  flex: 1; min-width: 0; background: var(--bg); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+  font: inherit; font-size: 13.5px; line-height: 1.45; resize: none; height: 64px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent;
+}
+.chat-comp textarea::placeholder { color: var(--faint); }
+.chat-send {
+  align-self: flex-end; background: var(--green); color: #fff; border: 0; border-radius: 8px;
+  font: inherit; font-size: 13px; font-weight: 700; padding: 9px 14px; cursor: pointer;
+}
+.chat-send:disabled { opacity: .5; cursor: default; }
+
+.chat-note {
+  margin-top: 14px; padding: 11px 12px; border-radius: 9px; font-size: 13px; line-height: 1.5;
+  border: 1px solid var(--border); background: rgba(255,255,255,.03); color: var(--muted);
+}
+.chat-note b { color: var(--ink); font-weight: 600; display: block; margin-bottom: 2px; }
+.chat-note-warn { border-color: rgba(244,196,48,.34); background: rgba(244,196,48,.07); }
+.chat-note-warn b { color: var(--yellow); }
+.chat-err { margin: 10px 0 0; font-size: 13px; color: #f08b81; }
+
+/* Unread chat dot on the map link. No count on the dot itself: at this volume the
+   number is noise, and "there is something to look at" is the whole message. */
+.nav-with-dot { position: relative; display: inline-flex; align-items: center; }
+.chat-dot {
+  position: absolute; top: -2px; right: -10px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 0 2px rgba(12, 19, 38, .9);
+}
+
+/* Share posts: expandable, with the text on screen. A copy button that reveals
+   nothing looks broken when the clipboard call is denied — and looks like something
+   worse when it isn't. */
+.map-hud-post { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+.map-hud-post-toggle {
+  display: block; width: 100%; text-align: left; cursor: pointer; padding: 8px 10px;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+  background: none; border: 0;
+}
+.map-hud-post-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--border); }
+.map-hud-post-text {
+  display: block; width: calc(100% - 20px); margin: 10px; padding: 8px 9px;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--border);
+  border-radius: 6px; font: inherit; font-size: 12.5px; line-height: 1.5; resize: vertical;
+}
+.map-hud-post .map-hud-copy { margin: 0 10px 10px; }
+
+/* ── install-as-an-app pane (landing hero) ──────────────────────────────────
+   Below 1100px it sits in normal flow under the CTA; above that it becomes a
+   right rail, so the centered hero column keeps its own composition. */
+.install-pane {
+  position: relative; z-index: 2;
+  max-width: 320px; margin: 30px auto 0; text-align: left;
+  background: rgba(12, 19, 38, 0.72); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px; backdrop-filter: blur(8px);
+}
+.install-h {
+  font-family: var(--font-barlow), sans-serif; font-size: 19px; font-weight: 700;
+  margin: 0 0 6px; color: var(--ink);
+}
+.install-body { margin: 0 0 14px; font-size: 14px; line-height: 1.55; color: var(--muted); }
+/* Deliberately NOT the primary .btn yellow: signup is the page's one job, and two
+   equally loud calls to action make the reader pick between them. This is the quiet
+   offer you take once you're already sold. */
+.install-btn {
+  display: inline-block; width: 100%; text-align: center; cursor: pointer;
+  font: inherit; font-family: var(--font-barlow), sans-serif; font-weight: 700;
+  font-size: 15px; padding: 10px 14px; border-radius: 8px;
+  color: var(--ink); background: transparent; border: 1px solid var(--grass-l);
+}
+.install-btn:hover { background: rgba(70, 137, 68, 0.16); }
+.install-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.install-steps {
+  margin: 12px 0 0; padding-left: 20px; color: var(--muted);
+  font-size: 13.5px; line-height: 1.6;
+}
+.install-steps li + li { margin-top: 4px; }
+@media (min-width: 1100px) {
+  .install-pane {
+    position: absolute; top: 50%; right: 40px; transform: translateY(-50%);
+    margin: 0; width: 300px;
+  }
 }

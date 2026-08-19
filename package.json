@@ -15,7 +15,8 @@
     "e2e:up": "docker compose -f tests/e2e/docker-compose.yml up -d --wait",
     "e2e:down": "docker compose -f tests/e2e/docker-compose.yml down -v",
     "e2e:report": "open tests/e2e/report/output/index.html",
-    "test:e2e:open": "npm run test:e2e && npm run e2e:report"
+    "test:e2e:open": "npm run test:e2e && npm run e2e:report",
+    "tick": "bash scripts/tick-local.sh"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
