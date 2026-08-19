@@ -7,6 +7,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { respondInterest } from "@/app/(app)/play/propose-actions";
 
 import { ChatPanel } from "@/components/ChatPanel";
+import { CardTabs } from "@/components/CardTabs";
 type Proposal = {
   attemptId: string; areaId: string; placeText: string;
   proposedStart: string; recurDow: number | null; recurTime: string | null;
@@ -164,15 +165,10 @@ export function ProposedDetailsModal({
         {proposal && (
           <>
             <h2 id="proposed-details-title" className="game-h">proposed game site</h2>
-            <div className="game-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === "details"}
-                className={`game-tab${tab === "details" ? " game-tab-on" : ""}`}
-                onClick={() => setTab("details")}>details</button>
-              <button type="button" role="tab" aria-selected={tab === "chat"}
-                className={`game-tab${tab === "chat" ? " game-tab-on" : ""}`}
-                onClick={() => setTab("chat")}>chat</button>
-            </div>
-            <div hidden={tab !== "details"}>
+            <CardTabs idBase="proposed" active={tab} onChange={setTab}
+              tabs={[{ id: "details", label: "details" }, { id: "chat", label: "chat" }] as const} />
+            <div role="tabpanel" id="proposed-panel-details"
+              aria-labelledby="proposed-tab-details" hidden={tab !== "details"}>
             <dl className="game-dl">
               <dt>where</dt>
               <dd>{firstLine(proposal.placeText)}</dd>
@@ -208,7 +204,11 @@ export function ProposedDetailsModal({
             </div>
             {respondErr && <p className="game-muted" role="alert">{respondErr}</p>}
             </div>
-            {tab === "chat" && <ChatPanel attemptId={proposal.attemptId} isProposal />}
+            {tab === "chat" && (
+              <div role="tabpanel" id="proposed-panel-chat" aria-labelledby="proposed-tab-chat">
+                tab === "chat" && <ChatPanel attemptId={proposal.attemptId} isProposal />
+              </div>
+            )}
           </>
         )}
       </div>

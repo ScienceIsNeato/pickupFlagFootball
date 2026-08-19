@@ -7,6 +7,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
 import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain, setMinPlayers } from "@/app/(app)/play/captain-actions";
 import { ChatPanel } from "@/components/ChatPanel";
+import { CardTabs } from "@/components/CardTabs";
 
 type GameInfo = {
   gameId: string;
@@ -214,17 +215,12 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
           <>
             <h2 id="game-details-title" className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>
             {retired && <div className="game-retired" role="status">retired</div>}
-            <div className="game-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === "details"}
-                className={`game-tab${tab === "details" ? " game-tab-on" : ""}`}
-                onClick={() => setTab("details")}>details</button>
-              <button type="button" role="tab" aria-selected={tab === "chat"}
-                className={`game-tab${tab === "chat" ? " game-tab-on" : ""}`}
-                onClick={() => setTab("chat")}>chat</button>
-            </div>
+            <CardTabs idBase="game" active={tab} onChange={setTab}
+              tabs={[{ id: "details", label: "details" }, { id: "chat", label: "chat" }] as const} />
             {/* hidden, not unmounted: switching tabs must not discard the RSVP
                 toggles' in-flight state sitting behind it. */}
-            <div hidden={tab !== "details"}>
+            <div role="tabpanel" id="game-panel-details"
+              aria-labelledby="game-tab-details" hidden={tab !== "details"}>
             <dl className="game-dl">
               <dt>where</dt>
               <dd>
@@ -440,7 +436,11 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
               </>
             )}
             </div>
-            {tab === "chat" && <ChatPanel gameId={game.gameId} />}
+            {tab === "chat" && (
+              <div role="tabpanel" id="game-panel-chat" aria-labelledby="game-tab-chat">
+                tab === "chat" && <ChatPanel gameId={game.gameId} />
+              </div>
+            )}
           </>
         )}
       </div>

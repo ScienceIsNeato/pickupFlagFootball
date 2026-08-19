@@ -46,36 +46,56 @@ const GAP_MS: Record<Pending["pref"], number> = {
  * the proposal, or posted in the thread — those are the people who asked for it.
  */
 async function pendingRecipients(now: Date): Promise<Pending[]> {
+  // Recipients are derived PER THREAD, not by scanning the user table. The first
+  // version joined users with no relationship to the thread and filtered with
+  // EXISTS, so its cost grew with total accounts rather than with the handful of
+  // people attached to the threads that actually owe mail — and this runs inside
+  // the cron tick, where unpredictable runtime is the expensive kind.
   const res = await db.execute(sql`
-    select t.id as thread_id, u.id as user_id, u.email, u.display_name,
+    with due as (
+      select t.id as thread_id, t.attempt_id,
+             coalesce(g.id, ga.id) as eff_game_id,
+             coalesce(g.area_id, fa.area_id) as area_id,
+             coalesce(g.place_text, fa.place_text, '') as place
+        from chat_threads t
+        left join games g on g.id = t.game_id
+        left join formation_attempts fa on fa.id = t.attempt_id
+        left join games ga on ga.origin_attempt_id = t.attempt_id
+       where t.digest_due_at is not null
+         and t.digest_due_at <= ${now.toISOString()}::timestamptz
+    ),
+    -- participation, not proximity (design §8.3): read access is radius-based, so
+    -- mailing everyone who *could* read would mail people about strangers' games.
+    recips as (
+      select d.thread_id, gr.user_id
+        from due d join game_roster gr on gr.game_id = d.eff_game_id
+      union
+      select d.thread_id, ac.user_id
+        from due d join area_captains ac on ac.area_id = d.area_id
+      union
+      -- interested = true only: a decliner said no to this proposal.
+      select d.thread_id, ai.user_id
+        from due d join attempt_interest ai
+          on ai.attempt_id = d.attempt_id and ai.interested = true
+      union
+      select d.thread_id, cm.user_id
+        from due d join chat_messages cm on cm.thread_id = d.thread_id
+       where cm.user_id is not null
+    )
+    select d.thread_id, u.id as user_id, u.email, u.display_name,
            u.chat_email_pref as pref,
            coalesce(s.last_emailed_seq, 0) as last_seq,
            s.last_emailed_at,
-           coalesce(g.place_text, fa.place_text, '') as place
-      from chat_threads t
-      left join games g on g.id = t.game_id
-      left join formation_attempts fa on fa.id = t.attempt_id
-      left join games ga on ga.origin_attempt_id = t.attempt_id
-      join users u on u.email_opt_in = true
+           d.place
+      from recips r
+      join due d on d.thread_id = r.thread_id
+      join users u on u.id = r.user_id
+                  and u.email_opt_in = true
                   and u.email_verified is not null
                   and u.chat_email_pref <> 'off'
-      left join chat_email_state s on s.thread_id = t.id and s.user_id = u.id
-     where t.digest_due_at is not null
-       and t.digest_due_at <= ${now.toISOString()}::timestamptz
-       -- participation, not proximity
-       and (
-         exists (select 1 from game_roster gr
-                  where gr.game_id = coalesce(g.id, ga.id) and gr.user_id = u.id)
-         or exists (select 1 from area_captains ac
-                     where ac.area_id = coalesce(g.area_id, fa.area_id) and ac.user_id = u.id)
-         or exists (select 1 from attempt_interest ai
-                     where ai.attempt_id = t.attempt_id and ai.user_id = u.id)
-         or exists (select 1 from chat_messages cm
-                     where cm.thread_id = t.id and cm.user_id = u.id)
-       )
-       -- something they haven't been sent, that isn't their own and isn't deleted
-       and exists (select 1 from chat_messages m
-                    where m.thread_id = t.id
+      left join chat_email_state s on s.thread_id = d.thread_id and s.user_id = u.id
+     where exists (select 1 from chat_messages m
+                    where m.thread_id = d.thread_id
                       and m.seq > coalesce(s.last_emailed_seq, 0)
                       and m.user_id is distinct from u.id
                       and m.deleted_at is null)`);
@@ -131,7 +151,8 @@ function build(p: Pending, msgs: { author: string; body: string }[], playUrl: st
         </div>`).join("")}
       <p><a href="${playUrl}" style="color:#2f7a39;font-weight:700">reply on the map</a></p>
       <p style="color:#888;font-size:12px">
-        you're getting this because you're in this game.
+        you're getting this because you're part of this game - on the roster, you said
+        you're in, you captain here, or you've posted in the chat.
         <a href="${unsub}" style="color:#888">turn these off</a>.
       </p>
     </div>`;

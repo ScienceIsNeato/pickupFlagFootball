@@ -7,6 +7,8 @@ import { chatMessages, chatReads, chatThreads } from "@/lib/db/schema";
 import {
   chatAccess, threadPage, tombstonesSince, type ChatSubject,
 } from "@/lib/chat/eligibility";
+import { scheduleNextTick } from "@/lib/mime/scheduleTick";
+import type { EngineDb } from "@/lib/mime/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +50,7 @@ export async function GET(req: Request) {
   }
   if (!access.threadId) {
     return NextResponse.json({
-      ok: true, threadId: null, version: 0, locked: false,
+      ok: true, threadId: null, version: 0, locked: false, viewerId: session.user.id,
       canWrite: access.canWrite, messages: [], tombstones: [],
     });
   }
@@ -63,6 +65,10 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     threadId: access.threadId,
+    // The panel needs this to show "delete" on your OWN messages only. The API is
+    // the authority either way (author-only), but an affordance the server will
+    // reject is a lie to the person clicking it.
+    viewerId: session.user.id,
     version: t?.version ?? 0,
     locked: t?.locked ?? false,
     canWrite: access.canWrite && !(t?.locked ?? false),
@@ -206,6 +212,13 @@ async function send(userId: string, subj: ChatSubject, threadId: string | null, 
 
   if ("limited" in result) return NextResponse.json({ ok: false, reason: "ratelimited" }, { status: 429 });
   if ("failed" in result) return NextResponse.json({ ok: false, reason: "retry" }, { status: 409 });
+
+  // Arming digest_due_at only tells the tick what's owed WHEN it next runs — it
+  // doesn't cause a run. scheduleNextTick is otherwise called only at the end of an
+  // existing tick, so on a quiet calendar (no games due, which is exactly when the
+  // engine is asleep) an "every message" email would sit until some unrelated wake.
+  // Re-arm here so posting schedules its own delivery. Never throws by contract.
+  await scheduleNextTick(txnDb as unknown as EngineDb);
   return NextResponse.json({ ok: true, seq: result.seq, threadId: result.threadId });
 }
 

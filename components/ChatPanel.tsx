@@ -21,7 +21,7 @@ type Msg = {
 
 type Feed = {
   ok: boolean; reason?: string; threadId: string | null;
-  version: number; locked: boolean; canWrite: boolean;
+  version: number; locked: boolean; canWrite: boolean; viewerId?: string;
   messages: Msg[]; tombstones: number[];
 };
 
@@ -50,6 +50,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
   const [text, setText] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [viewerId, setViewerId] = useState<string | null>(null);
   // Cursors: seq for new messages, a wall-clock mark for deletions (which land
   // BELOW the seq cursor and would otherwise never reach an open panel).
   const cursor = useRef(0);
@@ -67,6 +68,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
       const d = (await r.json()) as Feed;
       if (!d.ok) { setState("blocked"); setReason(d.reason ?? "notfound"); return; }
       setState("ready");
+      if (d.viewerId) setViewerId(d.viewerId);
       setLocked(d.locked);
       setCanWrite(d.canWrite);
       if (d.tombstones.length) {
@@ -139,11 +141,20 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
   }
 
   async function remove(seq: number) {
-    setMsgs((prev) => prev.filter((m) => m.seq !== seq)); // optimistic
-    await fetch("/api/chat", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "delete", gameId, attemptId, seq }),
-    }).catch(() => {});
+    // Confirm with the server BEFORE hiding it. Removing optimistically would be a
+    // one-way door: the poll only asks for seqs above the cursor, so a rejected or
+    // failed delete could never bring the message back while the panel stayed open.
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "delete", gameId, attemptId, seq }),
+      });
+      const d = (await r.json()) as { ok: boolean };
+      if (!d.ok) { setErr("couldn't delete that."); return; }
+      setMsgs((prev) => prev.filter((m) => m.seq !== seq));
+    } catch {
+      setErr("couldn't delete that.");
+    }
     await poll();
   }
 
@@ -153,7 +164,8 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
   return (
     <div className="chat">
       <p className="chat-who">
-        anyone close enough to play this game can read this, plus everyone on the roster.
+        anyone on the roster, the captains, anyone who said they&apos;re in, and confirmed
+        players close enough to play here can read this.
       </p>
 
       {msgs.length === 0 ? (
@@ -172,7 +184,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
                 <span className="chat-when">{ago(m.createdAt)}</span>
               </div>
               <p className="chat-txt">{m.body}</p>
-              {m.authorId && canWrite && (
+              {m.authorId && m.authorId === viewerId && canWrite && (
                 <button type="button" className="chat-del" onClick={() => remove(m.seq)}>delete</button>
               )}
             </div>
