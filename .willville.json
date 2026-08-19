@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Chased down why a test was taking 30 seconds - turns out the app is fast, it's the screenshot capture for the visual test report that's slow. Whole suite drops from ~9 minutes to under 3 with it off. Gave the timeout enough room so busy machines stop reporting false failures.",
-    "direction": "Worth deciding whether the picture-taking should run every time or only when we want the report.",
-    "last_update": "2026-08-18T23:59:43Z"
+    "status": "Combined the chat work and the donations work onto one branch and opened a single PR - game chat with email digests, the install-as-an-app panel, the Buy Me a Coffee switch, and a batch of fixes.",
+    "direction": "Get it reviewed and merged, then the two-account chat test on the real site.",
+    "last_update": "2026-08-19T00:00:00Z"
   }
 }

@@ -105,3 +105,15 @@ When("I turn on the donation reminder in account settings", async ({ page }) => 
 Given("I've played 3 weeks", async ({ world }) => {
   await seedPlayedWeeks(world.game!.gameId!, world.email!, 3);
 });
+
+// ── self-declared supporter (honor system; BMC has no webhook back) ──────────
+When("I mark myself as a supporter in account settings", async ({ page }) => {
+  await page.goto("/account");
+  await page.locator('input[name="supporter"]').check();
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.locator(".save-toast")).toBeVisible({ timeout: 10000 });
+});
+
+Then("I'm marked as a supporter", async ({ world }) => {
+  await expect.poll(() => getDonationStatus(world.email!), { timeout: 10000 }).toBe("subscribed");
+});

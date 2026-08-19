@@ -100,44 +100,20 @@ export async function saveAccount(_prev: SaveResult | null, formData: FormData):
     await db.update(users).set(update).where(eq(users.id, uid));
   }
 
-  // Donation reminder — only ours to set when they're not an active subscriber
-  // (that status is webhook-managed). Checkbox present+checked → remind; else stop.
-  if (cur?.donationStatus !== "subscribed" && !cur?.subId) {
-    await setReminder(uid, formData.get("remind") != null);
+  // Self-declared donation status (honor system) from the two checkboxes — skip for a
+  // legacy Stripe subscriber (that status is webhook-managed). "I've donated" wins;
+  // otherwise the reminder checkbox picks ask (unset) vs stop-asking (declined).
+  if (!cur?.subId) {
+    const supporter = formData.get("supporter") != null;
+    const remind = formData.get("remind") != null;
+    await db.update(users)
+      .set({ donationStatus: supporter ? "subscribed" : remind ? "unset" : "declined", updatedAt: new Date() })
+      .where(eq(users.id, uid));
   }
 
   // Refresh the account AND the app-wide donation banner (it keys off this pref).
   revalidatePath("/", "layout");
   return { ok: true };
-}
-
-// Donation preference is self-declared and independent of location.
-const DONATION_STATUSES = ["unset", "subscribed", "declined"] as const;
-type DonationStatus = (typeof DONATION_STATUSES)[number];
-
-export async function updateDonationPref(formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/?signin=1&next=/account");
-
-  // An active Stripe subscriber's status is webhook-managed — ignore a direct
-  // POST (the UI hides the control for them) so they can't desync to unset/declined
-  // and lose the billing-portal link.
-  const [u] = await db.select({ subId: users.stripeSubscriptionId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (u?.subId) redirect("/account");
-
-  const value = str(formData.get("donation_status"));
-  // "subscribed" is Stripe-managed (set by the webhook), never self-declared.
-  if (value !== "unset" && value !== "declined") {
-    throw new Error("invalid donation status");
-  }
-
-  await db
-    .update(users)
-    .set({ donationStatus: value as DonationStatus, updatedAt: new Date() })
-    .where(eq(users.id, session.user.id));
-
-  redirect("/account");
 }
 
 // Shared write for the reminder preference: checked → remind ("unset"),

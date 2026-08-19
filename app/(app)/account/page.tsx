@@ -9,7 +9,6 @@ import { skin } from "@/lib/skin";
 import { AccountForm } from "@/components/AccountForm";
 import { ChangeEmail } from "@/components/ChangeEmail";
 import { OptedOutAreas } from "@/components/OptedOutAreas";
-import { updateDonationPref } from "./actions";
 import { openBillingPortal } from "@/app/(marketing)/donate/actions";
 
 export const metadata = { title: "Account - MIME-FF" };
@@ -197,7 +196,7 @@ export default async function AccountPage() {
           <h2 className="account-col-h">supporting the project</h2>
           <div className={`acct-membership ${supporting ? "acct-membership--supporter" : "acct-membership--free"}`}>
             <span className="acct-membership-label">membership</span>
-            <span className="acct-membership-level">{supporting ? "monthly supporter 💚" : "free"}</span>
+            <span className="acct-membership-level">{supporting ? "supporter 💚" : "free"}</span>
           </div>
           {supporting ? (
             <>
@@ -205,29 +204,33 @@ export default async function AccountPage() {
                 thank you for chipping in. your support keeps the servers on - and it&apos;s what lets
                 people like you find games in brand-new areas.
               </p>
-              {me.stripeSubscriptionId ? (
+              {me.stripeSubscriptionId && (
                 <button type="submit" formAction={openBillingPortal} formNoValidate className="btn-green acct-support-cta">
                   manage subscription
-                </button>
-              ) : (
-                <button type="submit" formAction={updateDonationPref} formNoValidate
-                  name="donation_status" value="unset" className="game-leave">
-                  no longer donating? reset this
                 </button>
               )}
             </>
           ) : (
             <>
               <p className="reg-hint">
-                free and pay-what-you-can. a <strong>$5/month</strong> donation keeps the servers on and
+                free and pay-what-you-can. a <strong>$3/month</strong> donation keeps the servers on and
                 helps more local games get off the ground - an ask, not a gate.
               </p>
               <Link href={skin.donate.url} className="btn-green acct-support-cta">support the project</Link>
-              <label className="donate-opt">
-                <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
-                <span>remind me to make a small monthly donation once I find a game</span>
-              </label>
             </>
+          )}
+          {/* Self-declared, honor-system: Buy Me a Coffee is external (no webhook back),
+              so you tell us you've chipped in and we thank you + stop asking. Saved with
+              everything else on "Save Changes". */}
+          <label className="donate-opt">
+            <input type="checkbox" name="supporter" defaultChecked={supporting} />
+            <span>I&apos;ve donated - count me as a supporter</span>
+          </label>
+          {!supporting && (
+            <label className="donate-opt">
+              <input type="checkbox" name="remind" defaultChecked={me.donationStatus !== "declined"} />
+              <span>remind me to make a small monthly donation once I find a game</span>
+            </label>
           )}
         </section>
       </div>
