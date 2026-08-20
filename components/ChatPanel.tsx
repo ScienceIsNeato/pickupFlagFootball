@@ -185,7 +185,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
           you&apos;re actually showing up.
         </p>
       ) : (
-        <div className="chat-thread" ref={listRef}>
+        <div className="chat-thread" ref={listRef} aria-live="polite" aria-relevant="additions">
           {msgs.map((m) => (
             <div className="chat-msg" key={m.seq}>
               <div className="chat-msg-h">

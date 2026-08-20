@@ -126,6 +126,9 @@ Then("the chat shows {string}", async ({ page }, body: string) => {
 // Author self-delete is the only moderation in v1 — captain powers are blocked on
 // volunteerAsCaptain being self-service (design §9).
 When("I delete my chat message", async ({ page }) => {
+  // Delete confirms via window.confirm now (audit M11) — Playwright dismisses
+  // dialogs by default, so accept this one.
+  page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "delete" }).first().click();
 });
 

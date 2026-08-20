@@ -566,7 +566,7 @@ section h2::after {
   background: repeating-linear-gradient(90deg, var(--green) 0 9px, transparent 9px 15px);
 }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; /* 230px floor: phones stack 1-up instead of 2 cramped columns (audit M18) */ }
 .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
 .step-n { font-size: 40px; font-weight: 700; color: var(--green); line-height: 1; }
 .card .title { font-family: var(--font-inter), sans-serif; font-weight: 600; font-size: 15px; margin: 8px 0 4px; }
@@ -1219,3 +1219,11 @@ section h2::after {
    prompt shows wherever it fired. No post-hydration pop-in shove. */
 .install-pane--manual { display: none; }
 @media (pointer: coarse) { .install-pane--manual { display: block; } }
+
+/* M30: the GIS iframe is hard-coded ~300px wide — never let it push the auth
+   card into horizontal scroll on narrow phones */
+.auth-google { max-width: 100%; overflow-x: hidden; }
+
+/* M54: on pages the card sits on the page background, not over a bright map —
+   make it opaque so text never fights map imagery bleeding through */
+.game-card--page { background: #0f1723; /* --surface flattened over the page bg */ backdrop-filter: none; -webkit-backdrop-filter: none; }
