@@ -10,11 +10,13 @@ import { Pool } from "pg";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { E2E } from "../e2e/support/env";
-import { resetData, seedStandingGame, markEmailVerified, seedRosterMember, seedCaptain } from "../e2e/support/db";
+import { resetData, seedStandingGame, markEmailVerified, seedRosterMember, seedCaptain, seedChatMessageFromOther, seedPlayedWeeks } from "../e2e/support/db";
 import { registerViaUi } from "../e2e/support/flows";
 
 const BASE = E2E.appBaseUrl;
-const VP = { width: 1120, height: 704 };
+// Phone-framed (audit M19): the product is phone-first and the splash gallery
+// renders these in a portrait phone stage - desktop shots shrank to confetti.
+const VP = { width: 390, height: 780 };
 const OUT = path.join(process.cwd(), "public/gallery");
 mkdirSync(OUT, { recursive: true });
 
@@ -42,8 +44,15 @@ async function openGame(page: Page, lat: number, lng: number) {
   await map.waitFor({ timeout: 10000 });
   const box = await map.boundingBox();
   if (!box) throw new Error("no box for .dash-map");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.locator(".game-card").waitFor({ timeout: 10000 });
+  // The badge pin's TIP anchors at the venue (= map center) and its visual
+  // center sits ~40px above - click there, inside the hit radius.
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2 - 40);
+  // B2: the badge click navigates to the /game/[id] page.
+  await page.locator(".game-card").waitFor({ timeout: 10000 }).catch(async (e) => {
+    await page.screenshot({ path: "/tmp/openGame-debug.png" });
+    console.log("debug url:", page.url());
+    throw e;
+  });
   await sleep(page, 700);
 }
 
@@ -53,6 +62,7 @@ async function shot(browser: Browser, name: string, storageState: string | undef
   const page = await ctx.newPage();
   try {
     await flow(page);
+    await page.mouse.move(4, 4); // park the cursor - no hover tooltips in stills
     await sleep(page, 300);
     await page.screenshot({ path: path.join(OUT, `${name}.jpg`), type: "jpeg", quality: 88 });
     console.log(`  ✓ ${name}`);
@@ -97,14 +107,14 @@ async function main() {
       [game.gameId, ALEX.email],
     );
     await shot(browser, "join-game", AUTH, async (page) => {
-      await page.goto("/play");
+      await page.goto("/play", { waitUntil: "domcontentloaded" });
       await openGame(page, game.lat, game.lng);
     });
 
     // 3) Attending a weekly game — a member has tapped "i'm in" for the week.
     await seedRosterMember(game.gameId, ALEX.email, "out");
     await shot(browser, "attend-week", AUTH, async (page) => {
-      await page.goto("/play");
+      await page.goto("/play", { waitUntil: "domcontentloaded" });
       await openGame(page, game.lat, game.lng);
       await page.getByRole("button", { name: "i'm in", exact: true }).first().click();
       await page
@@ -115,10 +125,35 @@ async function main() {
       await sleep(page, 600);
     });
 
-    // 4) Pausing the series as captain — the pause dialog, filled in.
+    // 4) The map itself — chips, badges, flags; the first thing a player sees.
+    await shot(browser, "find-on-map", AUTH, async (page) => {
+      await page.goto("/play", { waitUntil: "domcontentloaded" });
+      await centerOnGame(page, game.lat, game.lng);
+    });
+
+    // 5) The game's chat — two neighbors sorting out the ordinary stuff.
+    await seedChatMessageFromOther(game.gameId, "sam-demo@example.com", "Sam", "anyone bringing an extra set of flags?");
+    await seedChatMessageFromOther(game.gameId, "riley-demo@example.com", "Riley", "got two sets + cones. front lot fills by noon fyi");
+    await shot(browser, "game-chat", AUTH, async (page) => {
+      await page.goto("/play", { waitUntil: "domcontentloaded" });
+      await openGame(page, game.lat, game.lng);
+      await page.getByRole("tab", { name: "chat" }).click();
+      await page.locator(".chat-thread").waitFor({ timeout: 10000 });
+      await sleep(page, 500);
+    });
+
+    // 6) My games — upcoming weeks + play history.
+    await seedPlayedWeeks(game.gameId, ALEX.email, 3);
+    await shot(browser, "my-games", AUTH, async (page) => {
+      await page.goto("/my-games", { waitUntil: "domcontentloaded" });
+      await page.locator(".mine-panel, .mine-section").first().waitFor({ timeout: 10000 }).catch(() => {});
+      await sleep(page, 600);
+    });
+
+    // 7) Pausing the series as captain — the pause dialog, filled in.
     await seedCaptain(game.areaId, ALEX.email);
     await shot(browser, "captain-pause", AUTH, async (page) => {
-      await page.goto("/play");
+      await page.goto("/play", { waitUntil: "domcontentloaded" });
       await openGame(page, game.lat, game.lng);
       await page.getByRole("button", { name: "pause series", exact: true }).first().click();
       const dlg = page.getByRole("alertdialog");

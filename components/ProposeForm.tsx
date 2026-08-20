@@ -33,14 +33,14 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
     <div className="reg-form"
       style={{ width: 380, maxWidth: "92%", background: "var(--surface)",
         border: "1px solid var(--border)", borderRadius: 12, padding: 24, backdropFilter: "blur(8px)" }}>
-      <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 6px" }}>
+      <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: "1.375rem", margin: "0 0 6px" }}>
         Game proposed!
       </h2>
-      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 10px", lineHeight: 1.55 }}>
+      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 10px", lineHeight: 1.55 }}>
         We&apos;ll see if any other games have been proposed in the area and spend the interest window
         gathering interest. At the end of that window, we&apos;ll let you know if a game has formed or not.
       </p>
-      <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px", lineHeight: 1.55 }}>
+      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 14px", lineHeight: 1.55 }}>
         That&apos;s all you have to do for now - thank you for supporting community sports!
       </p>
       <button type="button" className="btn-green" onClick={onClose}>got it</button>
@@ -123,10 +123,10 @@ export function ProposeForm({
         <input type="hidden" name="h3" value={h3} />
         <input type="hidden" name="place_lat" value={center.lat} />
         <input type="hidden" name="place_lng" value={center.lng} />
-        <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: 22, margin: "0 0 4px" }}>
+        <h2 id="propose-title" style={{ fontFamily: "var(--font-barlow), sans-serif", fontSize: "1.375rem", margin: "0 0 4px" }}>
           propose a game
         </h2>
-        <p style={{ color: "var(--muted)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>
+        <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0 0 8px", lineHeight: 1.5 }}>
           name a public spot and a weekly time. neighbors who showed interest get asked if they&apos;d come.
         </p>
 
@@ -216,7 +216,7 @@ export function ProposeForm({
         </button>
         <button type="button" onClick={toMap}
           style={{ background: "none", border: 0, color: "var(--muted)", cursor: "pointer",
-            fontSize: 13, marginTop: 2 }}>cancel</button>
+            fontSize: "0.8125rem", marginTop: 2 }}>cancel</button>
       </form>
       )}
     </>

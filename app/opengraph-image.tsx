@@ -24,13 +24,13 @@ export default function OpengraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", fontSize: 44, fontWeight: 800 }}>
+        <div style={{ display: "flex", alignItems: "center", fontSize: "2.75rem", fontWeight: 800 }}>
           {skin.emoji ? `${skin.emoji} ` : ""}{skin.brandName}
         </div>
-        <div style={{ display: "flex", marginTop: 28, fontSize: 68, fontWeight: 800, lineHeight: 1.1, maxWidth: 900 }}>
+        <div style={{ display: "flex", marginTop: 28, fontSize: "4.25rem", fontWeight: 800, lineHeight: 1.1, maxWidth: 900 }}>
           {skin.hero.heading}
         </div>
-        <div style={{ display: "flex", marginTop: 28, fontSize: 30, color: "#9fb39a", maxWidth: 900 }}>
+        <div style={{ display: "flex", marginTop: 28, fontSize: "1.875rem", color: "#9fb39a", maxWidth: 900 }}>
           {skin.footer.tagline}
         </div>
       </div>

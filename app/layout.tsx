@@ -68,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               left: 8,
               zIndex: 9999,
               fontFamily: "var(--font-barlow), sans-serif",
-              fontSize: 11,
+              fontSize: "0.6875rem",
               fontWeight: 700,
               letterSpacing: "0.18em",
               textTransform: "uppercase",

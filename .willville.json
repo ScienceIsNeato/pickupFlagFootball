@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "The phone rebuild is in: bottom tabs, games as real pages you can link to, a collapsed map key with live counts, a visible propose button, and dozens of small fixes - tap sizes, keyboard behavior, landscape. All tests green.",
-    "direction": "Open the PR, then keep polishing - the splash gallery and a contrast pass are next.",
-    "last_update": "2026-08-19T00:00:00Z"
+    "status": "Worked through every remaining item on the mobile audit - all 63 findings are now closed. New phone-shot gallery on the front page, readable text sizes that follow phone settings, better contrast, show-password toggles, and a pile of small fixes. Tests all green.",
+    "direction": "Open the PR for the whole mobile rebuild and get it live.",
+    "last_update": "2026-08-20T00:00:00Z"
   }
 }
