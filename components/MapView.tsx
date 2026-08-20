@@ -3,23 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { latLngToCell } from "h3-js";
 import { haversineKm } from "@/lib/geo/distance";
 import { badgeHitDistance } from "@/lib/map/hit";
 import { TEAM_YELLOW } from "@/lib/brand";
-import { ProposeModal } from "./ProposeModal";
-import { GameDetailsModal } from "./GameDetailsModal";
-import { ProposedDetailsModal } from "./ProposedDetailsModal";
+import { useRouter } from "next/navigation";
+import { IconKey, IconPlus, IconClose } from "@/components/icons";
 
 type Claim = { lat: number; lng: number; color: string; count: number };
 type Cell = {
   h3: string; lat: number; lng: number; count: number; hasGame: boolean; forming: boolean;
+  gameId?: string;
   retired?: boolean; gameColor?: string; gameMembers?: number; claims: Claim[];
 };
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
-const MORPH_MS = 1500;   // background-scatter → map-cluster morph
+const MORPH_MS = 1500;   // background-scatter → map-cluster morph (0 under reduced motion)
 const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would travel to play
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
@@ -128,6 +127,7 @@ type Flag = {
 };
 type Cluster = {
   ll: [number, number]; count: number; hasGame: boolean; forming: boolean; h3: string; flags: Flag[];
+  gameId?: string;
   retired?: boolean; gameColor?: string; gameMembers?: number; claimedCount: number;
 };
 
@@ -165,7 +165,6 @@ export function MapView({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const clustersRef = useRef<Cluster[]>([]);
-  const refreshRef = useRef<(() => void) | null>(null); // lets the propose handler refetch /api/map
   // The map effect is mount-only; keep home/maxTravelKm live via a ref so a
   // later prop change (e.g. the user edits their travel radius) takes effect on
   // the next refresh without a remount.
@@ -175,13 +174,21 @@ export function MapView({
   // the four live legend counts.
   const tipRef = useRef<HTMLDivElement>(null);
   const cInterested = useRef<HTMLSpanElement>(null);
+  // C1 phone chrome: live counts render in compact chips; the full key is a sheet.
+  const cChipInterested = useRef<HTMLSpanElement>(null);
+  const cChipGames = useRef<HTMLSpanElement>(null);
   const cWaving = useRef<HTMLSpanElement>(null);
   const cGames = useRef<HTMLSpanElement>(null);
   const cProposed = useRef<HTMLSpanElement>(null);
   const cClaimed = useRef<HTMLSpanElement>(null);
-  const [propose, setPropose] = useState<{ h3: string; lat: number; lng: number } | null>(null);
-  const [gameDetails, setGameDetails] = useState<{ lat: number; lng: number } | null>(null);
-  const [proposedDetails, setProposedDetails] = useState<{ lat: number; lng: number; anchor: { x: number; y: number; badgeHeight: number } } | null>(null);
+  // B2: badges and the propose gesture navigate to pages instead of opening
+  // modals — the map refetches on remount when the user comes back.
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [feedFailed, setFeedFailed] = useState(false);
+  const retryRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!ref.current || !canvasRef.current) return;
@@ -193,7 +200,7 @@ export function MapView({
     const map = new maplibregl.Map({
       container, style: STYLE, center, zoom, attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "bottom-right");
     mapRef.current = map;
     // The compact attribution renders expanded (a full-width © bar) by default,
     // which crowds the footer and the mobile bottom sheet. Collapse it to its ⓘ
@@ -278,12 +285,17 @@ export function MapView({
       let cells: Cell[];
       try {
         const r = await fetch(`/api/map?res=${res}${mineOnly ? "&mine=1" : ""}`, { cache: "no-store" });
-        if (aborted || !r.ok) return;
+        if (aborted) return;
+        // A 500/auth failure must surface the retry chip too — only the happy
+        // path clears it (review: catch-only left non-OK looking like an empty area).
+        if (!r.ok) { setFeedFailed(true); return; }
         ({ cells } = (await r.json()) as { cells: Cell[] });
       } catch (e) {
         console.error("[map refresh error]", e);
-        return; // transient/offline — keep the current flags, try again on next move
+        setFeedFailed(true); // audit M45: silence read as an empty area
+        return; // keep the current flags; the retry chip re-fires this
       }
+      setFeedFailed(false);
       const W = container.clientWidth, H = container.clientHeight;
       const mkFlag = (n: number, spread: number, color: (i: number) => string, gameLl?: [number, number]): Flag[] => {
         const flags: Flag[] = [];
@@ -321,11 +333,18 @@ export function MapView({
         return {
           ll: [c.lng, c.lat] as [number, number], count: c.count, hasGame: c.hasGame,
           forming: c.forming, retired: c.retired, h3: c.h3, flags, gameColor: c.gameColor, gameMembers: c.gameMembers,
+          gameId: c.gameId,
           claimedCount,
         };
       });
       dataRes = res;
-      if (first) { first = false; morphStart = performance.now(); }
+      if (first) {
+        first = false;
+        // prefers-reduced-motion: flags snap into place instead of morphing.
+        morphStart = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? performance.now() - MORPH_MS
+          : performance.now();
+      }
     }
 
     function drawFlag(f: Flag) {
@@ -528,8 +547,10 @@ export function MapView({
       }
       // Live legend counts.
       if (cInterested.current) cInterested.current.textContent = String(nInterested);
+      if (cChipInterested.current) cChipInterested.current.textContent = String(nInterested);
       if (cWaving.current) cWaving.current.textContent = String(catchCount);
       if (cGames.current) cGames.current.textContent = String(nGames);
+      if (cChipGames.current) cChipGames.current.textContent = String(nGames + nProposed);
       if (cProposed.current) cProposed.current.textContent = String(nProposed);
       if (cClaimed.current) cClaimed.current.textContent = String(nClaimed);
      } catch (e) {
@@ -539,7 +560,6 @@ export function MapView({
     }
 
     void refresh();
-    refreshRef.current = () => { void refresh(); };
     // debounce: don't hit /api/map on every moveend frame of a pan/zoom
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedRefresh = () => {
@@ -565,29 +585,22 @@ export function MapView({
     };
     // Set when a long-press fires so the click maplibre emits on finger release
     // doesn't ALSO open game/proposed details on top of the propose modal.
+    retryRef.current = () => { void refresh(); };
     let suppressNextClick = false;
     map.on("click", async (e) => {
       if (suppressNextClick) { suppressNextClick = false; return; }
       const hit = nearestCluster(e.point.x, e.point.y);
       if (!hit) return;
-      // Click an existing game → its details (works at any zoom).
-      if (hit.hasGame) { setGameDetails({ lat: hit.ll[1], lng: hit.ll[0] }); return; }
-      // Click a proposed (forming) site → its details + any vote tallies.
-      if (hit.forming) {
-        const p = map.project(hit.ll);
-        // map.project is relative to the map container, but the modal portals to
-        // <body> and positions in a fixed full-viewport overlay — so offset by the
-        // container's viewport rect (notably the 64px app-header pad) to align.
-        const rect = container.getBoundingClientRect();
-        setProposedDetails({ lat: hit.ll[1], lng: hit.ll[0], anchor: { x: p.x + rect.left, y: p.y + rect.top, badgeHeight: PROPOSED_BADGE } });
-        return;
-      }
+      // Click an existing game → its page (works at any zoom).
+      if (hit.hasGame && hit.gameId) { routerRef.current.push(`/game/${hit.gameId}`); return; }
+      // Click a proposed (forming) site → its page, keyed by venue coords.
+      if (hit.forming) { routerRef.current.push(`/proposed?lat=${hit.ll[1]}&lng=${hit.ll[0]}`); return; }
       // Otherwise propose a new game — needs r7 resolution (high zoom). Cluster
       // refresh is debounced, so pull fresh r7 cells before matching the click.
       if (map.getZoom() < MAX_ZOOM) return;
       if (dataRes < PROPOSE_RES) await refresh();
       const spot = nearestCluster(e.point.x, e.point.y);
-      if (spot && !spot.hasGame && !spot.forming) setPropose({ h3: spot.h3, lat: spot.ll[1], lng: spot.ll[0] });
+      if (spot && !spot.hasGame && !spot.forming) routerRef.current.push(`/propose?lat=${spot.ll[1]}&lng=${spot.ll[0]}`);
     });
     // Right-click anywhere, any zoom → propose a game at that point. The modal's
     // address picker sets the precise venue; the server resolves the area from it.
@@ -595,7 +608,7 @@ export function MapView({
       e.preventDefault();
       if (mineOnly) return;
       const { lat, lng } = e.lngLat;
-      setPropose({ h3: latLngToCell(lat, lng, PROPOSE_RES), lat, lng });
+      routerRef.current.push(`/propose?lat=${lat}&lng=${lng}`);
     });
 
     // Touch long-press = the mobile equivalent of right-click: hold on a spot
@@ -606,6 +619,10 @@ export function MapView({
     const clearLongPress = () => { if (lpTimer) clearTimeout(lpTimer); lpTimer = null; lpAt = null; };
     const onTouchStart = (e: TouchEvent) => {
       if (mineOnly) return;
+      // audit M27: a hold that begins on map chrome is aimed at that control -
+      // never treat it as propose-here.
+      const t0 = e.target as Element | null;
+      if (t0?.closest?.(".maplibregl-ctrl, .map-chips, .map-hud, .map-fab, .map-key-sheet, .tabbar")) return;
       // Drop any pending press before (re)scheduling, so an orphaned timer from a
       // prior touch can't still fire. Covers multitouch too (pinch cancels a hold).
       clearLongPress();
@@ -618,7 +635,7 @@ export function MapView({
         if (!lpAt) return;
         const ll = map.unproject([lpAt.x, lpAt.y]);
         suppressNextClick = true; // swallow the click this hold emits on release
-        setPropose({ h3: latLngToCell(ll.lat, ll.lng, PROPOSE_RES), lat: ll.lat, lng: ll.lng });
+        routerRef.current.push(`/propose?lat=${ll.lat}&lng=${ll.lng}`);
         lpAt = null;
       }, 500);
     };
@@ -658,20 +675,6 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // On a successful propose: optimistically drop a proposed badge at the exact
-  // clicked point so it shows instantly, then refetch so the real forming cell
-  // (area centroid) takes over.
-  const handleProposed = (p: { lat: number; lng: number }) => {
-    clustersRef.current = [
-      ...clustersRef.current,
-      { ll: [p.lng, p.lat], count: 0, hasGame: false, forming: true, h3: `opt:${p.lat},${p.lng}`, flags: [], claimedCount: 0 },
-    ];
-    refreshRef.current?.();
-    // The viewer's own area just went from "no proposal" to "open proposal" —
-    // tell the HUD to re-read now rather than wait for its periodic poll.
-    window.dispatchEvent(new Event("mime:hud-stale"));
-  };
-
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
@@ -687,24 +690,41 @@ export function MapView({
           <span className="legend-propose"><Crosshair /> <strong>long-press the map</strong> (or right-click) to propose a game here</span>
         )}
       </div>
+      {/* C1 phone chrome (docs/design/mobile-redesign.md): the legend above is
+          desktop-only; phones get live count chips, a tap-to-open key sheet, and
+          a visible + FAB for propose (long-press still works for precision). */}
+      <div className="map-chips">
+        <span className="map-chip"><Streamer color={TEAM_YELLOW} /> <span ref={cChipInterested}>0</span> in view</span>
+        <span className="map-chip"><img src="/game-badge.png" alt="" className="map-chip-badge" /> <span ref={cChipGames}>0</span> games</span>
+        <button type="button" className="map-chip map-chip--key" aria-expanded={keyOpen}
+          onClick={() => setKeyOpen((v) => !v)}><IconKey size={13} /> key</button>
+      </div>
+      {keyOpen && (
+        <div className="map-key-sheet" role="dialog" aria-label="map key">
+          <button type="button" className="map-key-close" aria-label="close" onClick={() => setKeyOpen(false)}><IconClose size={18} /></button>
+          <p className="map-key-h">what am i looking at?</p>
+          {home && <span className="legend-item"><img src="/you-badge.png" alt="" className="legend-badge" /> you</span>}
+          <span className="legend-item"><Streamer color={TEAM_YELLOW} /> interested player</span>
+          <span className="legend-item"><img src="/game-badge.png" alt="" className="legend-badge" /> existing game</span>
+          <span className="legend-item"><img src="/proposed-badge.png" alt="" className="legend-badge" /> proposed game site</span>
+          <span className="legend-item"><Streamer color="#94a3b8" /> claimed (in a game)</span>
+          {!mineOnly && (
+            <span className="legend-propose"><Crosshair /> <strong>tap +</strong> (or long-press the map) to propose a game</span>
+          )}
+        </div>
+      )}
+      {!mineOnly && (
+        <button type="button" className="map-fab" aria-label="propose a game"
+          onClick={() => { const c = mapRef.current?.getCenter(); if (c) routerRef.current.push(`/propose?lat=${c.lat}&lng=${c.lng}`); }}>
+          <IconPlus size={24} />
+        </button>
+      )}
+      {feedFailed && (
+        <button type="button" className="map-retry" onClick={() => retryRef.current?.()}>
+          couldn&apos;t load the map&apos;s players — tap to retry
+        </button>
+      )}
       <div ref={tipRef} className="map-tip" style={{ display: "none" }}>Click to see game details</div>
-      {propose && (
-        <ProposeModal h3={propose.h3} center={{ lat: propose.lat, lng: propose.lng }}
-          home={home} onClose={() => setPropose(null)} onProposed={handleProposed} />
-      )}
-      {gameDetails && (
-        <GameDetailsModal lat={gameDetails.lat} lng={gameDetails.lng} onClose={() => setGameDetails(null)}
-          onChanged={() => {
-            refreshRef.current?.();
-            // A join/leave can change whether this area still has an active
-            // game — the HUD's scenario depends on that, so re-read it now.
-            window.dispatchEvent(new Event("mime:hud-stale"));
-          }} />
-      )}
-      {proposedDetails && (
-        <ProposedDetailsModal lat={proposedDetails.lat} lng={proposedDetails.lng}
-          anchor={proposedDetails.anchor} onClose={() => setProposedDetails(null)} />
-      )}
     </div>
   );
 }

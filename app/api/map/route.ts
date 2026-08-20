@@ -187,6 +187,8 @@ export async function GET(req: Request) {
       hasGame,
       forming,
       retired,
+      // The winning game's id — the click target navigates to /game/[id].
+      gameId: hasGame ? gameAtCell.get(h3) : undefined,
       // Retired badges render greyed with no ring/count — drop the color + tally.
       gameColor: hasGame && !retired ? gameCellColor.get(h3) : undefined,
       gameMembers: hasGame && !retired ? memberCount.get(gameAtCell.get(h3)!) ?? 0 : undefined,

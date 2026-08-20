@@ -17,7 +17,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}>
         <main style={{ maxWidth: 420, padding: 24, textAlign: "center" }}>
-          <h1 style={{ fontSize: 22, marginBottom: 12 }}>something went wrong</h1>
+          <h1 style={{ fontSize: "1.375rem", marginBottom: 12 }}>something went wrong</h1>
           <p style={{ color: "#cdd6d0", lineHeight: 1.6, marginBottom: 20 }}>
             the site hit an unexpected error. try again, or email{" "}
             <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#5b9452" }}>
@@ -26,7 +26,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
           </p>
           <button type="button" onClick={reset} style={{
             background: "#468944", color: "#fff", border: 0, borderRadius: 8,
-            padding: "11px 22px", fontSize: 15, fontWeight: 700, cursor: "pointer",
+            padding: "11px 22px", fontSize: "0.9375rem", fontWeight: 700, cursor: "pointer",
           }}>try again</button>
         </main>
       </body>

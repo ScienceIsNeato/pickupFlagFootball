@@ -1,9 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useEscape } from "@/lib/useEscape";
-import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { respondInterest } from "@/app/(app)/play/propose-actions";
 
 import { ChatPanel } from "@/components/ChatPanel";
@@ -69,30 +66,16 @@ function fmtWhen(p: Proposal): { primary: string; firstDate: string | null } {
   };
 }
 
-/** Details for a proposed (forming) game site, opened by clicking its badge.
- *  Positions itself just above (north of) the badge using the `anchor` screen
- *  point; falls back to centered if no anchor is given. */
-export function ProposedDetailsModal({
-  lat, lng, anchor, onClose,
-}: {
-  lat: number; lng: number;
-  anchor?: { x: number; y: number; badgeHeight: number } | null;
-  onClose: () => void;
-}) {
+/** Details for a proposed (forming) game site — the body of the /proposed page
+ *  (redesign decision B2: pages replaced the map's anchored popovers). Keyed by
+ *  the site's coordinates, matching /api/proposed. */
+export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
   const [state, setState] = useState<Data | "loading" | "error">("loading");
   // Chat is a tab here for the same reason as the game card: the popup already
   // scrolls, so a nested message list would leave the composer unanchored.
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [busy, setBusy] = useState(false);
   const [respondErr, setRespondErr] = useState("");
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  useEscape(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, mounted);
-
   const aliveRef = useRef(true);
   useEffect(() => () => { aliveRef.current = false; }, []);
   const load = useCallback(async () => {
@@ -106,21 +89,6 @@ export function ProposedDetailsModal({
     }
   }, [lat, lng]);
   useEffect(() => { load(); }, [load]);
-
-  useLayoutEffect(() => {
-    if (!anchor || !cardRef.current) return;
-    const el = cardRef.current;
-    const parent = el.parentElement?.getBoundingClientRect();
-    const cw = el.offsetWidth, ch = el.offsetHeight;
-    const W = parent?.width ?? window.innerWidth;
-    const GAP = 14;
-    let left = anchor.x - cw / 2;
-    left = Math.max(8, Math.min(W - cw - 8, left));
-    const badgeTop = anchor.y - anchor.badgeHeight;
-    let top = badgeTop - GAP - ch;
-    top = Math.max(8, top);
-    setPos({ top, left });
-  }, [anchor, state]);
 
   const data = state !== "loading" && state !== "error" ? state : null;
   const proposal = data?.proposal ?? null;
@@ -143,22 +111,8 @@ export function ProposedDetailsModal({
     }
   }
 
-  if (!mounted) return null;
-  return createPortal((
-    <div
-      ref={dialogRef} tabIndex={-1}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      role="dialog" aria-modal="true" aria-labelledby="proposed-details-title"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.42)" }}
-    >
-      <div
-        ref={cardRef}
-        className="game-card"
-        style={anchor && pos
-          ? { position: "absolute", top: pos.top, left: pos.left, margin: 0 }
-          : { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
-      >
-        <button type="button" className="game-close" onClick={onClose} aria-label="close">×</button>
+  return (
+      <div className="game-card game-card--page">
         {state === "loading" && <p className="game-muted">loading…</p>}
         {state === "error" && <p className="game-muted">couldn&apos;t load this site.</p>}
         {state !== "loading" && state !== "error" && !proposal && <p className="game-muted">no proposed site here.</p>}
@@ -204,14 +158,14 @@ export function ProposedDetailsModal({
             </div>
             {respondErr && <p className="game-muted" role="alert">{respondErr}</p>}
             </div>
-            {tab === "chat" && (
-              <div role="tabpanel" id="proposed-panel-chat" aria-labelledby="proposed-tab-chat">
-                <ChatPanel attemptId={proposal.attemptId} isProposal />
-              </div>
-            )}
+            {/* hidden, not unmounted: switching tabs must not destroy a
+                half-typed draft in the composer (audit M24). */}
+            <div role="tabpanel" id="proposed-panel-chat" aria-labelledby="proposed-tab-chat"
+              hidden={tab !== "chat"}>
+              <ChatPanel attemptId={proposal.attemptId} isProposal active={tab === "chat"} />
+            </div>
           </>
         )}
       </div>
-    </div>
-  ), document.body);
+  );
 }

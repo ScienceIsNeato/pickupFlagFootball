@@ -44,17 +44,7 @@
     {
       "title": "show you're interested",
       "caption": "name, email, a rough location - about 30 seconds, no app to install.",
-      "src": "signup"
-    },
-    {
-      "title": "confirm your email",
-      "caption": "one tap on the email we send, and you can join or propose games near you.",
-      "src": "confirm-email"
-    },
-    {
-      "title": "you're all set",
-      "caption": "email confirmed - now head to the map to find a game nearby.",
-      "src": "email-confirmed"
+      "src": "show-interest"
     },
     {
       "title": "find a game near you",
@@ -62,34 +52,24 @@
       "src": "find-on-map"
     },
     {
-      "title": "read the map",
-      "caption": "flags are real neighbors, badges are games - the key shows what each marker means.",
-      "src": "map-key"
-    },
-    {
-      "title": "get the lay of the land",
-      "caption": "tap any question to see how games form, who's nearby, and how to propose your own.",
-      "src": "how-it-works"
-    },
-    {
       "title": "join the game",
       "caption": "open a game, pick regular or occasional, tap \"i'm in\" - and you're on the roster.",
       "src": "join-game"
     },
     {
-      "title": "get the details by email",
-      "caption": "the moment you join, we email you the week's game - the spot, the time, and who's coming.",
-      "src": "game-on-email"
+      "title": "you're in",
+      "caption": "one tap a week says whether you're coming - the roster updates itself.",
+      "src": "attend-week"
+    },
+    {
+      "title": "talk it out",
+      "caption": "every game has its own chat - parking, gear, who's bringing a ball.",
+      "src": "game-chat"
     },
     {
       "title": "keep up with your games",
       "caption": "your sites, upcoming weeks with one-tap in and out, and your play history.",
       "src": "my-games"
-    },
-    {
-      "title": "you're in",
-      "caption": "join anytime and we email you where the week stands - so you're never left guessing.",
-      "src": "confirm-game"
     }
   ],
   "faq": [

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
 import { GoogleButton } from "./GoogleButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { str } from "@/lib/forms";
 
 /** The registration window — the ONLY place an account is created. An anonymous
@@ -14,10 +15,14 @@ import { str } from "@/lib/forms";
  *  interest signal, so there's no such thing as a registered user without one. */
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (error) { errRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); errRef.current?.focus({ preventScroll: true }); }
+  }, [error]);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
   // → "create an account" → here). Only same-origin relative paths.
+  const errRef = useRef<HTMLDivElement>(null);
   const [dest, setDest] = useState("/play");
   useEffect(() => {
     const n = new URLSearchParams(window.location.search).get("next");
@@ -60,8 +65,15 @@ export function RegisterInterestForm() {
 
   return (
     <form ref={formRef} className="reg-form" onSubmit={submit}>
+      {/* ZIP first: it's the one thing BOTH signup paths need (audit M13) — with
+          it above the Google button, google + zip really is the whole signup. */}
+      <label>
+        zip code <span className="reg-optional">(where we look for games)</span>
+        <input type="text" name="zip" placeholder="52241" inputMode="numeric"
+          autoComplete="postal-code" pattern="[0-9]{5}" required />
+      </label>
       <div className="auth-google">
-        {/* Signup mode: requires a ZIP before completing Google, then createMember. */}
+        {/* Signup mode: requires the ZIP above before completing Google. */}
         <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
       </div>
       <p className="reg-hint">
@@ -71,7 +83,17 @@ export function RegisterInterestForm() {
       </p>
       <div className="auth-or"><span>or</span></div>
 
-      {error && <div className="auth-error">{error}</div>}
+      {/* On a 375px screen this error can sit a full viewport above the submit
+          button the user just tapped - scroll it into view and announce it, or
+          the form reads as silently broken (gap-review major). */}
+      {error && (
+        <div className="auth-error" role="alert" ref={errRef} tabIndex={-1}>
+          {error}
+          {/already exists|already registered/i.test(error) && (
+            <> <Link href="/?signin=1&next=/play">log in instead</Link></>
+          )}
+        </div>
+      )}
 
       <label>
         email
@@ -83,16 +105,10 @@ export function RegisterInterestForm() {
       </label>
       <label>
         password
-        <input type="password" name="password" placeholder="at least 8 characters"
+        <PasswordInput name="password" placeholder="at least 8 characters"
           autoComplete="new-password" minLength={8} required />
       </label>
 
-      <p className="reg-section">where you play</p>
-      <label>
-        zip code
-        <input type="text" name="zip" placeholder="52241" inputMode="numeric"
-          autoComplete="postal-code" pattern="[0-9]{5}" required />
-      </label>
       <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
       <label>
         street address

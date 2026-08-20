@@ -26,11 +26,9 @@ When("I right-click the map to propose a spot", async ({ page }) => {
   const box = await page.locator(".dash-map").boundingBox();
   if (!box) throw new Error("no map element to right-click");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  // Scope to the modal's title — the legend also carries a "…to propose a game"
-  // cue, so a bare getByText("propose a game") would match two elements.
-  await expect(dialog.locator("#propose-title")).toHaveText(/propose a game/i);
+  // B2: the propose flow is a page now, not a dialog — the right-click navigates.
+  await page.waitForURL(/\/propose\?/, { timeout: 10000 });
+  await expect(page.locator("#propose-title")).toHaveText(/propose a game/i);
 });
 
 Then("filling in the proposal tells me to confirm my email", async ({ page }) => {

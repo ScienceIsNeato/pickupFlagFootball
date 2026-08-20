@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Item = { title: string; caption: string; src: string };
 
@@ -11,12 +11,33 @@ type Item = { title: string; caption: string; src: string };
  */
 export default function Gallery({ items }: { items: Item[] }) {
   const [active, setActive] = useState(0);
-  const go = (delta: number) => setActive((a) => (a + delta + items.length) % items.length);
+  // Mount images lazily: only slides the user has reached (plus the next one,
+  // preloaded for a smooth swipe). First paint costs one image, not six.
+  const [visited, setVisited] = useState<Set<number>>(() => new Set([0, 1 % items.length]));
+  const go = (delta: number) => setActive((a) => {
+    const next = (a + delta + items.length) % items.length;
+    setVisited((v) => new Set(v).add(next).add((next + 1) % items.length));
+    return next;
+  });
   const item = items[active];
+  // Swipe to page (audit M47) — a carousel that only arrows-taps reads as
+  // broken on a phone. Horizontal-dominant swipes only, so vertical scrolling
+  // through the splash never accidentally pages.
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    const dy = e.changedTouches[0].clientY - touch.current.y;
+    touch.current = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+  };
 
   return (
     <div className="gallery" role="group" aria-roledescription="carousel" aria-label="see it in action">
-      <div className="gallery-stage">
+      <div className="gallery-stage" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <button
           type="button"
           className="gallery-arrow gallery-arrow--prev"
@@ -29,7 +50,7 @@ export default function Gallery({ items }: { items: Item[] }) {
         {items.map((g, i) => (
           <figure key={g.src} className={`gallery-slide${i === active ? " is-active" : ""}`} aria-hidden={i !== active}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="gallery-shot" src={`/gallery/${g.src}.jpg`} alt={g.title} />
+            {visited.has(i) && <img className="gallery-shot" src={`/gallery/${g.src}.jpg`} alt={g.title} decoding="async" />}
             <figcaption className="gallery-label">{g.title}</figcaption>
           </figure>
         ))}
@@ -56,7 +77,7 @@ export default function Gallery({ items }: { items: Item[] }) {
             className={`gallery-dot${i === active ? " is-active" : ""}`}
             aria-label={`show “${g.title}”`}
             aria-current={i === active}
-            onClick={() => setActive(i)}
+            onClick={() => { setVisited((v) => new Set(v).add(i).add((i + 1) % items.length)); setActive(i); }}
           />
         ))}
       </div>

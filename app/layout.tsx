@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "next-auth/react";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import { FlagFieldCanvas } from "@/components/FlagFieldCanvas";
@@ -12,6 +12,19 @@ const barlow = Barlow_Condensed({
   variable: "--font-barlow",
   display: "swap",
 });
+
+// Explicit viewport (Next's default omits all of these): viewport-fit=cover so
+// the app can pad into the notch/home-bar areas with safe-area insets (it ships
+// as an installable PWA), interactive-widget so the on-screen keyboard resizes
+// the layout instead of covering the chat composer, and theme-color to match
+// the chrome bars instead of leaving the OS status bar on a default color.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#0b1210",
+};
 
 // generateMetadata (not a static export) so metadataBase reads APP_BASE_URL at
 // request time — same as robots.ts/sitemap.ts. The Docker build has no
@@ -55,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               left: 8,
               zIndex: 9999,
               fontFamily: "var(--font-barlow), sans-serif",
-              fontSize: 11,
+              fontSize: "0.6875rem",
               fontWeight: 700,
               letterSpacing: "0.18em",
               textTransform: "uppercase",

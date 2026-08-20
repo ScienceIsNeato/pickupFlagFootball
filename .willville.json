@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Worked all the review feedback on the big combined PR - chat, donations, install-as-an-app. Everything's green and every comment's addressed, so it's ready to merge.",
-    "direction": "Merge it, then do the two-account chat email test.",
-    "last_update": "2026-08-19T00:00:00Z"
+    "status": "Ran down every item on the audit's not-covered list - captured two dozen never-reviewed screens, had them reviewed, and fixed what surfaced, including a nasty invisible bug that made the top of the account page untappable on phones. All tests green.",
+    "direction": "The mobile rebuild is genuinely done - open the PR and ship it.",
+    "last_update": "2026-08-20T00:00:00Z"
   }
 }

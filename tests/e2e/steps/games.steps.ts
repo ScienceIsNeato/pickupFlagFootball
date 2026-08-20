@@ -14,6 +14,9 @@ const FAR = { lat: 30.5052, lng: -97.8203, placeText: "Cedar Park Field", city: 
 /** Center the map on the seeded game and click its badge for real. */
 export async function openGameOnMap(page: Page, world: World) {
   const g = world.game!;
+  // B2: badge clicks navigate to detail pages now — a prior step may have left
+  // the browser there, so make sure we're on the map before driving it.
+  if (!page.url().includes("/play")) await page.goto("/play");
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
   const mapFeed = page.waitForResponse(
     (r) => r.url().includes("/api/map") && r.url().includes("res=7"),
@@ -64,8 +67,9 @@ Given(
     // "unconfirmed email" banner (rendered at registration) lingers, making a
     // "confirmed player" look unconfirmed in the story report. (Mirrors the
     // captain step.)
-    await page.reload();
-    await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
+    await page.waitForLoadState().catch(() => {});
+    await page.reload().catch(() => page.goto("/play")); // reload can abort if the register redirect is still settling
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
   },
 );
 
@@ -122,6 +126,9 @@ Then("the chat shows {string}", async ({ page }, body: string) => {
 // Author self-delete is the only moderation in v1 — captain powers are blocked on
 // volunteerAsCaptain being self-service (design §9).
 When("I delete my chat message", async ({ page }) => {
+  // Delete confirms via window.confirm now (audit M11) — Playwright dismisses
+  // dialogs by default, so accept this one.
+  page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "delete" }).first().click();
 });
 
@@ -137,7 +144,9 @@ Given("another player posted in that game's chat", async ({ world }) => {
 });
 
 Then("I see the chat unread dot", async ({ page }) => {
-  await expect(page.locator(".chat-dot")).toBeVisible({ timeout: 15000 });
+  // Two dots exist since the tab bar landed (header + my-games tab) — scope to
+  // the header's so the locator stays unique.
+  await expect(page.locator(".nav-with-dot .chat-dot")).toBeVisible({ timeout: 15000 });
 });
 
 When("I reload the map", async ({ page }) => {
@@ -145,7 +154,7 @@ When("I reload the map", async ({ page }) => {
 });
 
 Then("the chat unread dot is gone", async ({ page }) => {
-  await expect(page.locator(".chat-dot")).toHaveCount(0, { timeout: 15000 });
+  await expect(page.locator(".nav-with-dot .chat-dot")).toHaveCount(0, { timeout: 15000 });
 });
 
 // ── chat digests ─────────────────────────────────────────────────────────────

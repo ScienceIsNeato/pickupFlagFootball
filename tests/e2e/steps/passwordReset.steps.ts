@@ -35,7 +35,7 @@ Then("I can sign in with {string} and {string}", async ({ page }, email: string,
   await card.locator('input[autocomplete="current-password"]').fill(password);
   await card.getByRole("button", { name: "log in" }).click();
   await page.waitForURL("**/play", { timeout: 15000 });
-  await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 }); // legend is phone-hidden under C1; the canvas proves the map rendered
 });
 
 When("I open an invalid reset link", async ({ page }) => {

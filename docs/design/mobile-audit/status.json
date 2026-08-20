@@ -1,0 +1,466 @@
+{
+ "_meta": {
+  "branch": "feat/mobile-first",
+  "updated": "2026-08-20",
+  "tests": "e2e 51/51 \u00b7 unit 103/103 (2026-08-20, post gap-sweep)"
+ },
+ "M1": [
+  "fixed",
+  "B2: /games list + /game/[id] pages - real DOM links, screen-reader reachable"
+ ],
+ "M2": [
+  "fixed",
+  "A1: bottom tab bar (map / my games / account); legal links moved to /account"
+ ],
+ "M3": [
+  "fixed",
+  "C1: legend folded into live chips + a tap-open key sheet; ~85% of portrait is map"
+ ],
+ "M4": [
+  "fixed",
+  "phone map chrome now keys off pointer:coarse + height, so landscape gets it too"
+ ],
+ "M5": [
+  "fixed",
+  "chat lives on the /game page: flowing composer, dvh sizing, keyboard resizes content"
+ ],
+ "M6": [
+  "fixed",
+  "16px floor on all inputs under pointer:coarse - no more iOS zoom-on-focus"
+ ],
+ "M7": [
+  "fixed",
+  "44px targets across the board - card tabs and the header avatar were the last two"
+ ],
+ "M8": [
+  "fixed",
+  "paired form rows wrap instead of clipping at 320-375px"
+ ],
+ "M9": [
+  "fixed",
+  "viewport-fit=cover + safe-area insets on header and tab bar"
+ ],
+ "M10": [
+  "fixed",
+  "banners are compact strips that share the screen: below the chips on the map, above content elsewhere"
+ ],
+ "M11": [
+  "fixed",
+  "delete confirms before it deletes, and the tap target grew"
+ ],
+ "M12": [
+  "fixed",
+  "unread dot rides the my-games tab - always visible on phones"
+ ],
+ "M13": [
+  "fixed",
+  "ZIP moved above the Google button: google + zip is the whole signup"
+ ],
+ "M14": [
+  "fixed",
+  "superstructure removed by B2 - pages scroll naturally, back link always at top"
+ ],
+ "M15": [
+  "fixed",
+  "propose is a page with back navigation and a visible cancel"
+ ],
+ "M16": [
+  "fixed",
+  "proposed site is a page - no more status-bar-pinned popover"
+ ],
+ "M18": [
+  "fixed",
+  "card grid floor raised to 230px - donate cards stack 1-up on phones"
+ ],
+ "M19": [
+  "fixed",
+  "gallery reshot from the redesigned app at phone size (6 stills incl. chat); the stage is a portrait phone frame at every width"
+ ],
+ "M20": [
+  "fixed",
+  "the CTA moved above the second paragraph - inside the first phone screen, copy untouched"
+ ],
+ "M21": [
+  "fixed",
+  "Save Changes pins above the tab bar on phones - always one thumb away"
+ ],
+ "M22": [
+  "fixed",
+  "stroke chevron/close/eye icons replace the text glyphs; illustrated badges stay as map art"
+ ],
+ "M23": [
+  "fixed",
+  "who-can-read folds to one line; thread gets up to 45dvh on the game page"
+ ],
+ "M24": [
+  "fixed",
+  "chat tabpanel hides instead of unmounting - drafts survive tab switches; no scrim to mis-tap"
+ ],
+ "M25": [
+  "fixed",
+  "auto-scroll only pins when you're already at the bottom"
+ ],
+ "M26": [
+  "fixed",
+  "the cursor-only row is gone from phone chrome; desktop (which has a cursor) keeps it"
+ ],
+ "M27": [
+  "fixed",
+  "a long-press starting on map chrome is that control's tap, never propose-here; the + FAB is the visible path"
+ ],
+ "M28": [
+  "fixed",
+  "compass shown (auto-hides when north-up) - touch users can straighten the map"
+ ],
+ "M29": [
+  "fixed",
+  "auth card scrolls within 90dvh; keyboard resizes content instead of covering it"
+ ],
+ "M30": [
+  "fixed",
+  "GIS iframe can no longer push the auth card into horizontal scroll"
+ ],
+ "M31": [
+  "fixed",
+  "ZIP first; the optional address block sits below the divider with the password path"
+ ],
+ "M32": [
+  "fixed",
+  "the fixed legal-links footer is gone from phones"
+ ],
+ "M33": [
+  "fixed",
+  "footer removed + tab-bar padding - the my-games list tail is reachable"
+ ],
+ "M34": [
+  "fixed",
+  "for a signed-in user the brand link anchors the app (the map), not the marketing splash"
+ ],
+ "M35": [
+  "fixed",
+  "while the HUD sheet is open the controls under it fade out (they were unusable there anyway); collapse the sheet and they return"
+ ],
+ "M36": [
+  "fixed",
+  "key sheet replaces the cramped legend on phones - full-size rows, matching 'you' badge"
+ ],
+ "M37": [
+  "fixed",
+  "the HUD expand cue is an 18px accent chevron that rotates open, not a faint text caret"
+ ],
+ "M38": [
+  "fixed",
+  "MapLibre controls restyled to the dark chrome"
+ ],
+ "M39": [
+  "fixed",
+  "checkboxes pin to the first line of wrapped labels"
+ ],
+ "M40": [
+  "fixed",
+  "overscroll containment on the HUD, chat thread, cards, and auth"
+ ],
+ "M41": [
+  "fixed",
+  "dvh caps beside vh fallbacks on every viewport-capped panel"
+ ],
+ "M42": [
+  "fixed",
+  "all 174 font-size declarations converted to rem and text-bearing control heights unlocked - OS text-size settings now scale the UI"
+ ],
+ "M43": [
+  "fixed",
+  "--faint 4.3:1 -> 5.3:1 and green text 3.7:1 -> 5.0:1 on their worst real backgrounds - AA passes"
+ ],
+ "M44": [
+  "fixed",
+  "focus trap skips inert/hidden controls - Tab no longer sticks"
+ ],
+ "M45": [
+  "fixed",
+  "a failed map feed shows a tap-to-retry chip instead of an empty area"
+ ],
+ "M46": [
+  "fixed",
+  "if the GIS iframe never renders (origin rejected/blocked), the button says so and points at the email path"
+ ],
+ "M47": [
+  "fixed",
+  "the gallery swipes (horizontal-dominant gesture, no scroll hijack)"
+ ],
+ "M48": [
+  "fixed",
+  "install panel renders from first paint, CSS-gated by pointer - no pop-in shove"
+ ],
+ "M49": [
+  "fixed",
+  "SW registers on app pages too; installability isn't splash-only"
+ ],
+ "M50": [
+  "fixed",
+  "home-screen icons flattened onto the chrome color - no black tile"
+ ],
+ "M51": [
+  "fixed",
+  "badge PNGs re-exported: 1.7MB -> 65KB"
+ ],
+ "M52": [
+  "superseded",
+  "B2 chose pages over sheets - sheet gestures no longer apply"
+ ],
+ "M53": [
+  "fixed",
+  "phone-visible copy says tap; desktop-only surfaces keep desktop verbs deliberately"
+ ],
+ "M54": [
+  "fixed",
+  "page cards are opaque - no map bleed-through under text"
+ ],
+ "M55": [
+  "fixed",
+  "send shows sending\u2026, posts confirm on the immediate poll; timestamps tick at the 7s poll cadence"
+ ],
+ "M56": [
+  "fixed",
+  "chat thread is a polite live region"
+ ],
+ "M57": [
+  "fixed",
+  "the bare section rule no longer leaks 48px marketing padding into account columns (~250px of dead scroll gone)"
+ ],
+ "M58": [
+  "fixed",
+  "caption reserves height; dots got real hit areas"
+ ],
+ "M59": [
+  "fixed",
+  "install copy speaks share-sheet, not 'Safari's toolbar'; non-iOS gets menu steps"
+ ],
+ "M60": [
+  "fixed",
+  "manifest + theme-color match the real chrome color"
+ ],
+ "M61": [
+  "fixed",
+  "portrait lock removed - installed app rotates like the browser app"
+ ],
+ "M62": [
+  "superseded",
+  "OS text scaling (M42) is the magnification path; the map keeps pinch by design"
+ ],
+ "M63": [
+  "fixed",
+  "fixed-attachment background scoped away from iOS Safari"
+ ],
+ "M64": [
+  "fixed",
+  "show/hide password toggle on auth, register, and reset forms"
+ ],
+ "_gaps": [
+  [
+   "Email-token landing pages (/rsvp /interested /decline /unsubscribe /verify-email)",
+   "covered",
+   "captured at 375px via tests/demos/gap-captures.mts - valid interested/unsubscribe/verify links from real emails, invalid-token states for the rest (happy paths were already e2e-covered)"
+  ],
+  [
+   "Password-reset flow",
+   "covered",
+   "captured: form, sent state, valid link, invalid token - all at phone width"
+  ],
+  [
+   "Unverified-email state end to end",
+   "covered",
+   "captured: banner over the map chips, verify link, post-verify"
+  ],
+  [
+   "Donate money path (Stripe checkout + return)",
+   "superseded",
+   "Stripe was replaced by Buy Me a Coffee (external) before the redesign - no in-app payment surface exists to audit"
+  ],
+  [
+   "Installed-PWA launch with no network",
+   "fixed",
+   "the service worker now serves an inline offline page for failed navigations - still caches nothing of the app, so no staleness story"
+  ],
+  [
+   "Offline/slow-network beyond the map feed",
+   "fixed",
+   "feed failures show the retry chip (M45); failed navigations get the offline page; tile outages degrade under still-usable chrome"
+  ],
+  [
+   "Cellular first-load weight of the splash",
+   "fixed",
+   "map-bg 2.4MB->218KB jpeg, badges 1.7MB->65KB, football ->46KB, and the gallery mounts one slide (~90KB) instead of six (~800KB)"
+  ],
+  [
+   "Form validation and server-error states",
+   "covered",
+   "captured: wrong password, duplicate email, bad zip vs the fixed save bar, reset-token errors"
+  ],
+  [
+   "Long-press propose vs iOS text-selection/callout",
+   "fixed",
+   "-webkit-touch-callout and user-select suppressed on the map surface"
+  ],
+  [
+   "Real-device keyboard/visualViewport behavior",
+   "accepted",
+   "addressed by design (interactive-widget=resizes-content, dvh caps, scrollable auth card); a physical-device pass is inherently manual - flagged for the next real-device session"
+  ],
+  [
+   "Captain states at phone width",
+   "covered",
+   "captured the captain's game page (controls, min-players, pause/retire) at 375px"
+  ],
+  [
+   "Empty and first-run states",
+   "covered",
+   "captured a sparse-area map - the HUD scenario line answers 'what now'; the no-location state was already in the original sweep"
+  ],
+  [
+   "ChangeEmail sub-flow",
+   "covered",
+   "captured the open pane at phone width"
+  ],
+  [
+   "Notification emails as mobile surfaces",
+   "covered",
+   "rendered the confirm email at 375px: single-column 540px table, system font stack, 14-15px text, 44px buttons - sound"
+  ],
+  [
+   "Error and 404 pages",
+   "covered",
+   "captured the marketing 404 and the app's missing-game state"
+  ],
+  [
+   "In-app browser webviews (Meta, Gmail, ...)",
+   "accepted",
+   "cannot be honestly emulated from here; the defensive posture is the Sentry third-party filter + dvh fallbacks - revisit if real complaint data points at a webview"
+  ],
+  [
+   "Android back button vs modals",
+   "superseded",
+   "B2 deleted the modals - game/proposed/propose are pages, so back is native navigation"
+  ],
+  [
+   "Landscape beyond the map",
+   "covered",
+   "captured the game page, account, and splash at 812x375 - scrolling pages hold up"
+  ],
+  [
+   "Motion and vestibular accessibility",
+   "fixed",
+   "global prefers-reduced-motion collapse for transitions/animations + the map's flag morph snaps into place; FlagFieldCanvas already complied"
+  ]
+ ],
+ "_round2": [
+  [
+   "R1",
+   "major",
+   "fixed",
+   "Register form errors rendered a full screen above the submit button - tapping 'count me in' gave zero visible feedback. Errors now scroll into view, take focus, announce via role=alert, and the duplicate-email case links straight to log-in."
+  ],
+  [
+   "R2",
+   "major",
+   "fixed",
+   "Landscape phones had no reachable Save while editing the account - the pinned save bar was width-gated only; now it pins under pointer-coarse landscape too."
+  ],
+  [
+   "R3",
+   "major",
+   "fixed",
+   "THE BIG ONE from this pass: the phone save bar inherited top:2px from the desktop rule, so position:fixed + top + bottom stretched it into an invisible full-page tap shield - display name, change email, everything above the fold was untappable on phones. top:auto. Found because the change-email capture refused to click; desktop e2e could never see it."
+  ],
+  [
+   "R4",
+   "minor",
+   "fixed",
+   "The confirm email's CTA was 4.27:1 (white on #468944) and its footer grays sat at 3-4.3:1 - button now #3d7a3c (~5:1), grays lifted; one layout() change fixes every template."
+  ],
+  [
+   "R5",
+   "minor",
+   "fixed",
+   "Invalid-token landing pages (decline, rsvp, verify-email) offered only a word-sized inline link as the way forward - each now gets the same 46px button treatment the success states had."
+  ],
+  [
+   "R6",
+   "minor",
+   "fixed",
+   "verify-email's failure copy said 'sign in' but linked to the bare map - now /?signin=1&next=/play actually opens sign-in, and the copy matches."
+  ],
+  [
+   "R7",
+   "polish",
+   "fixed",
+   "Confetti bars crossed behind marketing-footer link text - the footer has a scrim now."
+  ],
+  [
+   "R8",
+   "polish",
+   "fixed",
+   "The 404's map texture stopped mid-screen with a hard seam on touch (scroll-attached background vs a short page) - body now spans 100dvh."
+  ],
+  [
+   "R9",
+   "minor",
+   "fixed",
+   "With a validation error showing, the grown save bar occluded the page tail - clearance now grows with the error."
+  ],
+  [
+   "R10",
+   "minor",
+   "fixed",
+   "Map chips said 'nearby' while counting the viewport, contradicting the HUD's area numbers on the same screen - chips now say 'in view'."
+  ],
+  [
+   "R11",
+   "minor",
+   "fixed",
+   "Landscape phones showed two navigations (header links + tab bar) - header links hide when the tab bar is present."
+  ],
+  [
+   "R12",
+   "polish",
+   "fixed",
+   "Captain min-players/step-down controls missed the 44px pass, and the in-group retire button read as an underlined link - targets grown, affordances fixed, disabled state drops the cues."
+  ],
+  [
+   "R13",
+   "polish",
+   "fixed",
+   "'try again' on the reset-sent screen rendered 13px inside 15px prose - inline text-buttons now inherit their sentence's size and get a coarse-pointer hit area."
+  ],
+  [
+   "R14",
+   "minor",
+   "fixed",
+   "No auth error was a live region - wrong-password/reset/change-email/propose failures were silent to screen readers. role=alert across all five. (The skeptic mis-refuted this one; the fix is a one-liner and the finding was right.)"
+  ],
+  [
+   "R15",
+   "minor",
+   "fixed",
+   "The change-email toggle had a ~17px tap target - covered by the inline text-button hit-area rule."
+  ],
+  [
+   "R16",
+   "minor",
+   "fixed",
+   "A dead game link showed 'no game here yet.' and nothing else - now it explains and offers the games-near-you list."
+  ],
+  [
+   "R17",
+   "minor",
+   "declined",
+   "Three findings wanted 15px prose raised to 16px (landing pages, 404, auth labels). Declined: the 16px floor is the iOS input-zoom rule, not a prose rule - inputs are already floored on touch, and 15px body text here is deliberate hierarchy. The skeptic killed the equivalent claims for the same reason."
+  ],
+  [
+   "R18",
+   "minor",
+   "fixed",
+   "Capture tooling: the landscape-splash shot was taken in portrait (missing viewport arg) - fixed and recaptured; the splash holds up in landscape."
+  ]
+ ]
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { IconChevron } from "@/components/icons";
 import type { AreaScenario } from "@/lib/mime/areaScenario";
 import { buildShareTemplates } from "@/lib/shareTemplates";
 import { skin } from "@/lib/skin";
@@ -86,7 +87,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   // the viewer just proposed a game would be actively misleading. The 15s
   // interval alone is a safety net for changes made by OTHER people in the
   // area; the viewer's OWN mutations (propose, join/leave, interest response)
-  // dispatch "mime:hud-stale" from MapView/ProposedDetailsModal so this reads
+  // dispatch "mime:hud-stale" from MapView/ProposedCard so this reads
   // immediately instead of waiting out the interval.
   const [scenario, setScenario] = useState(initialScenario);
   const [place, setPlace] = useState(initialPlace);
@@ -187,12 +188,12 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
     case "games":
       headline = scenario.count === 1 ? "there's a game near you" : `${scenario.count} games near you`;
       body = scenario.count === 1
-        ? `${scenario.placeText ?? "a standing game"} already runs weekly here — click its badge on the map to join.`
-        : "click any game badge on the map to see details and join.";
+        ? `${scenario.placeText ?? "a standing game"} already runs weekly here — tap its badge on the map to join.`
+        : "tap any game badge on the map to see details and join.";
       break;
     case "open-proposal":
       headline = "a game's been proposed";
-      body = `${scenario.placeText} — ${scenario.interestedCount}/${scenario.pMin} people are in, ${closesText}. click its badge to say you're in.`;
+      body = `${scenario.placeText} — ${scenario.interestedCount}/${scenario.pMin} people are in, ${closesText}. tap its badge to say you're in.`;
       break;
     case "ambient-interest":
       headline = `${scenario.totalCount} interested in ${where}`;
@@ -222,7 +223,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
         onClick={() => setExpanded((v) => !v)}
       >
         <span className="map-hud-h">{headline}</span>
-        <span className="map-hud-caret" aria-hidden="true">▸</span>
+        <span className="map-hud-caret" aria-hidden="true"><IconChevron size={18} /></span>
       </button>
       <div className="map-hud-panel" id="map-hud-panel">
         <p className="map-hud-body">{body}</p>
@@ -250,7 +251,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
                 <button type="button" className="map-hud-post-toggle"
                   aria-expanded={openPost === t.label}
                   onClick={() => setOpenPost((v) => (v === t.label ? null : t.label))}>
-                  {openPost === t.label ? "▾" : "▸"} {t.label} post
+                  <IconChevron size={13} className={openPost === t.label ? "rot90" : ""} /> {t.label} post
                 </button>
                 {openPost === t.label && (
                   <>
@@ -266,7 +267,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
             ))}
           </div>
         ) : (
-          <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+          <span>
+            {/* the /games list is the canvas-free path to every game (audit M1) */}
+            <Link href="/games" className="map-hud-link">games near you &rarr;</Link>{" "}
+            <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+          </span>
         )}
       </div>
     </div>

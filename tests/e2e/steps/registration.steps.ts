@@ -19,7 +19,7 @@ When(
     await registerViaUi(page, world, { name, email, password, zip });
     // Lands on the map, unconfirmed → the legend renders and the
     // confirm-your-email banner is up (you can't join/propose until you confirm).
-    await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 }); // legend is phone-hidden under C1; the canvas proves the map rendered
     await expect(page.locator(".unverified-banner")).toBeVisible();
   },
 );
@@ -45,7 +45,7 @@ When("I click the confirm link in my email", async ({ page, world }) => {
   // main's CTA, not the nav's "find a game" link (same text)
   await page.locator("main a.btn-green-link").click();
   await page.waitForURL("**/play", { timeout: 15000 });
-  await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 }); // legend is phone-hidden under C1; the canvas proves the map rendered
   await expect(page.locator(".unverified-banner")).toHaveCount(0);
 });
 

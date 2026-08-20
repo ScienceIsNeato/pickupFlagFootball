@@ -42,9 +42,10 @@ export default async function VerifyEmailPage({
       <h1>this link didn&apos;t work</h1>
       <p>
         it may have already been used, or it&apos;s expired. if your email is
-        still unconfirmed, <Link href="/play">sign in</Link> and use the
-        <strong> resend</strong> link on the banner at the top of the page.
+        still unconfirmed, sign in and we&apos;ll show a <strong>resend</strong> button
+        on the banner at the top of the page.
       </p>
+      <p><Link href="/?signin=1&next=/play" className="btn-green-link">sign in</Link></p>
     </main>
   );
 

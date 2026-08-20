@@ -95,6 +95,13 @@ export function GoogleButton({
           theme: "filled_black", size: "large", width: 300,
           text: latest.current.mode === "signup" ? "signup_with" : "continue_with", shape: "pill",
         });
+        // audit M46: when GIS rejects the origin (or the iframe is blocked) it
+        // fails silently in the console and the button never appears — the user
+        // just sees nothing. If no iframe materialized, say so and point at the
+        // path that works.
+        setTimeout(() => {
+          if (!cancelled && ref.current && !ref.current.querySelector("iframe")) setOff(true);
+        }, 2500);
       } catch { setOff(true); }
     })();
     return () => { cancelled = true; };
@@ -102,6 +109,6 @@ export function GoogleButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (off) return <p className="auth-note">google sign-in isn&apos;t configured yet - use email below.</p>;
+  if (off) return <p className="auth-note">google sign-in isn&apos;t available here - use email and password below.</p>;
   return <div ref={ref} />;
 }

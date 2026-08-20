@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { GoogleButton } from "./GoogleButton";
+import { IconClose } from "@/components/icons";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /** Sign-IN only. Account creation lives at /show-interest (the one place that
@@ -48,7 +50,7 @@ export function AuthModal({ onClose, callbackUrl, notice }: { onClose: () => voi
   return (
     <div className="auth-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={cardRef} className="auth-card" role="dialog" aria-modal="true" aria-label="sign in">
-        <button className="auth-close" onClick={onClose} aria-label="close">×</button>
+        <button className="auth-close" onClick={onClose} aria-label="close"><IconClose size={18} /></button>
         <h2 className="auth-title">welcome back</h2>
         <p className="auth-sub">sign in to see who&apos;s nearby.</p>
 
@@ -59,14 +61,14 @@ export function AuthModal({ onClose, callbackUrl, notice }: { onClose: () => voi
         <div className="auth-or"><span>or</span></div>
 
         {notice && !error && <div className="auth-notice">{notice}</div>}
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error" role="alert">{error}</div>}
 
         <form className="auth-form" onSubmit={submit}>
           <label>email
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" required />
           </label>
           <label>password
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="your password" autoComplete="current-password" required />
           </label>
           <button type="submit" className="btn-green" disabled={busy}>

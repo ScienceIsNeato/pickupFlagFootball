@@ -29,7 +29,10 @@ export default async function DeclinePage({
     return (
       <main className="prose">
         <h1>{c.title}</h1>
-        <p>{c.body} manage everything anytime from your <Link href="/account">account</Link>.</p>
+        <p>{c.body}</p>
+        {/* the invalid state opens from a phone email - give recovery a real button,
+            not a word-sized inline link */}
+        <p><Link href="/account" className="btn-green-link">manage it in your account</Link></p>
       </main>
     );
   }

@@ -29,7 +29,9 @@ Then("a game is scheduled here", async ({ world }) => {
 });
 
 When("I refresh the map", async ({ page }) => {
-  await page.reload(); // drop the stale popup + refetch /api/map so the new game badge shows
+  // B2: the previous step may have left us on a /proposed or /game PAGE — go to
+  // the map explicitly (also refetches /api/map so the new game badge shows).
+  await page.goto("/play");
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
 });
 
