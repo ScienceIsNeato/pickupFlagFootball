@@ -18,7 +18,9 @@ export default async function ProposePage({ searchParams }: { searchParams: Prom
   const session = await auth();
   const sp = await searchParams;
   const lat = Number(sp.lat), lng = Number(sp.lng);
-  if (!session?.user?.id) redirect(`/?signin=1&next=/play`);
+  // Deep links survive sign-in: preserve the full path INCLUDING the query
+  // (encoded - it contains &), so a shared propose link completes after login.
+  if (!session?.user?.id) redirect(`/?signin=1&next=${encodeURIComponent(`/propose?lat=${sp.lat}&lng=${sp.lng}`)}`);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) notFound();
 
   // Same home shape the play page derives — the form leads with an actionable

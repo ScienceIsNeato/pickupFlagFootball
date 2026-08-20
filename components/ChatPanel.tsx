@@ -39,8 +39,10 @@ function ago(iso: string): string {
   return `${Math.floor(s / 86400)}d`;
 }
 
-export function ChatPanel({ gameId, attemptId, isProposal }: {
+export function ChatPanel({ gameId, attemptId, isProposal, active = true }: {
   gameId?: string; attemptId?: string; isProposal?: boolean;
+  /** false while the panel sits behind a hidden tabpanel — no polling, no read-marking. */
+  active?: boolean;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
@@ -88,8 +90,12 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
     }
   }, [qs]);
 
-  // Poll while mounted and visible. Marking read on mount is what clears the dot.
+  // Poll while ACTIVE and visible. The panel stays mounted behind a hidden
+  // tabpanel so drafts survive tab switches (audit M24) — but a hidden panel
+  // must not mark the thread read or clear the unread dot (Bugbot): reading
+  // happens when someone actually opens the chat tab, not the details view.
   useEffect(() => {
+    if (!active) return;
     let alive = true;
     void poll();
     void fetch("/api/chat", {
@@ -106,7 +112,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [poll, gameId, attemptId]);
+  }, [poll, gameId, attemptId, active]);
 
   // Keep the newest message in view as things arrive — but never yank a reader
   // who has scrolled up into history (audit M25). First render still pins.

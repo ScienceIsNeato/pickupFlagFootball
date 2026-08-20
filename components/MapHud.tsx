@@ -189,7 +189,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
       headline = scenario.count === 1 ? "there's a game near you" : `${scenario.count} games near you`;
       body = scenario.count === 1
         ? `${scenario.placeText ?? "a standing game"} already runs weekly here — tap its badge on the map to join.`
-        : "click any game badge on the map to see details and join.";
+        : "tap any game badge on the map to see details and join.";
       break;
     case "open-proposal":
       headline = "a game's been proposed";

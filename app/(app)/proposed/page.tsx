@@ -12,7 +12,7 @@ export default async function ProposedPage({ searchParams }: { searchParams: Pro
   const session = await auth();
   const sp = await searchParams;
   const lat = Number(sp.lat), lng = Number(sp.lng);
-  if (!session?.user?.id) redirect(`/?signin=1&next=/play`);
+  if (!session?.user?.id) redirect(`/?signin=1&next=${encodeURIComponent(`/proposed?lat=${sp.lat}&lng=${sp.lng}`)}`);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) notFound();
 
   return (

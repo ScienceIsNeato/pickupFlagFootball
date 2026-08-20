@@ -426,7 +426,7 @@ export function GameCard({ gameId }: { gameId: string }) {
                 half-typed draft in the composer (audit M24). */}
             <div role="tabpanel" id="game-panel-chat" aria-labelledby="game-tab-chat"
               hidden={tab !== "chat"}>
-              <ChatPanel gameId={game.gameId} />
+              <ChatPanel gameId={game.gameId} active={tab === "chat"} />
             </div>
           </>
         )}

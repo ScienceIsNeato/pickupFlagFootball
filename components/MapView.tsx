@@ -285,7 +285,10 @@ export function MapView({
       let cells: Cell[];
       try {
         const r = await fetch(`/api/map?res=${res}${mineOnly ? "&mine=1" : ""}`, { cache: "no-store" });
-        if (aborted || !r.ok) return;
+        if (aborted) return;
+        // A 500/auth failure must surface the retry chip too — only the happy
+        // path clears it (review: catch-only left non-OK looking like an empty area).
+        if (!r.ok) { setFeedFailed(true); return; }
         ({ cells } = (await r.json()) as { cells: Cell[] });
       } catch (e) {
         console.error("[map refresh error]", e);

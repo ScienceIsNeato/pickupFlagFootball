@@ -162,7 +162,7 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
                 half-typed draft in the composer (audit M24). */}
             <div role="tabpanel" id="proposed-panel-chat" aria-labelledby="proposed-tab-chat"
               hidden={tab !== "chat"}>
-              <ChatPanel attemptId={proposal.attemptId} isProposal />
+              <ChatPanel attemptId={proposal.attemptId} isProposal active={tab === "chat"} />
             </div>
           </>
         )}

@@ -28,7 +28,7 @@ const OFFLINE_HTML = `<!doctype html><html><head><meta charset="utf-8">
     text-align:center; padding:24px; }
   h1 { font-size:1.4rem; margin:0 0 8px; }
   p { color:#a3acc2; font-size:1rem; line-height:1.5; margin:0 0 18px; max-width:38ch; }
-  button { background:#468944; color:#fff; border:0; border-radius:8px; padding:12px 22px;
+  button { background:#3d7a3c; color:#fff; border:0; border-radius:8px; padding:12px 22px;
     font-size:1rem; font-weight:700; cursor:pointer; }
 </style></head><body><div>
 <h1>you're offline</h1>
@@ -42,7 +42,12 @@ self.addEventListener("fetch", (e) => {
   if (e.request.mode !== "navigate") return;
   e.respondWith(
     fetch(e.request).catch(() =>
-      new Response(OFFLINE_HTML, { headers: { "content-type": "text/html; charset=utf-8" } }),
+      // 503 + no-store: this is a failure state, and nothing between here and
+      // the user should treat or cache it as a successful page.
+      new Response(OFFLINE_HTML, {
+        status: 503,
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+      }),
     ),
   );
 });

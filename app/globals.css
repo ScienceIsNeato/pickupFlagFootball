@@ -199,7 +199,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .legend-propose strong { color: #fff; }
 
 .map-legend {
-  position: absolute; top: 64px; right: 12px;
+  position: absolute; top: calc(64px + env(safe-area-inset-top, 0px)); right: 12px;
   z-index: 5; display: flex; flex-direction: column; gap: 9px; align-items: stretch;
   max-width: calc(100% - 24px); padding: 12px 14px; border-radius: 14px;
   background: rgba(12, 19, 38, 0.55);
@@ -223,7 +223,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
    one family. Left placement keeps it clear of the map's own badges, which
    center on the viewer's area. */
 .map-hud {
-  position: absolute; top: 64px; left: 12px; bottom: 12px; z-index: 6;
+  position: absolute; top: calc(64px + env(safe-area-inset-top, 0px)); left: 12px; bottom: 12px; z-index: 6;
   width: 360px; max-width: calc(100% - 24px);
   overflow-y: auto; overscroll-behavior: contain;
   padding: 16px 16px 12px; border-radius: 14px;
@@ -437,7 +437,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* Why the retire control is disabled (the 4-dead-weeks rule). */
 .game-retire-hint { margin: 8px 0 0; font-size: 0.75rem; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
-.app-body { position: relative; z-index: 1; min-height: 100vh; min-height: 100dvh; padding-top: 64px; }
+.app-body { position: relative; z-index: 1; min-height: 100vh; min-height: 100dvh; padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
 
 /* THE frost: one fixed layer directly on top of the page background and UNDER
  * every other layer (content z:1, chrome z:30, modals z:100). backdrop-filter
@@ -476,7 +476,7 @@ body:has(.dash-map) .app-frost { display: none; }
   .app-foot { gap: 9px; padding: 9px 12px; font-size: 0.75rem; }
 }
 /* keep the map's zoom control clear of the floating header/footer */
-.maplibregl-ctrl-top-right { top: 58px; }
+.maplibregl-ctrl-top-right { top: calc(58px + env(safe-area-inset-top, 0px)); }
 .maplibregl-ctrl-bottom-right { bottom: 42px; }
 
 .hero {
@@ -730,7 +730,7 @@ section h2::after {
 
 /* "email unconfirmed" status — top-left, above the map, below the header */
 .unverified-banner {
-  position: fixed; top: 72px; left: 12px; z-index: 20; max-width: calc(100% - 24px);
+  position: fixed; top: calc(72px + env(safe-area-inset-top, 0px)); left: 12px; z-index: 20; max-width: calc(100% - 24px);
   display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
   font-size: 0.8125rem; color: #1a1407; background: var(--yellow);
   box-shadow: 0 6px 18px rgba(0,0,0,.28);
@@ -745,7 +745,7 @@ section h2::after {
 
 /* Support nudge — same shape as the unverified banner, green "supporter" tone. */
 .donate-banner {
-  position: fixed; top: 72px; left: 12px; z-index: 20; max-width: calc(100% - 24px);
+  position: fixed; top: calc(72px + env(safe-area-inset-top, 0px)); left: 12px; z-index: 20; max-width: calc(100% - 24px);
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
   font-size: 0.8125rem; color: #eafff0; background: #2f7a39;
   box-shadow: 0 6px 18px rgba(0,0,0,.28);
@@ -1152,7 +1152,7 @@ section h2::after {
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
   .map-legend { display: none; }         /* the always-open legend was audit M3 */
   .map-chips {
-    position: absolute; top: 58px; left: 10px; right: 10px; z-index: 5;
+    position: absolute; top: calc(58px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; z-index: 5;
     display: flex; gap: 6px; align-items: center;
   }
   .map-chip {
@@ -1246,7 +1246,7 @@ section h2::after {
    banner slides underneath them; on scrolling pages the banner keeps the top
    and the page content starts below it instead of underneath it. */
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
-  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: 104px; }
+  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: calc(104px + env(safe-area-inset-top, 0px)); }
   body:not(:has(.dash-map)):has(.donate-banner) .app-body,
   body:not(:has(.dash-map)):has(.unverified-banner) .app-body { padding-top: 160px; }
   /* compact phone rendering so the banner is a strip, not a third of the screen */
