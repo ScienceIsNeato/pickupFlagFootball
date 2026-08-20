@@ -48,6 +48,53 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** The weekly-slot pickers (day / time / first date). Extracted so ProposeForm
+ *  stays under the sprawl limit — same treatment as ProposeSuccessCard. */
+function ScheduleFields({ dow, time, date, dates, setDow, setTime, setDate, touch, show, errs }: {
+  dow: string; time: string; date: string; dates: string[];
+  setDow: (v: string) => void; setTime: (v: string) => void; setDate: (v: string) => void;
+  touch: (k: string) => void;
+  show: (k: "dow" | "time" | "date") => string | false;
+  errs: { dow: string | false; time: string | false; date: string | false };
+}) {
+  return (
+    <>
+      <label>
+        day of week
+        <select value={dow}
+          onChange={(e) => { setDow(e.target.value); setDate(""); touch("dow"); }}>
+          <option value="" disabled>pick a day</option>
+          {DOW_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+        </select>
+        {show("dow") && <span className="field-err">{errs.dow}</span>}
+      </label>
+      <label>
+        time
+        <select value={time}
+          onChange={(e) => { setTime(e.target.value); touch("time"); }}>
+          <option value="" disabled>pick a time</option>
+          {TIME_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {show("time") && <span className="field-err">{errs.time}</span>}
+      </label>
+      <label>
+        date of the first game
+        <select value={date} disabled={dow === ""}
+          onChange={(e) => { setDate(e.target.value); touch("date"); }}>
+          <option value="" disabled>{dow === "" ? "pick a day first" : "pick a date"}</option>
+          {dates.map((d) => {
+            const [y, m, day] = d.split("-").map(Number);
+            const label = new Date(y, m - 1, day).toLocaleDateString(undefined,
+              { month: "short", day: "numeric", year: "numeric" });
+            return <option key={d} value={d}>{label}</option>;
+          })}
+        </select>
+        {show("date") && <span className="field-err">{errs.date}</span>}
+      </label>
+    </>
+  );
+}
+
 /** Propose-a-game flow — the body of the /propose page (redesign decision B2),
  *  reached from the map's + button, a long-press, or a right-click. The picked
  *  point is the location; the address fields (prefilled by reverse-geocode)
@@ -174,38 +221,9 @@ export function ProposeForm({
             rows={2} placeholder="park in the east lot - gate code 1234" />
         </label>
 
-        <label>
-          day of week
-          <select value={dow}
-            onChange={(e) => { setDow(e.target.value); setDate(""); setTouched((t) => ({ ...t, dow: true })); }}>
-            <option value="" disabled>pick a day</option>
-            {DOW_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-          </select>
-          {show("dow") && <span className="field-err">{errs.dow}</span>}
-        </label>
-        <label>
-          time
-          <select value={time}
-            onChange={(e) => { setTime(e.target.value); setTouched((t) => ({ ...t, time: true })); }}>
-            <option value="" disabled>pick a time</option>
-            {TIME_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          {show("time") && <span className="field-err">{errs.time}</span>}
-        </label>
-        <label>
-          date of the first game
-          <select value={date} disabled={dow === ""}
-            onChange={(e) => { setDate(e.target.value); setTouched((t) => ({ ...t, date: true })); }}>
-            <option value="" disabled>{dow === "" ? "pick a day first" : "pick a date"}</option>
-            {dates.map((d) => {
-              const [y, m, day] = d.split("-").map(Number);
-              const label = new Date(y, m - 1, day).toLocaleDateString(undefined,
-                { month: "short", day: "numeric", year: "numeric" });
-              return <option key={d} value={d}>{label}</option>;
-            })}
-          </select>
-          {show("date") && <span className="field-err">{errs.date}</span>}
-        </label>
+        <ScheduleFields dow={dow} time={time} date={date} dates={dates}
+          setDow={setDow} setTime={setTime} setDate={setDate}
+          touch={(k) => setTouched((t) => ({ ...t, [k]: true }))} show={show} errs={errs} />
 
         <input type="hidden" name="start" value={iso} />
         <input type="hidden" name="recur_dow" value={dow} />
