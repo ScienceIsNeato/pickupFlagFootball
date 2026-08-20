@@ -1227,3 +1227,16 @@ section h2::after {
 /* M54: on pages the card sits on the page background, not over a bright map —
    make it opaque so text never fights map imagery bleeding through */
 .game-card--page { background: #0f1723; /* --surface flattened over the page bg */ backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* M10 × C1: a fixed banner (donate / unverified) and the map chip row both
+   claim the top strip on phones — the banner was eating the chips' taps. On
+   the MAP the always-present chips keep the top slot and the dismissible
+   banner slides underneath them; on scrolling pages the banner keeps the top
+   and the page content starts below it instead of underneath it. */
+@media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
+  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: 104px; }
+  body:not(:has(.dash-map)):has(.donate-banner) .app-body,
+  body:not(:has(.dash-map)):has(.unverified-banner) .app-body { padding-top: 160px; }
+  /* compact phone rendering so the banner is a strip, not a third of the screen */
+  .donate-banner, .unverified-banner { padding: 7px 10px; font-size: 12px; gap: 6px; }
+}

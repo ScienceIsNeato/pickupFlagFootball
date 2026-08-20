@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Mobile redesign decisions are locked - bottom tabs, full pages instead of popups, a collapsed map key, and a cleaner icon set. Starting the rebuild now, foundation first.",
-    "direction": "Work through the redesign phase by phase until the phone experience is solid.",
+    "status": "The phone rebuild is in: bottom tabs, games as real pages you can link to, a collapsed map key with live counts, a visible propose button, and dozens of small fixes - tap sizes, keyboard behavior, landscape. All tests green.",
+    "direction": "Open the PR, then keep polishing - the splash gallery and a contrast pass are next.",
     "last_update": "2026-08-19T00:00:00Z"
   }
 }
