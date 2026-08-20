@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
 import { GoogleButton } from "./GoogleButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { str } from "@/lib/forms";
 
 /** The registration window — the ONLY place an account is created. An anonymous
@@ -90,7 +91,7 @@ export function RegisterInterestForm() {
       </label>
       <label>
         password
-        <input type="password" name="password" placeholder="at least 8 characters"
+        <PasswordInput name="password" placeholder="at least 8 characters"
           autoComplete="new-password" minLength={8} required />
       </label>
 

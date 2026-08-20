@@ -52,7 +52,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <header className="nav nav-float">
-        <Link href="/" className="brand">
+        {/* audit M34: for a signed-in user the brand anchors the APP (the map),
+            not the marketing splash - the splash is for people we haven't met. */}
+        <Link href={loggedIn ? "/play" : "/"} className="brand">
           <Ball />
           {skin.brandName}
         </Link>

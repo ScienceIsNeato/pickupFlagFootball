@@ -12,8 +12,10 @@ export default function Home() {
           <div className="acronym">{skin.acronym}</div>
           <h1>{skin.hero.heading}</h1>
           <p className="lead">{skin.hero.body}</p>
-          {skin.hero.body2 && <p className="lead">{skin.hero.body2}</p>}
+          {/* CTA above the long second paragraph so it sits inside the first
+              phone screen (audit M20) — the detail still follows for readers. */}
           <Link href="/show-interest" className="btn">{skin.hero.cta}</Link>
+          {skin.hero.body2 && <p className="lead">{skin.hero.body2}</p>}
         </div>
         {/* Right rail on wide screens, and it falls under the CTA on narrow ones —
             the hero column itself stays centered and untouched. Renders nothing at

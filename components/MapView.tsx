@@ -610,6 +610,10 @@ export function MapView({
     const clearLongPress = () => { if (lpTimer) clearTimeout(lpTimer); lpTimer = null; lpAt = null; };
     const onTouchStart = (e: TouchEvent) => {
       if (mineOnly) return;
+      // audit M27: a hold that begins on map chrome is aimed at that control -
+      // never treat it as propose-here.
+      const t0 = e.target as Element | null;
+      if (t0?.closest?.(".maplibregl-ctrl, .map-chips, .map-hud, .map-fab, .map-key-sheet, .tabbar")) return;
       // Drop any pending press before (re)scheduling, so an orphaned timer from a
       // prior touch can't still fire. Covers multitouch too (pinch cancels a hold).
       clearLongPress();

@@ -555,6 +555,10 @@ body:has(.dash-map) .app-frost { display: none; }
 
 main { max-width: 760px; margin: 0 auto; padding: 0 20px; }
 section { padding: 48px 0 8px; }
+/* M57: that bare element rule is marketing styling — it leaked 48px of top
+   padding into every app <section> (account columns read as ~250px of dead
+   space when linearized on a phone). App sections opt back out. */
+.account-col, .acct-vitals, .mine-section { padding: 0; }
 section h2 { font-size: 30px; font-weight: 700; margin: 0 0 4px; }
 section h2::after {
   content: "";
@@ -1240,3 +1244,26 @@ section h2::after {
   /* compact phone rendering so the banner is a strip, not a third of the screen */
   .donate-banner, .unverified-banner { padding: 7px 10px; font-size: 12px; gap: 6px; }
 }
+
+/* stroke-icon carets (M22/M37): a real chevron, accent-colored and larger than
+   the old text glyph; .rot90 is the open state */
+.map-hud-caret svg, .game-caret svg, .map-hud-post-toggle svg { vertical-align: -3px; transition: transform 0.15s ease; }
+.map-hud-caret { color: var(--grass-l); }
+svg.rot90 { transform: rotate(90deg); }
+
+/* M7 finish: the remaining small targets - card tabs and the header avatar */
+@media (pointer: coarse) {
+  .game-tab { min-height: 42px; padding-top: 8px; padding-bottom: 8px; }
+  .acct-avatar { width: 40px; height: 40px; }
+}
+
+/* show/hide password toggle (M64) - the input keeps its form styling; the
+   toggle floats inside its right edge with a full-height touch target */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { width: 100%; padding-right: 44px; }
+.pw-toggle {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--faint); cursor: pointer;
+}
+.pw-toggle:hover, .pw-toggle[aria-pressed="true"] { color: var(--ink); }

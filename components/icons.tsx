@@ -73,6 +73,28 @@ export function IconKey(p: IconProps = {}) {
   </>);
 }
 
+/** Chevron (right) — expand/collapse cues; rotate with CSS for open state. */
+export function IconChevron(p: IconProps = {}) {
+  return base(p, <path d="M9 5l7 7-7 7" />);
+}
+
+/** Eye — show password. */
+export function IconEye(p: IconProps = {}) {
+  return base(p, <>
+    <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </>);
+}
+
+/** Eye, crossed — hide password. */
+export function IconEyeOff(p: IconProps = {}) {
+  return base(p, <>
+    <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M4 4l16 16" />
+  </>);
+}
+
 /** Info — attribution / help affordances. */
 export function IconInfo(p: IconProps = {}) {
   return base(p, <>

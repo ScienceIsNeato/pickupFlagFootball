@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { completePasswordReset } from "@/lib/auth/passwordReset";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export function ResetForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
@@ -26,7 +27,7 @@ export function ResetForm({ token }: { token: string }) {
     <form className="auth-form" onSubmit={submit}>
       {error && <div className="auth-error">{error}</div>}
       <label>new password
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder="at least 8 characters" autoComplete="new-password" minLength={8} required />
       </label>
       <button type="submit" className="btn-green" disabled={busy}>

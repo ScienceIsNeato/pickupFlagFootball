@@ -6,6 +6,7 @@ import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actio
 import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain, setMinPlayers } from "@/app/(app)/play/captain-actions";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CardTabs } from "@/components/CardTabs";
+import { IconChevron } from "@/components/icons";
 
 type GameInfo = {
   gameId: string;
@@ -392,7 +393,7 @@ export function GameCard({ gameId }: { gameId: string }) {
             ) : (
               <>
                 <button type="button" className="game-collapse" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-                  <span className="game-caret">{open ? "▾" : "▸"}</span>
+                  <span className="game-caret"><IconChevron size={14} className={open ? "rot90" : ""} /></span>
                   recent games
                   <span className="game-muted"> · played {playedCount} of last {weeks.length} weeks</span>
                 </button>
