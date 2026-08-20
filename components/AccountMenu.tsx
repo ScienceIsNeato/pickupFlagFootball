@@ -82,7 +82,15 @@ export function AccountMenu() {
               <button className="acct-menu-item" onClick={() => { setOpen(false); setInviteOpen(true); }}>
                 invite a friend
               </button>
-              <button className="acct-signout" onClick={() => signOut({ callbackUrl: "/" })}>
+              <button className="acct-signout" onClick={async () => {
+                // redirect:false + our own navigation: the server builds its
+                // redirect URL from the LISTEN host (0.0.0.0 under deploy_app's
+                // -H 0.0.0.0), which a phone can't navigate to - so sign-out
+                // "did nothing" on mobile. Navigating ourselves stays on
+                // whatever origin the device is actually using.
+                await signOut({ redirect: false });
+                window.location.href = "/";
+              }}>
                 sign out
               </button>
             </div>

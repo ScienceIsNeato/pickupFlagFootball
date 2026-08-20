@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { IconChevron } from "@/components/icons";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
@@ -125,7 +126,8 @@ export default async function UpcomingGamesPage() {
 
       {/* ── left: upcoming ─────────────────────────────────────────────── */}
       <aside className="mine-panel">
-        <h2 className="mine-h">upcoming games</h2>
+        <details className="mine-fold" open>
+        <summary className="mine-h">upcoming games<IconChevron size={16} /></summary>
         {rosterGames.length === 0 ? (
           <p className="mine-empty">
             you haven&apos;t joined a game yet. <Link href="/play">find one on the map</Link> and tap
@@ -201,11 +203,13 @@ export default async function UpcomingGamesPage() {
             </section>
           </>
         )}
+        </details>
       </aside>
 
       {/* ── right: past ────────────────────────────────────────────────── */}
       <aside className="mine-panel mine-right">
-        <h2 className="mine-h">past games</h2>
+        <details className="mine-fold" open>
+        <summary className="mine-h">past games<IconChevron size={16} /></summary>
         {rosterGames.length === 0 ? (
           <p className="mine-empty">once you join a game, what happened at your sites shows up here.</p>
         ) : past.length === 0 ? (
@@ -241,6 +245,7 @@ export default async function UpcomingGamesPage() {
             })}
           </ul>
         )}
+        </details>
       </aside>
     </div>
   );

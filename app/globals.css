@@ -790,9 +790,22 @@ section h2::after {
 .mine-you-in { color: var(--grass-l); }
 
 @media (max-width: 560px) {
-  /* stack the two panels: upcoming on top, past below (don't hide past) */
-  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; bottom: auto; max-height: calc(50vh - 64px); }
-  .mine-right { left: 8px; right: 8px; top: calc(58px + 50vh - 56px); bottom: 8px; max-height: none; }
+  /* phones: the panels become a scrolling stack IN FLOW (collapsible trays
+     slide naturally, nothing pins under the header) while the map stays put
+     as a fixed backdrop behind them */
+  body:has(.mine-panel) .dash-map {
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(70px + env(safe-area-inset-top, 0px)) 8px
+             calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+  /* !important: MapView's wrapper carries inline position/size styles */
+  body:has(.mine-panel) .dash-map > div:first-child {
+    position: fixed !important; inset: 0; height: auto !important; z-index: 0;
+  }
+  .mine-panel, .mine-right {
+    position: relative; z-index: 6; width: auto; max-height: none; overflow: visible;
+    top: auto; bottom: auto; left: auto; right: auto; margin: 0 0 10px;
+  }
 }
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;
@@ -1152,7 +1165,7 @@ section h2::after {
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
   .map-legend { display: none; }         /* the always-open legend was audit M3 */
   .map-chips {
-    position: absolute; top: calc(58px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; z-index: 5;
+    position: absolute; top: calc(70px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; z-index: 5;
     display: flex; gap: 6px; align-items: center;
   }
   .map-chip {
@@ -1246,7 +1259,7 @@ section h2::after {
    banner slides underneath them; on scrolling pages the banner keeps the top
    and the page content starts below it instead of underneath it. */
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
-  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: calc(104px + env(safe-area-inset-top, 0px)); }
+  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: calc(116px + env(safe-area-inset-top, 0px)); }
   body:not(:has(.dash-map)):has(.donate-banner) .app-body,
   body:not(:has(.dash-map)):has(.unverified-banner) .app-body { padding-top: 160px; }
   /* compact phone rendering so the banner is a strip, not a third of the screen */
@@ -1325,3 +1338,10 @@ body { min-height: 100dvh; }
    disabled one drops the affordance cues instead of teasing a tap */
 .seg .game-leave { text-decoration: none; }
 .game-leave:disabled { text-decoration: none; opacity: 0.45; cursor: default; }
+
+/* collapsible my-games trays: the panel header is the toggle */
+.mine-fold summary { list-style: none; cursor: pointer; }
+.mine-fold summary::-webkit-details-marker { display: none; }
+.mine-fold summary svg { vertical-align: -2px; margin-left: 8px; color: var(--grass-l); transition: transform 0.15s ease; }
+.mine-fold[open] > summary svg { transform: rotate(90deg); }
+.mine-fold summary:focus-visible { outline: 2px solid var(--grass-l); outline-offset: 2px; border-radius: 6px; }
