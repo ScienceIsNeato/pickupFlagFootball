@@ -19,7 +19,7 @@ Given(
     // Reload so the page re-renders as a confirmed user — drops the "email
     // unconfirmed" banner from every captain beat (this test isn't about that).
     await page.reload();
-    await expect(page.locator(".map-legend")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 }); // legend is phone-hidden under C1; the canvas proves the map rendered
   },
 );
 

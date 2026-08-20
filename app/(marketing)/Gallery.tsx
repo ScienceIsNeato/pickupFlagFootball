@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Item = { title: string; caption: string; src: string };
 
@@ -13,10 +13,24 @@ export default function Gallery({ items }: { items: Item[] }) {
   const [active, setActive] = useState(0);
   const go = (delta: number) => setActive((a) => (a + delta + items.length) % items.length);
   const item = items[active];
+  // Swipe to page (audit M47) — a carousel that only arrows-taps reads as
+  // broken on a phone. Horizontal-dominant swipes only, so vertical scrolling
+  // through the splash never accidentally pages.
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    const dy = e.changedTouches[0].clientY - touch.current.y;
+    touch.current = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+  };
 
   return (
     <div className="gallery" role="group" aria-roledescription="carousel" aria-label="see it in action">
-      <div className="gallery-stage">
+      <div className="gallery-stage" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <button
           type="button"
           className="gallery-arrow gallery-arrow--prev"

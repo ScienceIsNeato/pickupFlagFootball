@@ -1,10 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
-import { useEscape } from "@/lib/useEscape";
-import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useRouter } from "next/navigation";
 import { proposeGame } from "@/app/(app)/play/propose-actions";
 import { reverseGeocode } from "@/lib/geo/reverseGeocode";
 import { haversineKm } from "@/lib/geo/distance";
@@ -28,7 +26,7 @@ const ERRORS: Record<string, string> = {
 type Home = { lat: number; lng: number; maxTravelKm: number; city: string | null; zip: string | null };
 const kmToMi = (km: number) => Math.round(km / 1.609);
 
-/** The success card shown after a successful propose. Extracted so the modal's
+/** The success card shown after a successful propose. Extracted so the form's
  *  main component stays under the sprawl limit. */
 function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
   return (
@@ -50,33 +48,23 @@ function ProposeSuccessCard({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Propose-a-game flow, opened by right-clicking a spot on the map. The exact
- *  clicked point is the location; the address fields (prefilled by reverse-geocode)
+/** Propose-a-game flow — the body of the /propose page (redesign decision B2),
+ *  reached from the map's + button, a long-press, or a right-click. The picked
+ *  point is the location; the address fields (prefilled by reverse-geocode)
  *  describe it, and notes carry meeting details ("east lot, gate code 1234"). */
-export function ProposeModal({
-  h3, center, home, onClose, onProposed,
+export function ProposeForm({
+  h3, center, home,
 }: {
   h3: string; center: { lat: number; lng: number }; home: Home | null;
-  onClose: () => void; onProposed: (p: { lat: number; lng: number }) => void;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(proposeGame, null);
-  // Portal to document.body to escape .dash-map's stacking context.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  useEscape(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, mounted);
 
   // Is the right-clicked spot inside the user's travel radius? If not, the
   // dialog leads with an "increase your radius" message and disables submit.
   const distKm = home ? haversineKm(home.lat, home.lng, center.lat, center.lng) : null;
   const outOfRange = home != null && distKm != null && distKm > home.maxTravelKm;
 
-  // On success: drop the proposed badge on the map at the clicked point.
-  useEffect(() => {
-    if (state?.ok) onProposed(center);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
 
   // City + ZIP default to the user's own — they're proposing inside their area.
   // Street starts empty (the reverse-geocoder fills it if it finds one).
@@ -122,16 +110,12 @@ export function ProposeModal({
     if (!ready) { e.preventDefault(); setShowInvalid(true); }
   };
 
-  if (!mounted) return null;
-  return createPortal((
-    <div
-      ref={dialogRef} tabIndex={-1}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      role="dialog" aria-modal="true" aria-labelledby="propose-title"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
-        display: "flex", alignItems: "center", justifyContent: "center" }}
-    >
-      {state?.ok ? <ProposeSuccessCard onClose={onClose} /> : (
+  // Back to the map on success ("got it") or cancel; the map refetches on mount,
+  // so the fresh proposed badge is there when they land.
+  const toMap = () => router.push("/play");
+  return (
+    <>
+      {state?.ok ? <ProposeSuccessCard onClose={toMap} /> : (
       <form action={formAction} onSubmit={onInvalidSubmit} noValidate className="reg-form"
         style={{ width: 380, maxWidth: "92%", maxHeight: "88%", overflowY: "auto",
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
@@ -230,11 +214,11 @@ export function ProposeModal({
         <button className="btn-green" type="submit" disabled={outOfRange || pending}>
           {pending ? "proposing…" : "propose it"}
         </button>
-        <button type="button" onClick={onClose}
+        <button type="button" onClick={toMap}
           style={{ background: "none", border: 0, color: "var(--muted)", cursor: "pointer",
             fontSize: 13, marginTop: 2 }}>cancel</button>
       </form>
       )}
-    </div>
-  ), document.body);
+    </>
+  );
 }

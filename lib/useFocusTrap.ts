@@ -13,7 +13,10 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active = true) 
     if (!node) return;
     const prev = document.activeElement as HTMLElement | null;
     const SEL = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    const focusables = () => Array.from(node.querySelectorAll<HTMLElement>(SEL));
+    // Filter to elements a user can actually reach: an inert or hidden control
+    // in the cycle makes Tab appear to stick (audit M44).
+    const focusables = () => Array.from(node.querySelectorAll<HTMLElement>(SEL))
+      .filter((el) => !el.closest("[inert]") && !el.closest("[hidden]") && el.offsetParent !== null);
 
     (focusables()[0] ?? node).focus();
 

@@ -86,7 +86,7 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
   // the viewer just proposed a game would be actively misleading. The 15s
   // interval alone is a safety net for changes made by OTHER people in the
   // area; the viewer's OWN mutations (propose, join/leave, interest response)
-  // dispatch "mime:hud-stale" from MapView/ProposedDetailsModal so this reads
+  // dispatch "mime:hud-stale" from MapView/ProposedCard so this reads
   // immediately instead of waiting out the interval.
   const [scenario, setScenario] = useState(initialScenario);
   const [place, setPlace] = useState(initialPlace);
@@ -266,7 +266,11 @@ export function MapHud({ scenario: initialScenario, place: initialPlace }: { sce
             ))}
           </div>
         ) : (
-          <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+          <span>
+            {/* the /games list is the canvas-free path to every game (audit M1) */}
+            <Link href="/games" className="map-hud-link">games near you &rarr;</Link>{" "}
+            <Link href="/my-games" className="map-hud-link">my games &rarr;</Link>
+          </span>
         )}
       </div>
     </div>

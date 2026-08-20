@@ -60,8 +60,15 @@ export function RegisterInterestForm() {
 
   return (
     <form ref={formRef} className="reg-form" onSubmit={submit}>
+      {/* ZIP first: it's the one thing BOTH signup paths need (audit M13) — with
+          it above the Google button, google + zip really is the whole signup. */}
+      <label>
+        zip code <span className="reg-optional">(where we look for games)</span>
+        <input type="text" name="zip" placeholder="52241" inputMode="numeric"
+          autoComplete="postal-code" pattern="[0-9]{5}" required />
+      </label>
       <div className="auth-google">
-        {/* Signup mode: requires a ZIP before completing Google, then createMember. */}
+        {/* Signup mode: requires the ZIP above before completing Google. */}
         <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
       </div>
       <p className="reg-hint">
@@ -87,12 +94,6 @@ export function RegisterInterestForm() {
           autoComplete="new-password" minLength={8} required />
       </label>
 
-      <p className="reg-section">where you play</p>
-      <label>
-        zip code
-        <input type="text" name="zip" placeholder="52241" inputMode="numeric"
-          autoComplete="postal-code" pattern="[0-9]{5}" required />
-      </label>
       <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
       <label>
         street address

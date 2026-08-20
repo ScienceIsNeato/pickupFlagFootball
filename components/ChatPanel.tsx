@@ -108,10 +108,17 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
     };
   }, [poll, gameId, attemptId]);
 
-  // Keep the newest message in view as things arrive.
+  // Keep the newest message in view as things arrive — but never yank a reader
+  // who has scrolled up into history (audit M25). First render still pins.
+  const pinnedOnce = useRef(false);
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (!pinnedOnce.current || nearBottom) {
+      el.scrollTop = el.scrollHeight;
+      pinnedOnce.current = true;
+    }
   }, [msgs.length]);
 
   async function send(e: React.FormEvent) {
@@ -141,6 +148,8 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
   }
 
   async function remove(seq: number) {
+    // Irreversible (the poll cursor can never resurface it) — confirm (audit M11).
+    if (!window.confirm("delete this message for everyone?")) return;
     // Confirm with the server BEFORE hiding it. Removing optimistically would be a
     // one-way door: the poll only asks for seqs above the cursor, so a rejected or
     // failed delete could never bring the message back while the panel stayed open.
@@ -163,10 +172,12 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
 
   return (
     <div className="chat">
-      <p className="chat-who">
-        anyone on the roster, the captains, anyone who said they&apos;re in, and confirmed
-        players close enough to play here can read this.
-      </p>
+      {/* folded by default — three permanent lines of policy was audit M23 */}
+      <details className="chat-who">
+        <summary>who can read this?</summary>
+        <p>anyone on the roster, the captains, anyone who said they&apos;re in, and confirmed
+        players close enough to play here.</p>
+      </details>
 
       {msgs.length === 0 ? (
         <p className="chat-empty">
@@ -209,7 +220,7 @@ export function ChatPanel({ gameId, attemptId, isProposal }: {
             placeholder="say something - parking, gear, who's bringing a ball"
             aria-label="your message"
           />
-          <button type="submit" className="chat-send" disabled={busy || !text.trim()}>send</button>
+          <button type="submit" className="chat-send" disabled={busy || !text.trim()}>{busy ? "sending…" : "send"}</button>
         </form>
       ) : (
         <div className="chat-note"><b>confirm your email to post</b>you can read without it.</div>

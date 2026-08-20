@@ -10,18 +10,20 @@ import { retireEligibility } from "@/lib/games/retireEligibility";
 export const dynamic = "force-dynamic";
 
 /**
- * Details for the existing game nearest a clicked point. Auth-gated like the map.
- * GET /api/game?lat=&lng=  → { game, recent } | { game: null }
+ * Details for one existing game. Auth-gated like the map.
+ * GET /api/game?id=<uuid>  → that game (the /game/[id] page)
+ * GET /api/game?lat=&lng=  → the game nearest a clicked point (map fallback)
  */
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
+  const id = url.searchParams.get("id");
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
-      lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+  if (!id && (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+      lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
     return NextResponse.json({ error: "bad coords" }, { status: 400 });
   }
 
@@ -49,7 +51,9 @@ export async function GET(req: Request) {
   // series at one venue) prefer a live series over a retired one, so a click
   // resolves to the same game the map shows live (the map badge lets an active
   // series win a shared cell). Beyond that, pure distance.
-  const best = active
+  const best = id
+    ? active.find((g) => g.id === id) ?? null
+    : active
     .map((g) => ({ g, d: haversineKm(lat, lng, g.placeLat ?? g.centerLat, g.placeLng ?? g.centerLng) }))
     .filter((x) => x.d < 6)
     .sort((a, b) =>

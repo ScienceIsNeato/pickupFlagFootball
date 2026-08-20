@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useState } from "react";
 import { useEscape } from "@/lib/useEscape";
-import { useFocusTrap } from "@/lib/useFocusTrap";
 import { joinWeeklyGame, setRosterMembership } from "@/app/(app)/play/game-actions";
 import { pauseSeries, resumeSeries, retireSeries, cancelWeek, stepDownAsCaptain, volunteerAsCaptain, setMinPlayers } from "@/app/(app)/play/captain-actions";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -62,8 +60,10 @@ type ConfirmReq =
   | { kind: "pause"; title: string; confirmLabel: string; onConfirm: (resumeDate: string, note: string) => void }
   | { kind: "note"; title: string; confirmLabel: string; placeholder: string; onConfirm: (note: string) => void };
 
-/** Details for an existing game, opened by clicking its flags on the map. */
-export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number; lng: number; onClose: () => void; onChanged?: () => void }) {
+/** Details for an existing game — the body of the /game/[id] page (redesign
+ *  decision B2: full-screen pages replaced the map's centered modals). All the
+ *  join/RSVP/captain logic lives here; the page shell provides back navigation. */
+export function GameCard({ gameId }: { gameId: string }) {
   const [state, setState] = useState<{ game: GameInfo | null; weeks: Week[]; playedHistory: PlayedGame[]; offWeeks: OffWeek[] } | "loading" | "error">("loading");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -82,28 +82,21 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
   // Captain's "minimum expected players" input — seeded from the effective value
   // on load so editing starts from what's actually in force.
   const [minInput, setMinInput] = useState("");
-  // Portal the modal to document.body so it escapes .dash-map's stacking
-  // context (z:0) and renders above the floating site header (z:30).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  // Escape closes the confirm dialog first (if open), else the whole modal.
+  // Escape closes the confirm dialog (the page itself has back navigation).
   useEscape(useCallback(() => {
     if (confirmReq) setConfirmReq(null);
-    else onClose();
-  }, [confirmReq, onClose]));
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, mounted);
+  }, [confirmReq]));
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/game?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+      const r = await fetch(`/api/game?id=${gameId}`, { cache: "no-store" });
       if (!r.ok) throw new Error();
       const d = (await r.json()) as { game: GameInfo | null; weeks?: Week[]; playedHistory?: PlayedGame[]; offWeeks?: OffWeek[] };
       setState({ game: d.game, weeks: d.weeks ?? [], playedHistory: d.playedHistory ?? [], offWeeks: d.offWeeks ?? [] });
     } catch {
       setState("error");
     }
-  }, [lat, lng]);
+  }, [gameId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -135,10 +128,6 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
       const res = await action();
       if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
       await load();
-      // A captain action (retire/pause/…) or join/leave changes the map too —
-      // refresh clusters so the badge (retired greying, ring, tallies) doesn't
-      // lag the modal until the next pan/zoom.
-      onChanged?.();
     } catch {
       setActionErr("something went wrong");
     } finally {
@@ -158,7 +147,6 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
       const res = await joinWeeklyGame(game.gameId, p === "regular", inVal);
       if (!res.ok) { setActionErr(res.error ?? "something went wrong"); setPref(prevP); setNextIn(prevIn); return; }
       await load();
-      onChanged?.();
     } catch {
       setActionErr("something went wrong"); setPref(prevP); setNextIn(prevIn);
     } finally {
@@ -182,7 +170,6 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
       const res = await joinWeeklyGame(game.gameId, pref === "regular", nextIn);
       if (!res.ok) { setActionErr(res.error ?? "something went wrong"); return; }
       await load();
-      onChanged?.();
     } catch {
       setActionErr("something went wrong");
     } finally {
@@ -195,19 +182,11 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
     setConfirmReq(req);
   }
 
-  if (!mounted) return null;
-  return createPortal((
-    <div
-      ref={dialogRef} tabIndex={-1}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      role="dialog" aria-modal="true" aria-labelledby="game-details-title"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(6,10,8,.72)",
-        display: "flex", alignItems: "center", justifyContent: "center" }}
-    >
+  return (
+    <>
       {/* While a type-to-confirm dialog is open, the card is inert so Tab/clicks
           can't reach the obscured controls behind it — focus stays in the dialog. */}
-      <div className="game-card" inert={confirmReq ? true : undefined}>
-        <button type="button" className="game-close" onClick={onClose} aria-label="close">×</button>
+      <div className="game-card game-card--page" inert={confirmReq ? true : undefined}>
         {state === "loading" && <p className="game-muted">loading…</p>}
         {state === "error" && <p className="game-muted">couldn&apos;t load this game.</p>}
         {state !== "loading" && state !== "error" && !game && <p className="game-muted">no game here yet.</p>}
@@ -436,11 +415,12 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
               </>
             )}
             </div>
-            {tab === "chat" && (
-              <div role="tabpanel" id="game-panel-chat" aria-labelledby="game-tab-chat">
-                <ChatPanel gameId={game.gameId} />
-              </div>
-            )}
+            {/* hidden, not unmounted: switching tabs must not destroy a
+                half-typed draft in the composer (audit M24). */}
+            <div role="tabpanel" id="game-panel-chat" aria-labelledby="game-tab-chat"
+              hidden={tab !== "chat"}>
+              <ChatPanel gameId={game.gameId} />
+            </div>
           </>
         )}
       </div>
@@ -517,6 +497,6 @@ export function GameDetailsModal({ lat, lng, onClose, onChanged }: { lat: number
           </div>
         </div>
       )}
-    </div>
-  ), document.body);
+    </>
+  );
 }

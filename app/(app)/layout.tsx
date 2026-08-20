@@ -10,6 +10,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
 import { DonationReminderBanner } from "@/components/DonationReminderBanner";
 import { AppTabBar } from "@/components/AppTabBar";
+import { RegisterSW } from "@/components/RegisterSW";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
 
@@ -68,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
+      <RegisterSW />
       <div className="app-frost" aria-hidden />
       {unverified && <UnverifiedBanner />}
       {remindDonate && <DonationReminderBanner />}

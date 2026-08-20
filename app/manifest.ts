@@ -21,9 +21,10 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/play",
     scope: "/",
     display: "standalone",
-    background_color: "#0c1326",
-    theme_color: "#0c1326",
-    orientation: "portrait-primary",
+    // Match the real chrome-bar color (also the viewport themeColor) so the
+    // installed app's splash + status bar are the app's own dark green-black.
+    background_color: "#0b1210",
+    theme_color: "#0b1210",
     icons: [
       { src: "/pwa/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/pwa/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
