@@ -2,7 +2,7 @@
  "_meta": {
   "branch": "feat/mobile-first",
   "updated": "2026-08-20",
-  "tests": "e2e 51/51 \u00b7 unit 103/103 (2026-08-20, fresh stack)"
+  "tests": "e2e 51/51 \u00b7 unit 103/103 (2026-08-20, post gap-sweep)"
  },
  "M1": [
   "fixed",
@@ -255,5 +255,212 @@
  "M64": [
   "fixed",
   "show/hide password toggle on auth, register, and reset forms"
+ ],
+ "_gaps": [
+  [
+   "Email-token landing pages (/rsvp /interested /decline /unsubscribe /verify-email)",
+   "covered",
+   "captured at 375px via tests/demos/gap-captures.mts - valid interested/unsubscribe/verify links from real emails, invalid-token states for the rest (happy paths were already e2e-covered)"
+  ],
+  [
+   "Password-reset flow",
+   "covered",
+   "captured: form, sent state, valid link, invalid token - all at phone width"
+  ],
+  [
+   "Unverified-email state end to end",
+   "covered",
+   "captured: banner over the map chips, verify link, post-verify"
+  ],
+  [
+   "Donate money path (Stripe checkout + return)",
+   "superseded",
+   "Stripe was replaced by Buy Me a Coffee (external) before the redesign - no in-app payment surface exists to audit"
+  ],
+  [
+   "Installed-PWA launch with no network",
+   "fixed",
+   "the service worker now serves an inline offline page for failed navigations - still caches nothing of the app, so no staleness story"
+  ],
+  [
+   "Offline/slow-network beyond the map feed",
+   "fixed",
+   "feed failures show the retry chip (M45); failed navigations get the offline page; tile outages degrade under still-usable chrome"
+  ],
+  [
+   "Cellular first-load weight of the splash",
+   "fixed",
+   "map-bg 2.4MB->218KB jpeg, badges 1.7MB->65KB, football ->46KB, and the gallery mounts one slide (~90KB) instead of six (~800KB)"
+  ],
+  [
+   "Form validation and server-error states",
+   "covered",
+   "captured: wrong password, duplicate email, bad zip vs the fixed save bar, reset-token errors"
+  ],
+  [
+   "Long-press propose vs iOS text-selection/callout",
+   "fixed",
+   "-webkit-touch-callout and user-select suppressed on the map surface"
+  ],
+  [
+   "Real-device keyboard/visualViewport behavior",
+   "accepted",
+   "addressed by design (interactive-widget=resizes-content, dvh caps, scrollable auth card); a physical-device pass is inherently manual - flagged for the next real-device session"
+  ],
+  [
+   "Captain states at phone width",
+   "covered",
+   "captured the captain's game page (controls, min-players, pause/retire) at 375px"
+  ],
+  [
+   "Empty and first-run states",
+   "covered",
+   "captured a sparse-area map - the HUD scenario line answers 'what now'; the no-location state was already in the original sweep"
+  ],
+  [
+   "ChangeEmail sub-flow",
+   "covered",
+   "captured the open pane at phone width"
+  ],
+  [
+   "Notification emails as mobile surfaces",
+   "covered",
+   "rendered the confirm email at 375px: single-column 540px table, system font stack, 14-15px text, 44px buttons - sound"
+  ],
+  [
+   "Error and 404 pages",
+   "covered",
+   "captured the marketing 404 and the app's missing-game state"
+  ],
+  [
+   "In-app browser webviews (Meta, Gmail, ...)",
+   "accepted",
+   "cannot be honestly emulated from here; the defensive posture is the Sentry third-party filter + dvh fallbacks - revisit if real complaint data points at a webview"
+  ],
+  [
+   "Android back button vs modals",
+   "superseded",
+   "B2 deleted the modals - game/proposed/propose are pages, so back is native navigation"
+  ],
+  [
+   "Landscape beyond the map",
+   "covered",
+   "captured the game page, account, and splash at 812x375 - scrolling pages hold up"
+  ],
+  [
+   "Motion and vestibular accessibility",
+   "fixed",
+   "global prefers-reduced-motion collapse for transitions/animations + the map's flag morph snaps into place; FlagFieldCanvas already complied"
+  ]
+ ],
+ "_round2": [
+  [
+   "R1",
+   "major",
+   "fixed",
+   "Register form errors rendered a full screen above the submit button - tapping 'count me in' gave zero visible feedback. Errors now scroll into view, take focus, announce via role=alert, and the duplicate-email case links straight to log-in."
+  ],
+  [
+   "R2",
+   "major",
+   "fixed",
+   "Landscape phones had no reachable Save while editing the account - the pinned save bar was width-gated only; now it pins under pointer-coarse landscape too."
+  ],
+  [
+   "R3",
+   "major",
+   "fixed",
+   "THE BIG ONE from this pass: the phone save bar inherited top:2px from the desktop rule, so position:fixed + top + bottom stretched it into an invisible full-page tap shield - display name, change email, everything above the fold was untappable on phones. top:auto. Found because the change-email capture refused to click; desktop e2e could never see it."
+  ],
+  [
+   "R4",
+   "minor",
+   "fixed",
+   "The confirm email's CTA was 4.27:1 (white on #468944) and its footer grays sat at 3-4.3:1 - button now #3d7a3c (~5:1), grays lifted; one layout() change fixes every template."
+  ],
+  [
+   "R5",
+   "minor",
+   "fixed",
+   "Invalid-token landing pages (decline, rsvp, verify-email) offered only a word-sized inline link as the way forward - each now gets the same 46px button treatment the success states had."
+  ],
+  [
+   "R6",
+   "minor",
+   "fixed",
+   "verify-email's failure copy said 'sign in' but linked to the bare map - now /?signin=1&next=/play actually opens sign-in, and the copy matches."
+  ],
+  [
+   "R7",
+   "polish",
+   "fixed",
+   "Confetti bars crossed behind marketing-footer link text - the footer has a scrim now."
+  ],
+  [
+   "R8",
+   "polish",
+   "fixed",
+   "The 404's map texture stopped mid-screen with a hard seam on touch (scroll-attached background vs a short page) - body now spans 100dvh."
+  ],
+  [
+   "R9",
+   "minor",
+   "fixed",
+   "With a validation error showing, the grown save bar occluded the page tail - clearance now grows with the error."
+  ],
+  [
+   "R10",
+   "minor",
+   "fixed",
+   "Map chips said 'nearby' while counting the viewport, contradicting the HUD's area numbers on the same screen - chips now say 'in view'."
+  ],
+  [
+   "R11",
+   "minor",
+   "fixed",
+   "Landscape phones showed two navigations (header links + tab bar) - header links hide when the tab bar is present."
+  ],
+  [
+   "R12",
+   "polish",
+   "fixed",
+   "Captain min-players/step-down controls missed the 44px pass, and the in-group retire button read as an underlined link - targets grown, affordances fixed, disabled state drops the cues."
+  ],
+  [
+   "R13",
+   "polish",
+   "fixed",
+   "'try again' on the reset-sent screen rendered 13px inside 15px prose - inline text-buttons now inherit their sentence's size and get a coarse-pointer hit area."
+  ],
+  [
+   "R14",
+   "minor",
+   "fixed",
+   "No auth error was a live region - wrong-password/reset/change-email/propose failures were silent to screen readers. role=alert across all five. (The skeptic mis-refuted this one; the fix is a one-liner and the finding was right.)"
+  ],
+  [
+   "R15",
+   "minor",
+   "fixed",
+   "The change-email toggle had a ~17px tap target - covered by the inline text-button hit-area rule."
+  ],
+  [
+   "R16",
+   "minor",
+   "fixed",
+   "A dead game link showed 'no game here yet.' and nothing else - now it explains and offers the games-near-you list."
+  ],
+  [
+   "R17",
+   "minor",
+   "declined",
+   "Three findings wanted 15px prose raised to 16px (landing pages, 404, auth labels). Declined: the 16px floor is the iOS input-zoom rule, not a prose rule - inputs are already floored on touch, and 15px body text here is deliberate hierarchy. The skeptic killed the equivalent claims for the same reason."
+  ],
+  [
+   "R18",
+   "minor",
+   "fixed",
+   "Capture tooling: the landscape-splash shot was taken in portrait (missing viewport arg) - fixed and recaptured; the splash holds up in landscape."
+  ]
  ]
 }

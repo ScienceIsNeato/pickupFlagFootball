@@ -11,7 +11,14 @@ type Item = { title: string; caption: string; src: string };
  */
 export default function Gallery({ items }: { items: Item[] }) {
   const [active, setActive] = useState(0);
-  const go = (delta: number) => setActive((a) => (a + delta + items.length) % items.length);
+  // Mount images lazily: only slides the user has reached (plus the next one,
+  // preloaded for a smooth swipe). First paint costs one image, not six.
+  const [visited, setVisited] = useState<Set<number>>(() => new Set([0, 1 % items.length]));
+  const go = (delta: number) => setActive((a) => {
+    const next = (a + delta + items.length) % items.length;
+    setVisited((v) => new Set(v).add(next).add((next + 1) % items.length));
+    return next;
+  });
   const item = items[active];
   // Swipe to page (audit M47) — a carousel that only arrows-taps reads as
   // broken on a phone. Horizontal-dominant swipes only, so vertical scrolling
@@ -43,7 +50,7 @@ export default function Gallery({ items }: { items: Item[] }) {
         {items.map((g, i) => (
           <figure key={g.src} className={`gallery-slide${i === active ? " is-active" : ""}`} aria-hidden={i !== active}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="gallery-shot" src={`/gallery/${g.src}.jpg`} alt={g.title} />
+            {visited.has(i) && <img className="gallery-shot" src={`/gallery/${g.src}.jpg`} alt={g.title} decoding="async" />}
             <figcaption className="gallery-label">{g.title}</figcaption>
           </figure>
         ))}
@@ -70,7 +77,7 @@ export default function Gallery({ items }: { items: Item[] }) {
             className={`gallery-dot${i === active ? " is-active" : ""}`}
             aria-label={`show “${g.title}”`}
             aria-current={i === active}
-            onClick={() => setActive(i)}
+            onClick={() => { setVisited((v) => new Set(v).add(i).add((i + 1) % items.length)); setActive(i); }}
           />
         ))}
       </div>

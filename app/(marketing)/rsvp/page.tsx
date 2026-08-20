@@ -35,7 +35,8 @@ export default async function RsvpPage({
     return (
       <main className="prose">
         <h1>{c.title}</h1>
-        <p>{c.body} manage it anytime from <Link href="/my-games">your games</Link>.</p>
+        <p>{c.body}</p>
+        <p><Link href="/my-games" className="btn-green-link">open your games</Link></p>
       </main>
     );
   }

@@ -14,6 +14,8 @@ S = os.path.dirname(os.path.abspath(__file__))
 d = json.load(open(f"{S}/audit.json"))
 status = json.load(open(f"{S}/status.json"))
 meta = status.pop("_meta")
+gap_dispositions = status.pop("_gaps", None)
+round2 = status.pop("_round2", None)
 c = {f["id"]: f for f in d["confirmed"]}
 gaps = d["gaps"]
 
@@ -69,7 +71,36 @@ for title, blurb, ids, shots in THEMES:
 <div class="rows">{rows}</div>
 </section>''')
 
-gaps_html = "".join(f'<li><strong>{esc(g["what"])}</strong> {esc(g["why_it_matters"])}</li>' for g in gaps)
+GAPST = {"covered":("Covered","st-fixed"),"fixed":("Fixed","st-fixed"),"superseded":("Superseded","st-superseded"),"accepted":("Accepted","st-partial")}
+R2ST = {"fixed":("Fixed","st-fixed"),"declined":("Declined","st-partial")}
+
+round2_html = ""
+if round2:
+    rows = "".join(
+        f'<details class="f f--done"><summary>'
+        f'<span class="chip {SEV[sev][1]}">{SEV[sev][0]}</span>'
+        f'<span class="chip st {R2ST[st][1]}">{R2ST[st][0]}</span>'
+        f'<span class="fid">{rid}</span><span class="ft">{esc(note.split(" - ")[0].split(". ")[0])}</span></summary>'
+        f'<div class="fb"><p class="stnote {R2ST[st][1]}-t">{esc(note)}</p></div></details>'
+        for rid, sev, st, note in round2)
+    n_fixed = sum(1 for r in round2 if r[2] == "fixed")
+    round2_html = ('<section class="theme"><header>'
+        f'<h2>Round 2: the coverage sweep\'s own findings <span class="theme-tally">{n_fixed}/{len(round2)} fixed</span></h2>'
+        '<p>Reviewing the 24 newly-captured states surfaced these - including a phone-only regression no desktop test could see.</p>'
+        f'</header><div class="rows">{rows}</div></section>')
+
+if gap_dispositions:
+    gaps_html = "".join(
+        f'<li><span class="chip st {GAPST[st][1]}">{GAPST[st][0]}</span> <strong>{esc(what)}</strong> {esc(note)}</li>'
+        for what, st, note in gap_dispositions)
+    gaps_head = "Coverage beyond the original sweep"
+    gaps_sub = ("Every item the completeness critic named has been run down: captured and reviewed, fixed in code, "
+                "superseded by the redesign, or accepted with a stated reason (2 items that are inherently "
+                "device/field-data bound). Capture tooling: tests/demos/gap-captures.mts.")
+else:
+    gaps_html = "".join(f'<li><strong>{esc(g["what"])}</strong> {esc(g["why_it_matters"])}</li>' for g in gaps)
+    gaps_head = "What this audit did not cover"
+    gaps_sub = "Named so they can be checked later, not forgotten."
 
 page = f'''<title>MIME-FF Mobile Audit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -198,9 +229,10 @@ footer.method {{ color:var(--ink3); font-size:13px; margin-top:60px; border-top:
 <button aria-pressed="false" data-kind="sev" data-v="polish">Polish</button>
 </nav>
 {"".join(sections)}
+{round2_html}
 <section class="gaps">
-<h2>What this audit did not cover</h2>
-<p>Named so they can be checked later, not forgotten.</p>
+<h2>{gaps_head}</h2>
+<p>{gaps_sub}</p>
 <ul>{gaps_html}</ul>
 </section>
 <footer class="method">Method: production build with seeded demo data and a real login, swept by script at 375&times;812 (iPhone emulation), 320px, and landscape; screenshots plus source fed 12 lens-scoped reviewers; findings deduped, severity-ranked, and adversarially verified; a completeness critic named the gaps. Status chips track the <code>{esc(meta["branch"])}</code> rebuild; the same sweep re-runs after each phase as the before/after record. Screenshots shown are the BEFORE set. Full text: docs/design/mobile-audit.md.</footer>

@@ -61,7 +61,7 @@ export function AuthModal({ onClose, callbackUrl, notice }: { onClose: () => voi
         <div className="auth-or"><span>or</span></div>
 
         {notice && !error && <div className="auth-notice">{notice}</div>}
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error" role="alert">{error}</div>}
 
         <form className="auth-form" onSubmit={submit}>
           <label>email

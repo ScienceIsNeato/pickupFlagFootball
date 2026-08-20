@@ -65,7 +65,7 @@ export function ChangeEmail({ email, verified, canChange }: { email: string; ver
       </p>
       {open && (
         <form className="auth-form acct-email-form" onSubmit={submit}>
-          {error && <div className="auth-error">{error}</div>}
+          {error && <div className="auth-error" role="alert">{error}</div>}
           <label>new email
             <input type="email" value={next} onChange={(e) => setNext(e.target.value)}
               placeholder="you@email.com" autoComplete="email" required />

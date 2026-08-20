@@ -15,10 +15,14 @@ import { str } from "@/lib/forms";
  *  interest signal, so there's no such thing as a registered user without one. */
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (error) { errRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); errRef.current?.focus({ preventScroll: true }); }
+  }, [error]);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
   // → "create an account" → here). Only same-origin relative paths.
+  const errRef = useRef<HTMLDivElement>(null);
   const [dest, setDest] = useState("/play");
   useEffect(() => {
     const n = new URLSearchParams(window.location.search).get("next");
@@ -79,7 +83,17 @@ export function RegisterInterestForm() {
       </p>
       <div className="auth-or"><span>or</span></div>
 
-      {error && <div className="auth-error">{error}</div>}
+      {/* On a 375px screen this error can sit a full viewport above the submit
+          button the user just tapped - scroll it into view and announce it, or
+          the form reads as silently broken (gap-review major). */}
+      {error && (
+        <div className="auth-error" role="alert" ref={errRef} tabIndex={-1}>
+          {error}
+          {/already exists|already registered/i.test(error) && (
+            <> <Link href="/?signin=1&next=/play">log in instead</Link></>
+          )}
+        </div>
+      )}
 
       <label>
         email

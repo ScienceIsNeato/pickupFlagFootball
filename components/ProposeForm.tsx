@@ -132,14 +132,14 @@ export function ProposeForm({
 
         {/* Top-of-dialog: out-of-range (lead with the actionable message) */}
         {outOfRange && home && distKm != null && (
-          <div className="auth-error">
+          <div className="auth-error" role="alert">
             this spot is about {kmToMi(distKm)} mi from your home - outside your {kmToMi(home.maxTravelKm)}-mile area of interest.{" "}
             <Link href="/account">increase your radius</Link> to propose a game here.
           </div>
         )}
         {/* Server-returned reasons that aren't already shown as a field-level hint */}
         {state && !state.ok && ERRORS[state.reason] && (
-          <div className="auth-error">{ERRORS[state.reason]}</div>
+          <div className="auth-error" role="alert">{ERRORS[state.reason]}</div>
         )}
 
         <label>

@@ -190,7 +190,13 @@ export function GameCard({ gameId }: { gameId: string }) {
       <div className="game-card game-card--page" inert={confirmReq ? true : undefined}>
         {state === "loading" && <p className="game-muted">loading…</p>}
         {state === "error" && <p className="game-muted">couldn&apos;t load this game.</p>}
-        {state !== "loading" && state !== "error" && !game && <p className="game-muted">no game here yet.</p>}
+        {state !== "loading" && state !== "error" && !game && (
+          <>
+            <p className="game-muted">no game at this link — it may have been retired,
+            or the link is stale.</p>
+            <p><a href="/games" className="btn-green-link">see games near you</a></p>
+          </>
+        )}
         {game && (
           <>
             <h2 id="game-details-title" className="game-h">{game.isStanding ? "standing game" : "game on"}</h2>

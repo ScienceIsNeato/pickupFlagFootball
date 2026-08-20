@@ -172,7 +172,7 @@ a { color: var(--link); text-decoration: none; }
 }
 .auth-form .btn-green:disabled { opacity: 0.6; cursor: default; }
 .auth-switch { text-align: center; font-size: 0.8125rem; color: var(--muted); margin: 16px 0 0; }
-.auth-link { background: none; border: 0; color: var(--link); cursor: pointer; font-size: 0.8125rem; font-family: inherit; padding: 0; }
+.auth-link { background: none; border: 0; color: var(--link); cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; }
 .auth-note { color: var(--faint); font-size: 0.8125rem; text-align: center; margin: 0; }
 @media (max-width: 560px) {
   .auth-card { padding: 22px 18px 20px; }
@@ -891,15 +891,20 @@ section h2::after {
   .acct-save-bar { position: static; margin: 18px 0 0; justify-content: stretch; }
   .acct-save { width: 100%; }
 }
-@media (max-width: 560px) {
+@media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
   .acct-save-bar {
     position: fixed; left: 12px; right: 12px;
+    /* top:auto is load-bearing: the base rule pins top:2px, and fixed + top +
+       bottom stretched this bar into an invisible full-page tap shield that
+       blocked everything above it (caught by the gap-capture pass). */
+    top: auto;
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
     z-index: 25; margin: 0; flex-direction: column-reverse; align-items: stretch;
   }
   .acct-save { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); }
   .acct-save-err { max-width: none; text-align: center; background: rgba(11, 18, 16, 0.92); border-radius: 8px; padding: 6px 10px; }
   .account { padding-bottom: 76px; }
+  .account:has(.acct-save-err) { padding-bottom: 150px; }
 }
 
 /* Prominent membership level at the top of the supporter column. */
@@ -1280,3 +1285,43 @@ svg.rot90 { transform: rotate(90deg); }
     opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
   }
 }
+
+/* audit-gap: long-press-to-propose vs the OS - suppress iOS's text-selection
+   callout and selection on the map surface so a hold reads as our gesture */
+.dash-map, .dash-map canvas {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* audit-gap: motion - prefers-reduced-motion collapses every transition and
+   animation app-wide (FlagFieldCanvas already respects it natively; the map's
+   flag morph checks it in JS) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ── gap-review round 2 ── */
+/* short pages (404, landing errors) on touch: the scroll-attached body
+   background must cover the viewport, not just the content box */
+body { min-height: 100dvh; }
+/* the marketing footer gets a scrim so confetti bars stop crossing link text */
+.site-footer { position: relative; background: rgba(11, 18, 16, 0.88); }
+/* landscape phones: one navigation, the tab bar - not header links too */
+@media ((pointer: coarse) and (max-height: 560px)) {
+  .nav nav { display: none; }
+}
+@media (pointer: coarse) {
+  /* inline text-buttons (change email, try again) get a padded hit area */
+  .auth-link { padding: 12px 6px; margin: -12px -6px; }
+  /* captain controls the first coarse pass missed */
+  .game-minplayers-row button, .game-leave { min-height: 44px; }
+}
+/* "retire series" inside a seg group: a proper button, not a faux link; a
+   disabled one drops the affordance cues instead of teasing a tap */
+.seg .game-leave { text-decoration: none; }
+.game-leave:disabled { text-decoration: none; opacity: 0.45; cursor: default; }

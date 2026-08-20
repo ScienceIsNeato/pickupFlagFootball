@@ -42,3 +42,5 @@ tests/e2e/test-results/
 
 # demo recording artifacts (the served clips live in public/gallery/)
 /tests/demos/.auth.json
+/tests/demos/.gap-auth*.json
+__pycache__/

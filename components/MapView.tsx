@@ -18,7 +18,7 @@ type Cell = {
 
 const MAX_ZOOM = 11;     // at/above this, click a cluster to propose
 const PROPOSE_RES = 7;   // proposeGame resolves areas by r7 cell — match that
-const MORPH_MS = 1500;   // background-scatter → map-cluster morph
+const MORPH_MS = 1500;   // background-scatter → map-cluster morph (0 under reduced motion)
 const CATCH_KM_DEFAULT = 24; // ~15mi: the radius around the cursor people would travel to play
 const MAX_FLAGS = 18;    // cap on flags drawn per interested cluster
 const GAME_BADGE = 92;   // px size of the established-game marker
@@ -335,7 +335,13 @@ export function MapView({
         };
       });
       dataRes = res;
-      if (first) { first = false; morphStart = performance.now(); }
+      if (first) {
+        first = false;
+        // prefers-reduced-motion: flags snap into place instead of morphing.
+        morphStart = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? performance.now() - MORPH_MS
+          : performance.now();
+      }
     }
 
     function drawFlag(f: Flag) {
@@ -685,7 +691,7 @@ export function MapView({
           desktop-only; phones get live count chips, a tap-to-open key sheet, and
           a visible + FAB for propose (long-press still works for precision). */}
       <div className="map-chips">
-        <span className="map-chip"><Streamer color={TEAM_YELLOW} /> <span ref={cChipInterested}>0</span> nearby</span>
+        <span className="map-chip"><Streamer color={TEAM_YELLOW} /> <span ref={cChipInterested}>0</span> in view</span>
         <span className="map-chip"><img src="/game-badge.png" alt="" className="map-chip-badge" /> <span ref={cChipGames}>0</span> games</span>
         <button type="button" className="map-chip map-chip--key" aria-expanded={keyOpen}
           onClick={() => setKeyOpen((v) => !v)}><IconKey size={13} /> key</button>

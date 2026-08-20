@@ -60,7 +60,7 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
     : "";
   const buttonsHtml = p.buttons
     ? `<div style="margin:16px 0 0;">
-      ${p.buttons.inUrl ? `<a href="${esc(p.buttons.inUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.buttons.inLabel ?? "")}</a>` : ""}
+      ${p.buttons.inUrl ? `<a href="${esc(p.buttons.inUrl)}" style="display:inline-block; background:#3d7a3c; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px; margin:0 8px 8px 0;">${esc(p.buttons.inLabel ?? "")}</a>` : ""}
       ${p.buttons.outUrl ? `<a href="${esc(p.buttons.outUrl)}" style="display:inline-block; background:#33403a; color:#e9edf6; font-size:14px; font-weight:700; text-decoration:none; padding:11px 18px; border-radius:8px;">${esc(p.buttons.outLabel ?? "")}</a>` : ""}
     </div>`
     : "";
@@ -81,17 +81,17 @@ function layout(p: { title: string; intro: string; cta: string; ctaUrl: string; 
       ${detailsHtml}
       ${noteHtml}
       ${rosterHtml}
-      <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#468944; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
+      <a href="${esc(p.ctaUrl)}" style="display:inline-block; background:#3d7a3c; color:#ffffff; font-size:15px; font-weight:700; text-decoration:none; padding:13px 22px; border-radius:8px;">${esc(p.cta)}</a>
       ${buttonsHtml}
       ${footerHtml}
     </td></tr>
-    <tr><td style="color:#6f7891; font-size:12px; line-height:1.6; padding:16px 4px 0;">
+    <tr><td style="color:#8891a5; font-size:12px; line-height:1.6; padding:16px 4px 0;">
       ${p.footerReason
         ? esc(p.footerReason)
         : `you're getting this because you showed interest in a game near you. manage it anytime in your <a href="${esc(p.base + "/account")}" style="color:#5b9452; text-decoration:none;">account</a>${
             p.unsubscribeUrl ? `, or <a href="${esc(p.unsubscribeUrl)}" style="color:#5b9452; text-decoration:none;">unsubscribe</a>` : ""
           }.`}
-      <br/><span style="color:#5b616f;">${esc(skin.footer.mailingAddress)}</span>
+      <br/><span style="color:#7a828f;">${esc(skin.footer.mailingAddress)}</span>
     </td></tr>
   </table>
 </td></tr></table></body></html>`;
