@@ -217,7 +217,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .map-hud {
   position: absolute; top: 64px; left: 12px; bottom: 12px; z-index: 6;
   width: 360px; max-width: calc(100% - 24px);
-  overflow-y: auto;
+  overflow-y: auto; overscroll-behavior: contain;
   padding: 16px 16px 12px; border-radius: 14px;
   background: rgba(12, 19, 38, 0.62);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -269,8 +269,8 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
      to sit above the map's ⓘ attribution and the fixed footer with a clear
      bumper; capped at 36vh so the expanded panel still clears the map's center. */
   .map-hud {
-    top: auto; bottom: 74px; left: 12px; right: 12px; width: auto;
-    max-height: 36vh;
+    top: auto; bottom: calc(var(--tabbar-h) + 16px); left: 12px; right: 12px; width: auto;
+    max-height: 36vh; max-height: 36dvh;
   }
   .map-hud[data-expanded="false"] { max-height: none; overflow: visible; }
   .map-hud-peek { margin-bottom: 0; cursor: pointer; }
@@ -297,7 +297,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 
 /* Game-details card (click an existing game). */
 .game-card {
-  position: relative; width: 360px; max-width: 92%; max-height: 80vh; overflow-y: auto;
+  position: relative; width: 360px; max-width: 92%; max-height: 80vh; max-height: 80dvh; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   padding: 22px 24px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
@@ -429,7 +429,7 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 /* Why the retire control is disabled (the 4-dead-weeks rule). */
 .game-retire-hint { margin: 8px 0 0; font-size: 12px; }
 /* Content sits ABOVE the frost layer (z:0) so it is never blurred by it. */
-.app-body { position: relative; z-index: 1; min-height: 100vh; padding-top: 64px; }
+.app-body { position: relative; z-index: 1; min-height: 100vh; min-height: 100dvh; padding-top: 64px; }
 
 /* THE frost: one fixed layer directly on top of the page background and UNDER
  * every other layer (content z:1, chrome z:30, modals z:100). backdrop-filter
@@ -448,6 +448,7 @@ body:has(.dash-map) .app-frost { display: none; }
 .nav-float {
   position: fixed; top: 0; left: 0; right: 0; z-index: 30; max-width: none;
   padding: 14px 22px;
+  padding-top: calc(14px + env(safe-area-inset-top));
   background: #0b1210; border-bottom: 1px solid var(--border);
 }
 .app-foot {
@@ -1040,3 +1041,61 @@ section h2::after {
     margin: 0; width: 300px;
   }
 }
+
+/* ══ mobile-first foundation + tab bar (docs/design/mobile-redesign.md) ══ */
+
+:root { --tabbar-h: 58px; }
+
+/* A1 — bottom tab bar. Phone-only: desktop keeps the header links + footer.
+   Solid like the other chrome bars; safe-area padded for home-indicator phones. */
+.tabbar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #0b1210; border-top: 1px solid var(--border);
+}
+.tabbar-tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px;
+  font-size: 11px; font-weight: 500; color: var(--muted); text-decoration: none;
+}
+.tabbar-tab--on { color: var(--grass-l); }
+.tabbar-icon { position: relative; display: inline-flex; }
+/* the unread dot rides the my-games tab icon's corner */
+.tabbar-icon .chat-dot { position: absolute; top: -3px; right: -6px; }
+
+@media (max-width: 560px) {
+  .tabbar { display: flex; }
+  .app-foot { display: none; }             /* legal links live in /account on phones */
+  .app-body { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+  /* the map page is fixed-position and manages its own bottom chrome */
+  body:has(.dash-map) .app-body { padding-bottom: 0; }
+  /* map attribution + controls clear the tab bar, not the old footer */
+  .maplibregl-ctrl-bottom-right { bottom: calc(var(--tabbar-h) - 20px) !important; }
+}
+
+/* Touch fundamentals (audit M6/M7). pointer:coarse, not width: a phone in
+   landscape and a tablet both deserve these; a narrow desktop window doesn't. */
+@media (pointer: coarse) {
+  /* 16px floor on every text input — below it iOS Safari zooms on focus and
+     stays zoomed (M6). 16px on the element beats maximum-scale hacks. */
+  input, select, textarea { font-size: 16px !important; }
+  /* Minimum touch targets on the small controls that survive the redesign (M7).
+     Padding, not font-size: the visual stays, the target grows. */
+  .auth-close { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .chat-send { min-height: 44px; padding: 0 18px; }
+  .chat-del { padding: 10px 8px; margin: -10px -8px; }
+  .rsvp-btn, .seg button { min-height: 40px; }
+  .donate-banner-cta, .donate-banner-stop, .unverified-resend { min-height: 38px; padding-top: 8px; padding-bottom: 8px; }
+  .donate-opt input[type="checkbox"], .donate-opt input[type="radio"] { width: 20px; height: 20px; }
+  .map-hud-copy, .map-hud-post-toggle { min-height: 40px; }
+}
+
+/* about links on the account page — the phone home for what the footer held */
+.acct-about {
+  display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;
+  margin: 28px 0 8px; font-size: 13px;
+}
+.acct-about a { color: var(--muted); }
+.acct-about a:hover { color: var(--ink); }

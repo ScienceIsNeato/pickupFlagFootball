@@ -235,6 +235,16 @@ export default async function AccountPage() {
         </section>
       </div>
       </AccountForm>
+
+      {/* On phones the legal-links footer is replaced by the tab bar (A1), so
+          these links live here — the tab that's always one tap away. */}
+      <nav className="acct-about" aria-label="about">
+        <Link href="/faq">faq</Link>
+        <Link href="/privacy">privacy</Link>
+        <Link href="/terms">terms</Link>
+        <a href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com"}`}>contact</a>
+        <a href={skin.footer.githubUrl} target="_blank" rel="noopener noreferrer">github</a>
+      </nav>
     </main>
   );
 }

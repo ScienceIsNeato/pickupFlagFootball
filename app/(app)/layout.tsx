@@ -9,6 +9,7 @@ import { users, gameRoster, games, gameAttendance, gameOccurrences } from "@/lib
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { UnverifiedBanner } from "@/components/UnverifiedBanner";
 import { DonationReminderBanner } from "@/components/DonationReminderBanner";
+import { AppTabBar } from "@/components/AppTabBar";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "support@pickupflagfootball.com";
 
@@ -72,6 +73,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {remindDonate && <DonationReminderBanner />}
       <div className="app-body">{children}</div>
 
+      {/* Desktop keeps the legal-links footer; phones replace it with the tab
+          bar (A1) and reach these links via /account instead — a permanent bar
+          of meta links was the audit's inverted-navigation finding (M2/M32). */}
       <footer className="app-foot">
         <span>{skin.brandName}</span>
         <span className="app-foot-sep">·</span>
@@ -81,6 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <a href={`mailto:${SUPPORT_EMAIL}`}>contact</a>
         <a href={skin.footer.githubUrl} target="_blank" rel="noopener noreferrer">github</a>
       </footer>
+      <AppTabBar loggedIn={loggedIn} />
     </>
   );
 }
