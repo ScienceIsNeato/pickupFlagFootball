@@ -17,6 +17,8 @@ import type { EngineDb } from "@/lib/mime/engine";
 import { resolveProposal } from "@/lib/mime/trigger";
 import { isEmailVerified } from "@/lib/auth/verified";
 import { slackProposed } from "@/lib/slack";
+import { sendEmail } from "@/lib/email/send";
+import { buildWithdrawnEmail } from "@/lib/email/templates";
 
 const edb = () => db as unknown as EngineDb;
 function coord(raw: string, lo: number, hi: number): number | null {
@@ -169,7 +171,10 @@ export async function respondInterest(attemptId: string, interested: boolean): P
     .leftJoin(areas, eq(areas.id, formationAttempts.areaId))
     .where(eq(formationAttempts.id, attemptId)).limit(1);
   if (!att) return { ok: false, reason: "missing" };
-  if (att.status !== "OPEN") return { ok: false, reason: "closed" };
+  // "withdrawn" is worth distinguishing from "closed": the proposer pulled it,
+  // vs the window settled it — the UI copy differs ("the proposer withdrew this
+  // one" beats implying it filled up or expired).
+  if (att.status !== "OPEN") return { ok: false, reason: att.status === "CANCELLED" ? "withdrawn" : "closed" };
   // Eligibility: you can only weigh in on a game your travel radius could reach —
   // the same rule proposeGame applies to the proposer and the emailed cohort. Stops
   // a verified user from counting themselves into a far-off proposal by id. Uses the
@@ -210,5 +215,65 @@ export async function respondInterest(attemptId: string, interested: boolean): P
   });
   if (outcome !== "ok") return { ok: false, reason: outcome };
   if (interested) await resolveProposal(attemptId);
+  return { ok: true };
+}
+
+/** Proposer pulls their own still-OPEN proposal (wrong date/place/typo — the
+ *  "just made this and regretted it" path). Flips it to CANCELLED atomically,
+ *  which makes it vanish everywhere that filters on OPEN (map badge, proposed
+ *  API, email links land on an honest "withdrawn" page). Anyone who'd said
+ *  "i'm interested" gets a short direct note; nothing is sent when nobody had
+ *  answered yet. There's no cooldown — re-proposing the corrected game
+ *  immediately is the expected next step. */
+export async function withdrawProposal(attemptId: string): Promise<ProposeResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, reason: "unauth" };
+  const uid = session.user.id;
+
+  const outcome = await txnDb.transaction(async (tx) => {
+    const [locked] = await tx.select({
+      status: formationAttempts.status, proposerId: formationAttempts.proposerId,
+      placeText: formationAttempts.placeText, proposedStart: formationAttempts.proposedStart,
+      recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
+    }).from(formationAttempts).where(eq(formationAttempts.id, attemptId)).for("update").limit(1);
+    if (!locked) return { r: "missing" as const };
+    // Only the proposer may withdraw — captains/admins have their own levers.
+    if (locked.proposerId !== uid) return { r: "notyours" as const };
+    // Double-tap safe: already withdrawn reads as success, not an error.
+    if (locked.status === "CANCELLED") return { r: "ok" as const, att: null };
+    // CONFIRMED/FAILED: the window already settled it — a formed game isn't
+    // un-proposable from here (that's a game-cancellation flow, not this one).
+    if (locked.status !== "OPEN") return { r: "closed" as const };
+    await tx.update(formationAttempts).set({ status: "CANCELLED" })
+      .where(eq(formationAttempts.id, attemptId));
+    return { r: "ok" as const, att: locked };
+  });
+  if (outcome.r !== "ok") return { ok: false, reason: outcome.r };
+
+  // Tell the people who'd said "i'm in" (never the proposer; skip unsubscribed).
+  // Non-fatal, same contract as sendJoinConfirmation: the status flip above is
+  // the source of truth and must not be unwound by an email hiccup.
+  if (outcome.att) {
+    try {
+      const rows = await db.select({
+        userId: attemptInterest.userId, email: users.email, name: users.displayName, optIn: users.emailOptIn,
+      })
+        .from(attemptInterest)
+        .innerJoin(users, eq(users.id, attemptInterest.userId))
+        .where(and(eq(attemptInterest.attemptId, attemptId), eq(attemptInterest.interested, true)));
+      const base = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
+      const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+      const when = outcome.att.recurDow != null
+        ? `${DOW[outcome.att.recurDow]}${outcome.att.recurTime ? ` ${outcome.att.recurTime.slice(0, 5)}` : ""}`
+        : outcome.att.proposedStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      for (const r of rows) {
+        if (r.userId === uid || !r.email || !r.optIn) continue;
+        const built = buildWithdrawnEmail(r.name, base, outcome.att.placeText, when);
+        await sendEmail({ to: r.email, toName: r.name, ...built });
+      }
+    } catch (e) {
+      console.error("withdraw notice send failed (attempt already cancelled)", e);
+    }
+  }
   return { ok: true };
 }

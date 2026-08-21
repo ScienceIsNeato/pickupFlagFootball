@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     areaLat: areas.centerLat, areaLng: areas.centerLng,
     proposedStart: formationAttempts.proposedStart, recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
     interestClosesAt: formationAttempts.interestClosesAt, createdAt: formationAttempts.createdAt,
-    proposerName: users.displayName,
+    proposerName: users.displayName, proposerId: formationAttempts.proposerId,
   }).from(formationAttempts)
     .innerJoin(users, eq(users.id, formationAttempts.proposerId))
     .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
@@ -75,6 +75,9 @@ export async function GET(req: Request) {
       interestClosesAt: new Date(best.interestClosesAt).toISOString(),
       proposerName: best.proposerName, interestCount: c,
       viewerInterested: mine ? mine.interested : null,
+      // Lets the card show the withdraw affordance only to the person who can
+      // actually use it (the server action re-checks ownership regardless).
+      viewerIsProposer: best.proposerId === session.user.id,
       captains,
     },
   });

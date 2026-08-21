@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { When, Then } from "./world";
-import { proposeAsUser, isAreaCaptain } from "../support/db";
+import { proposeAsUser, isAreaCaptain, getAttemptStatus } from "../support/db";
 import { allEmails } from "../support/mailpit";
 
 // Reuses "I am a confirmed player …", "I open the game on the map", "the engine
@@ -29,6 +29,44 @@ Then("I am already in the game as its captain", async ({ page }) => {
   await expect(card).toContainText(/found your weekly game/i);
   await expect(card).not.toContainText(/join weekly game/i);
   await expect(card).not.toContainText(/this game has no captain/i);
+});
+
+// ── Withdraw (C1: proposer pulls their own still-OPEN proposal) ────────────────
+
+When("I withdraw my proposal", async ({ page }) => {
+  // Two steps by design: the quiet link arms an inline confirm, then the red
+  // button commits. Nothing is withdrawn until the second tap.
+  await page.getByRole("button", { name: /withdraw this proposal/i }).click();
+  await expect(page.locator(".proposed-withdraw-confirm")).toBeVisible();
+  await page.getByRole("button", { name: "yes, withdraw it" }).click();
+});
+
+Then("the proposal is cancelled and I am back on the map", async ({ page, world }) => {
+  // Success navigates back to /play — the badge this page hung off is gone.
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({ timeout: 15000 });
+  expect(await getAttemptStatus(world.attemptId!)).toBe("CANCELLED");
+});
+
+Then("the interested players hear it was withdrawn", async () => {
+  // Every seeded "I'm in" (seed-…-inN@) gets the notice; the courting cohort
+  // (seed-…-neighborN@, who never answered) and the proposer get nothing.
+  await expect.poll(
+    async () => (await allEmails()).filter((e) => /was withdrawn/i.test(e.subject)).length,
+    { timeout: 10000 },
+  ).toBe(6);
+  for (const m of (await allEmails()).filter((e) => /was withdrawn/i.test(e.subject))) {
+    expect(m.to).toMatch(/^seed-.*-in\d+@/i);
+  }
+});
+
+Then("the proposal's email link says it was withdrawn", async ({ page }) => {
+  // The one-click link from the already-sent courting email must dead-end on an
+  // honest "withdrawn" page, not record interest or claim the link is broken.
+  const mail = (await allEmails()).find((e) => /proposed near you/i.test(e.subject));
+  const href = mail?.html?.match(/href="([^"]*\/interested\?[^"]*)"/i)?.[1]?.replace(/&amp;/g, "&");
+  expect(href, "the proposal email should carry an /interested link").toBeTruthy();
+  await page.goto(href!);
+  await expect(page.locator("main")).toContainText(/this one was withdrawn/i);
 });
 
 // ── Email assertions (the AfterStep hook renders them into the report) ──────────

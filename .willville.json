@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "First round of real-phone feedback worked through: signed-in users land on the map, my-games trays collapse, sign-out works on phones, and the signup form got a proper ZIP-first location input with instant checking. PR is up.",
-    "direction": "Get the polish PR merged, then keep iterating on phone feedback.",
-    "last_update": "2026-08-21T00:00:00Z"
+    "status": "Building the ability to take back a game proposal you got wrong - the person who proposed it can now withdraw it, and anyone who'd said they're in gets a short note.",
+    "direction": "Verify it end to end, open the PR, and buff it green.",
+    "last_update": "2026-08-21T16:45:00Z"
   }
 }

@@ -24,6 +24,19 @@ Feature: Proposing a game (the proposer's view)
     Then no game forms and the proposal fails
     And everyone hears the proposal fell short
 
+  Scenario: the proposer withdraws a proposal they got wrong
+    Given I am a confirmed player "Wendy Withdraw" with email "wendy@example.com" in ZIP "78701"
+    When I propose a game at a nearby spot
+    And the engine ticks
+    Then the proposal email goes out
+    When enough players are interested
+    And I open the game on the map
+    Then the proposed site shows
+    When I withdraw my proposal
+    Then the proposal is cancelled and I am back on the map
+    And the interested players hear it was withdrawn
+    And the proposal's email link says it was withdrawn
+
   @mobile
   Scenario: a proposed game gets scheduled when enough are interested
     Given I am a confirmed player "Sam Spark" with email "sam@example.com" in ZIP "78701"
