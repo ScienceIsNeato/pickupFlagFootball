@@ -23,8 +23,12 @@ const DONATION_BLOCK_KIND: NotifKind = "WEEK_ON";
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
 
 const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-/** Human "when" for a proposal: recurring slot + first-game date, or a one-off. */
-function whenText(start: Date, recurDow: number | null, recurTime: string | null): string {
+/** Human "when" for a proposal: recurring slot + first-game date, or a one-off.
+ *  Exported so the withdrawal notice names the slot in the same words the
+ *  GAME_PROPOSED ask did — those two emails land minutes apart on withdraw-
+ *  then-repropose, and "Wednesdays 18:30" next to "Wednesdays at 6:30 pm"
+ *  reads like two different games. */
+export function whenText(start: Date, recurDow: number | null, recurTime: string | null): string {
   const d = new Date(start);
   let h: number, m: number;
   if (recurTime) { const [hh, mm] = recurTime.split(":").map(Number); h = hh; m = mm; }

@@ -10,7 +10,8 @@ type Proposal = {
   attemptId: string; areaId: string; placeText: string;
   proposedStart: string; recurDow: number | null; recurTime: string | null;
   interestClosesAt: string; proposerName: string | null; interestCount: number;
-  viewerInterested: boolean | null; viewerIsProposer: boolean; captains: string[];
+  viewerInterested: boolean | null; viewerIsProposer: boolean; noticeCount: number;
+  captains: string[];
 };
 type Data = { proposal: Proposal | null };
 
@@ -193,9 +194,12 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
             {proposal.viewerIsProposer && confirmWithdraw && (
               <div className="proposed-withdraw-confirm" role="group" aria-label="confirm withdraw">
                 <p>
-                  {proposal.interestCount > 1
-                    ? `withdraw this proposal? the ${proposal.interestCount - 1 === 1 ? "person" : `${proposal.interestCount - 1} people`} who said they're in will get a note.`
-                    : "withdraw this proposal? nobody has answered yet - it just disappears."}
+                  {/* noticeCount is the server's actual recipient set for the
+                      withdrawal note, so this promise is exact - not a guess
+                      derived from the interest tally. */}
+                  {proposal.noticeCount > 0
+                    ? `withdraw this proposal? the ${proposal.noticeCount === 1 ? "person" : `${proposal.noticeCount} people`} who said they're in will get a note.`
+                    : "withdraw this proposal? it just disappears - nobody needs a note."}
                   {" "}you can propose a corrected one right after.
                 </p>
                 <div className="proposed-withdraw-actions">

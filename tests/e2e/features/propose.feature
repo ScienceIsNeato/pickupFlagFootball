@@ -30,12 +30,22 @@ Feature: Proposing a game (the proposer's view)
     And the engine ticks
     Then the proposal email goes out
     When enough players are interested
+    And one interested player unsubscribed, one declined, and one left the area
     And I open the game on the map
     Then the proposed site shows
     When I withdraw my proposal
     Then the proposal is cancelled and I am back on the map
-    And the interested players hear it was withdrawn
+    And only the reachable interested players hear it was withdrawn
     And the proposal's email link says it was withdrawn
+    When the interest window closes and the engine ticks
+    Then the proposal stays withdrawn and nobody hears it fell short
+
+  Scenario: only the proposer sees the withdraw option
+    Given I am a confirmed player "Nora Neighbor" with email "nora@example.com" in ZIP "78701"
+    And someone else proposed a game at a nearby spot
+    When I open the game on the map
+    Then the proposed site shows
+    And there is no withdraw option
 
   @mobile
   Scenario: a proposed game gets scheduled when enough are interested

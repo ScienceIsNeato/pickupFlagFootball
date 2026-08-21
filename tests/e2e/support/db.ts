@@ -312,6 +312,48 @@ export async function seedInterested(attemptId: string, n: number): Promise<void
   }
 }
 
+/** Flip a user's global email subscription (the account-page checkbox). */
+export async function setEmailOptIn(email: string, on: boolean): Promise<void> {
+  await pool.query("UPDATE users SET email_opt_in = $2 WHERE lower(email) = lower($1)", [email, on]);
+}
+
+/** Opt a user out of a specific area (the "not interested in this site" state). */
+export async function optOutOfArea(areaId: string, email: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO area_optouts (area_id, user_id)
+       SELECT $1, id FROM users WHERE lower(email) = lower($2)
+     ON CONFLICT DO NOTHING`,
+    [areaId, email],
+  );
+}
+
+/** Seed one explicit "not interested" response on a proposal; returns the email. */
+export async function seedDeclinedInterest(attemptId: string): Promise<string> {
+  const tag = String(attemptId).slice(0, 8);
+  const email = `seed-${tag}-out@example.com`;
+  const { rows: [u] } = await pool.query(
+    `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+     VALUES ($1, 'Out 1', 0, 0, '00000', now()) RETURNING id`,
+    [email],
+  );
+  await pool.query(
+    "INSERT INTO attempt_interest (attempt_id, user_id, interested) VALUES ($1, $2, false) ON CONFLICT DO NOTHING",
+    [attemptId, u.id],
+  );
+  return email;
+}
+
+/** A bare verified user (no UI registration) — e.g. someone else's proposer. */
+export async function createVerifiedUser(
+  email: string, name: string, o: { lat: number; lng: number; zip: string },
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
+     VALUES ($1, $2, $3, $4, $5, now()) ON CONFLICT (email) DO NOTHING`,
+    [email, name, o.lat, o.lng, o.zip],
+  );
+}
+
 /** A formation attempt's status (OPEN / CONFIRMED / FAILED / CANCELLED). */
 export async function getAttemptStatus(attemptId: string): Promise<string> {
   const { rows: [a] } = await pool.query(`SELECT status FROM formation_attempts WHERE id = $1`, [attemptId]);

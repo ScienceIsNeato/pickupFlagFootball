@@ -1,15 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildWithdrawnEmail } from "@/lib/email/templates";
+import { whenText } from "@/lib/email/flush";
 
 test("withdrawn notice names the spot and time and points back to the map", () => {
-  const mail = buildWithdrawnEmail("Sam", "https://app.test", "Republic Square", "Saturdays 10:00");
+  // The caller passes whenText's output — the same wording the GAME_PROPOSED
+  // ask used, since both emails land minutes apart on withdraw-then-repropose.
+  const when = whenText(new Date(2026, 7, 22, 10, 0), 6, "10:00:00");
+  assert.equal(when, "Saturdays at 10:00 am · first game Sat, Aug 22");
+  const mail = buildWithdrawnEmail("Sam", "https://app.test", "Republic Square", when);
   assert.match(mail.subject, /Republic Square/, "subject names the spot");
   assert.match(mail.subject, /withdrawn/i, "subject says what happened");
-  assert.ok(/Republic Square \(Saturdays 10:00\)/.test(mail.htmlContent), "html carries spot + time");
+  assert.ok(mail.htmlContent.includes(`Republic Square (${when})`), "html carries spot + time");
   assert.ok(mail.htmlContent.includes("https://app.test/play"), "cta goes to the map");
   assert.ok(mail.textContent.includes("https://app.test/play"), "text carries the map link");
   assert.ok(/hey Sam,/.test(mail.textContent), "greets by name");
+});
+
+test("one-off proposals get a dated when, not a recurring one", () => {
+  assert.equal(whenText(new Date(2026, 7, 22, 18, 30), null, null), "Sat, Aug 22 at 6:30 pm");
 });
 
 test("withdrawn notice without a time still reads cleanly", () => {

@@ -19,6 +19,7 @@ import { isEmailVerified } from "@/lib/auth/verified";
 import { slackProposed } from "@/lib/slack";
 import { sendEmail } from "@/lib/email/send";
 import { buildWithdrawnEmail } from "@/lib/email/templates";
+import { whenText } from "@/lib/email/flush";
 
 const edb = () => db as unknown as EngineDb;
 function coord(raw: string, lo: number, hi: number): number | null {
@@ -233,6 +234,7 @@ export async function withdrawProposal(attemptId: string): Promise<ProposeResult
   const outcome = await txnDb.transaction(async (tx) => {
     const [locked] = await tx.select({
       status: formationAttempts.status, proposerId: formationAttempts.proposerId,
+      areaId: formationAttempts.areaId,
       placeText: formationAttempts.placeText, proposedStart: formationAttempts.proposedStart,
       recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
     }).from(formationAttempts).where(eq(formationAttempts.id, attemptId)).for("update").limit(1);
@@ -250,29 +252,41 @@ export async function withdrawProposal(attemptId: string): Promise<ProposeResult
   });
   if (outcome.r !== "ok") return { ok: false, reason: outcome.r };
 
-  // Tell the people who'd said "i'm in" (never the proposer; skip unsubscribed).
-  // Non-fatal, same contract as sendJoinConfirmation: the status flip above is
-  // the source of truth and must not be unwound by an email hiccup.
+  // Tell the people who'd said "i'm in". Recipient set matches noticeCount in
+  // /api/proposed (the confirm copy's "N people get a note" promise): interested,
+  // not the proposer, not unsubscribed, not opted out of this area. Best-effort
+  // and non-fatal — the status flip above is the source of truth and must not be
+  // unwound by an email hiccup; per-recipient isolation so one bad send doesn't
+  // drop the rest. There's no ledger row for these, so a failed send is logged,
+  // not retried (a courtesy note, unlike the cron-backstopped GAME_PROPOSED).
   if (outcome.att) {
     try {
       const rows = await db.select({
-        userId: attemptInterest.userId, email: users.email, name: users.displayName, optIn: users.emailOptIn,
+        userId: attemptInterest.userId, email: users.email, name: users.displayName,
       })
         .from(attemptInterest)
         .innerJoin(users, eq(users.id, attemptInterest.userId))
-        .where(and(eq(attemptInterest.attemptId, attemptId), eq(attemptInterest.interested, true)));
+        .where(and(
+          eq(attemptInterest.attemptId, attemptId), eq(attemptInterest.interested, true),
+          eq(users.emailOptIn, true),
+          sql`not exists (select 1 from area_optouts ao where ao.area_id = ${outcome.att.areaId}::uuid and ao.user_id = ${attemptInterest.userId})`,
+        ));
       const base = process.env.APP_BASE_URL ?? "https://pickupflagfootball.com";
-      const DOW = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-      const when = outcome.att.recurDow != null
-        ? `${DOW[outcome.att.recurDow]}${outcome.att.recurTime ? ` ${outcome.att.recurTime.slice(0, 5)}` : ""}`
-        : outcome.att.proposedStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      // Street line only — placeText's " — notes" tail (gate codes, parking) has
+      // no business in a subject line. Same slot wording as the GAME_PROPOSED ask.
+      const place = outcome.att.placeText.split(" — ")[0];
+      const when = whenText(outcome.att.proposedStart, outcome.att.recurDow, outcome.att.recurTime);
       for (const r of rows) {
-        if (r.userId === uid || !r.email || !r.optIn) continue;
-        const built = buildWithdrawnEmail(r.name, base, outcome.att.placeText, when);
-        await sendEmail({ to: r.email, toName: r.name, ...built });
+        if (r.userId === uid || !r.email) continue;
+        try {
+          const built = buildWithdrawnEmail(r.name, base, place, when);
+          await sendEmail({ to: r.email, toName: r.name, ...built });
+        } catch (e) {
+          console.error(`withdraw notice to ${r.email} failed (attempt already cancelled)`, e);
+        }
       }
     } catch (e) {
-      console.error("withdraw notice send failed (attempt already cancelled)", e);
+      console.error("withdraw notice fan-out failed (attempt already cancelled)", e);
     }
   }
   return { ok: true };
