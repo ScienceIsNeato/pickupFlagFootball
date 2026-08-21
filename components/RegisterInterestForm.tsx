@@ -35,20 +35,38 @@ export function RegisterInterestForm() {
 
   useEffect(() => {
     if (!/^\d{5}$/.test(zip)) { setZipInfo({ status: "idle" }); return; }
+    // A street pick already confirmed this ZIP (with its city) — don't let the
+    // re-check overwrite the instant confirmation (review: the effect stomped
+    // the pick's label with "checking…" and could even flip it to bad).
+    if (addrRef.current && addrRef.current.zip === zip) return;
     let alive = true;
     setZipInfo({ status: "checking" });
     (async () => {
+      // Soft-fail on ANY infrastructure trouble (thrown fetch, 429, 5xx): only
+      // a definitive "the table doesn't know this ZIP" marks it bad. The client
+      // check is UX; createMember re-validates server-side, so an unverified
+      // "ZIP entered" can never actually register a garbage ZIP.
       try {
         const r = await fetch(`/api/address-search?q=${zip}`);
-        const d = r.ok ? ((await r.json()) as { results: FoundAddress[] }) : { results: [] };
         if (!alive) return;
+        if (!r.ok) { setZipInfo({ status: "ok", label: "ZIP entered" }); return; }
+        const d = (await r.json()) as { results: FoundAddress[] };
         const hit = d.results[0];
-        setZipInfo(hit
-          ? { status: "ok", label: hit.city ? `${hit.city}, ${hit.state}` : "ZIP found", city: hit.city, state: hit.state }
-          : { status: "bad" });
-        if (hit) setFieldErrs((f) => ({ ...f, zip: undefined }));
+        if (!hit) { setZipInfo({ status: "bad" }); return; }
+        setZipInfo({ status: "ok", label: "ZIP found", city: hit.city, state: hit.state });
+        setFieldErrs((f) => ({ ...f, zip: undefined }));
+        // Background label upgrade — the ✓ is already showing; this only makes
+        // it friendlier ("Coralville, Iowa") and never gates anything.
+        try {
+          const r2 = await fetch(`/api/address-search?q=${zip}&enrich=1`);
+          if (!alive || !r2.ok) return;
+          const d2 = (await r2.json()) as { results: FoundAddress[] };
+          const h2 = d2.results[0];
+          if (h2?.city) setZipInfo((cur) => cur.status === "ok"
+            ? { status: "ok", label: `${h2.city}, ${h2.state}`, city: h2.city, state: h2.state } : cur);
+        } catch { /* label upgrade only */ }
       } catch {
-        if (alive) setZipInfo({ status: "ok", label: "ZIP entered" }); // never block signup on a hiccup; the server re-validates
+        if (alive) setZipInfo({ status: "ok", label: "ZIP entered" });
       }
     })();
     return () => { alive = false; };
@@ -97,7 +115,7 @@ export function RegisterInterestForm() {
     const fe: typeof fieldErrs = {};
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fe.email = "enter a real email address";
     if (!username) fe.username = "pick a display name";
-    if (password.length < 8) fe.password = "at least 8 characters";
+    if (password.length < 8) fe.password = "at least 8 characters"; // pragma: allowlist secret — validation copy, not a credential
     const loc = readLocation();
     if (!loc) fe.zip = zipInfo.status === "bad" ? "we don't know that ZIP - double-check it" : "enter your 5-digit ZIP above";
     setFieldErrs(fe);
@@ -162,7 +180,8 @@ export function RegisterInterestForm() {
         </div>
       )}
       <div className="auth-google">
-        {/* Signup mode: requires a picked address before completing Google. */}
+        {/* Signup mode: requires a CONFIRMED ZIP before completing Google —
+            the street address is optional garnish (L3). */}
         <GoogleButton dest={dest} mode="signup" getLocation={readLocation}
           onError={(m) => setError(m === "enter your zip code first, then continue with google"
             ? "enter your ZIP first, then continue with google" : m)} />

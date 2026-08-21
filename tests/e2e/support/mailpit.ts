@@ -15,7 +15,7 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
       return await fetch(url, { ...init, signal: controller.signal });
     } catch (e) {
       lastErr = e;
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
     } finally {
       clearTimeout(timer);
     }

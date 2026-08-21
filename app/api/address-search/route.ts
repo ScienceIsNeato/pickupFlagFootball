@@ -24,6 +24,11 @@ const bucket = new Map<string, { n: number; resetAt: number }>();
 const LIMIT = 15, WINDOW_MS = 60_000;
 function allow(ip: string): boolean {
   const now = Date.now();
+  // sweep expired entries occasionally so unique IPs can't grow the Map
+  // without bound over an instance's lifetime
+  if (bucket.size > 500) {
+    for (const [k, v] of bucket) if (now > v.resetAt) bucket.delete(k);
+  }
   const b = bucket.get(ip);
   if (!b || now > b.resetAt) { bucket.set(ip, { n: 1, resetAt: now + WINDOW_MS }); return true; }
   if (b.n >= LIMIT) return false;
@@ -47,15 +52,17 @@ export async function GET(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   if (!allow(ip)) return NextResponse.json({ error: "slow down" }, { status: 429 });
 
-  // ZIP fast-path: the local centroid table answers VALIDITY without leaving
-  // the box (the Census gazetteer carries no city names, so a bounded 1.5s
-  // Nominatim lookup enriches the label with "City, ST" when it can - validity
-  // never waits on it, and a timeout just means a plainer confirmation).
+  // ZIP fast-path: the local centroid table answers VALIDITY instantly and the
+  // response returns without any external call. City enrichment ("Coralville,
+  // Iowa") is a SEPARATE opt-in pass (&enrich=1) the client fires after the
+  // instant check - so validity genuinely never waits on Nominatim (review:
+  // the first cut awaited enrichment inline, up to 1.5s of "checking...").
   if (/^\d{5}$/.test(q)) {
     const z = await lookupZip(q);
     if (!z) return NextResponse.json({ results: [] });
     let city = z.city ?? "", state = z.state ?? "";
-    if (!city) {
+    const wantEnrich = url.searchParams.get("enrich") === "1";
+    if (!city && wantEnrich) {
       const ctrl2 = new AbortController();
       const t2 = setTimeout(() => ctrl2.abort(), 1500);
       try {

@@ -104,8 +104,9 @@ export function AddressFinder({ value, onSelect, placeholder }: {
                 onPointerDown={(e) => { downAt.current = { x: e.clientX, y: e.clientY }; }}
                 onPointerUp={(e) => {
                   const d = downAt.current;
-                  if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) pick(r);
                   downAt.current = null;
+                  // no pointerdown on a row = a scroll that ended here, not a pick
+                  if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) pick(r);
                 }}
                 onClick={(e) => e.preventDefault()}>
                 {r.label}
