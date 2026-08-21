@@ -62,7 +62,9 @@ export function RegisterInterestForm() {
           if (!alive || !r2.ok) return;
           const d2 = (await r2.json()) as { results: FoundAddress[] };
           const h2 = d2.results[0];
-          if (h2?.city) setZipInfo((cur) => cur.status === "ok"
+          // a street pick may have landed while this was in flight - its label
+          // (and city/state) win over the ZIP-derived enrichment
+          if (h2?.city) setZipInfo((cur) => cur.status === "ok" && !addrRef.current
             ? { status: "ok", label: `${h2.city}, ${h2.state}`, city: h2.city, state: h2.state } : cur);
         } catch { /* label upgrade only */ }
       } catch {
