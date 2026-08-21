@@ -16,9 +16,10 @@ export type FoundAddress = {
  * the geocoder) or you don't proceed. Selection is delivered to the parent
  * and shown as a removable chip.
  */
-export function AddressFinder({ value, onSelect }: {
+export function AddressFinder({ value, onSelect, placeholder }: {
   value: FoundAddress | null;
   onSelect: (a: FoundAddress | null) => void;
+  placeholder?: string;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<FoundAddress[]>([]);
@@ -82,7 +83,7 @@ export function AddressFinder({ value, onSelect }: {
     <div className="addr-finder" ref={boxRef}>
       <input
         type="text" value={q} onChange={(e) => setQ(e.target.value)}
-        placeholder="ZIP code, or start typing your address"
+        placeholder={placeholder ?? "ZIP code, or start typing your address"}
         autoComplete="off" inputMode="text" aria-label="find your address"
         role="combobox" aria-expanded={open} aria-controls="addr-results"
         onKeyDown={(e) => {

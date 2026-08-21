@@ -15,16 +15,44 @@ import { str } from "@/lib/forms";
  *  signal atomically (createMember). A location is mandatory: it *is* the
  *  interest signal, so there's no such thing as a registered user without one.
  *
- *  Location comes from the AddressFinder ONLY — a picked, geocoder-validated
- *  result (ZIPs resolve locally; streets via Nominatim). Free-text garbage
- *  can't reach the server, and validation errors are our own visible messages:
- *  iOS Safari silently swallows native required/pattern bubbles, which made
- *  bad submits look like the form doing nothing. */
+ *  Location is L3 (see the location-input mockups): a required ZIP confirmed
+ *  against the local centroid table the moment 5 digits land, plus an optional
+ *  fold-out street address (pick-only autocomplete). Garbage can't proceed and
+ *  every failure is a visible message: iOS Safari silently swallows native
+ *  required/pattern bubbles, which made bad submits look like nothing. */
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
-  const [fieldErrs, setFieldErrs] = useState<{ email?: string; username?: string; password?: string; addr?: string }>({});
+  const [fieldErrs, setFieldErrs] = useState<{ email?: string; username?: string; password?: string; zip?: string }>({});
   const [busy, setBusy] = useState(false);
+  // L3 location model: a plain required ZIP, confirmed against the local
+  // centroid table the moment 5 digits land; a street address is an optional
+  // fold-out pick that sharpens distances. A picked street sets the ZIP; a
+  // manual ZIP edit that disagrees clears the stale pick.
+  const [zip, setZip] = useState("");
+  const [zipInfo, setZipInfo] = useState<{ status: "idle" | "checking" | "ok" | "bad"; label?: string; city?: string; state?: string }>({ status: "idle" });
+  const [showAddr, setShowAddr] = useState(false);
   const [addr, setAddr] = useState<FoundAddress | null>(null);
+
+  useEffect(() => {
+    if (!/^\d{5}$/.test(zip)) { setZipInfo({ status: "idle" }); return; }
+    let alive = true;
+    setZipInfo({ status: "checking" });
+    (async () => {
+      try {
+        const r = await fetch(`/api/address-search?q=${zip}`);
+        const d = r.ok ? ((await r.json()) as { results: FoundAddress[] }) : { results: [] };
+        if (!alive) return;
+        const hit = d.results[0];
+        setZipInfo(hit
+          ? { status: "ok", label: hit.city ? `${hit.city}, ${hit.state}` : "ZIP found", city: hit.city, state: hit.state }
+          : { status: "bad" });
+        if (hit) setFieldErrs((f) => ({ ...f, zip: undefined }));
+      } catch {
+        if (alive) setZipInfo({ status: "ok", label: "ZIP entered" }); // never block signup on a hiccup; the server re-validates
+      }
+    })();
+    return () => { alive = false; };
+  }, [zip]);
   const formRef = useRef<HTMLFormElement>(null);
   const errRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -43,14 +71,18 @@ export function RegisterInterestForm() {
   const addrRef = useRef<FoundAddress | null>(null);
   addrRef.current = addr;
 
-  /** Location for either signup path — the AddressFinder's pick or nothing. */
+  /** Location for either signup path — a confirmed ZIP, plus the street pick
+   *  when one was made. */
+  const zipRef = useRef({ zip, ok: zipInfo.status === "ok", city: zipInfo.city ?? "", state: zipInfo.state ?? "" });
+  zipRef.current = { zip, ok: zipInfo.status === "ok", city: zipInfo.city ?? "", state: zipInfo.state ?? "" };
   const readLocation = useCallback((): { zip: string; line1: string; line2: string; city: string; state: string } | null => {
+    const z = zipRef.current;
+    if (!z.ok) return null;
     const a = addrRef.current;
-    if (!a) return null;
     const fd = formRef.current ? new FormData(formRef.current) : null;
     return {
-      zip: a.zip, line1: a.line1, line2: str(fd?.get("address_line2") ?? ""),
-      city: a.city, state: a.state,
+      zip: z.zip, line1: a?.line1 ?? "", line2: str(fd?.get("address_line2") ?? ""),
+      city: a?.city ?? z.city, state: a?.state ?? z.state,
     };
   }, []);
 
@@ -67,7 +99,7 @@ export function RegisterInterestForm() {
     if (!username) fe.username = "pick a display name";
     if (password.length < 8) fe.password = "at least 8 characters";
     const loc = readLocation();
-    if (!loc) fe.addr = "find and pick your ZIP or address above";
+    if (!loc) fe.zip = zipInfo.status === "bad" ? "we don't know that ZIP - double-check it" : "enter your 5-digit ZIP above";
     setFieldErrs(fe);
     if (Object.keys(fe).length) {
       setError("almost - fix the highlighted fields");
@@ -87,19 +119,53 @@ export function RegisterInterestForm() {
 
   return (
     <form ref={formRef} className="reg-form" onSubmit={submit} noValidate>
-      {/* Location first: it's the one thing BOTH signup paths need (audit M13) —
-          with it above the Google button, google + a picked address really is
-          the whole signup. */}
+      {/* Location first: it's the one thing BOTH signup paths need (audit M13).
+          L3: ZIP is the requirement, confirmed on the spot; street is optional. */}
       <label>
-        where you play <span className="reg-optional">(ZIP is enough - a street address sharpens distances)</span>
-        <AddressFinder value={addr} onSelect={(a) => { setAddr(a); if (a) setFieldErrs((f) => ({ ...f, addr: undefined })); }} />
-        {fieldErrs.addr && <span className="field-err">{fieldErrs.addr}</span>}
+        zip code <span className="reg-optional">(where we look for games)</span>
+        <input type="text" name="zip" value={zip} inputMode="numeric" autoComplete="postal-code"
+          placeholder="52241" maxLength={5}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, "").slice(0, 5);
+            setZip(v);
+            if (addr && v !== addr.zip) setAddr(null); // stale street pick
+          }} />
+        {zipInfo.status === "checking" && <span className="zip-note">checking&hellip;</span>}
+        {zipInfo.status === "ok" && <span className="zip-ok" data-testid="zip-ok">&#10003; {zipInfo.label}</span>}
+        {zipInfo.status === "bad" && <span className="field-err">we don&apos;t know that ZIP - double-check it</span>}
+        {fieldErrs.zip && zipInfo.status !== "bad" && <span className="field-err">{fieldErrs.zip}</span>}
       </label>
+      {!showAddr && !addr && (
+        <button type="button" className="addr-fold-link" onClick={() => setShowAddr(true)}>
+          + add your street address <span className="reg-optional">(sharpens distances)</span>
+        </button>
+      )}
+      {(showAddr || addr) && (
+        <div className="addr-fold">
+          <label>
+            street address <span className="reg-optional">(optional)</span>
+            <AddressFinder value={addr} placeholder="start typing your street address"
+              onSelect={(a) => {
+                setAddr(a);
+                if (a) {
+                  setZip(a.zip);
+                  // the pick already knows its city - confirm instantly, no re-fetch wait
+                  setZipInfo({ status: "ok", label: a.city ? `${a.city}, ${a.state}` : "ZIP found", city: a.city, state: a.state });
+                  setFieldErrs((f) => ({ ...f, zip: undefined }));
+                }
+              }} />
+          </label>
+          <label>
+            apt / suite / unit <span className="reg-optional">(optional)</span>
+            <input type="text" name="address_line2" placeholder="Apt 4" autoComplete="address-line2" />
+          </label>
+        </div>
+      )}
       <div className="auth-google">
         {/* Signup mode: requires a picked address before completing Google. */}
         <GoogleButton dest={dest} mode="signup" getLocation={readLocation}
           onError={(m) => setError(m === "enter your zip code first, then continue with google"
-            ? "pick your ZIP or address first, then continue with google" : m)} />
+            ? "enter your ZIP first, then continue with google" : m)} />
       </div>
       <p className="reg-hint">
         signing up - with google or the form below - confirms you&apos;re 18 or
@@ -134,10 +200,6 @@ export function RegisterInterestForm() {
         password
         <PasswordInput name="password" placeholder="at least 8 characters" autoComplete="new-password" />
         {fieldErrs.password && <span className="field-err">{fieldErrs.password}</span>}
-      </label>
-      <label>
-        apt / suite / unit <span className="reg-optional">(optional)</span>
-        <input type="text" name="address_line2" placeholder="Apt 4" autoComplete="address-line2" />
       </label>
       <p className="reg-hint">
         we only use your address to measure how far games are from you. we never

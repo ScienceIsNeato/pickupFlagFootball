@@ -1372,3 +1372,13 @@ body { min-height: 100dvh; }
   background: none; border: 0; color: var(--muted); cursor: pointer;
 }
 .addr-chip-x:hover { color: var(--ink); }
+
+/* L3 location input: inline ZIP confirmation + the street fold-out */
+.zip-ok { display: block; margin-top: 6px; font-size: 0.8125rem; color: var(--grass-l); font-weight: 600; }
+.zip-note { display: block; margin-top: 6px; font-size: 0.8125rem; color: var(--faint); }
+.addr-fold-link {
+  align-self: flex-start; background: none; border: 0; padding: 6px 0; margin-top: -4px;
+  color: var(--link); font-size: 0.875rem; font-family: inherit; cursor: pointer; text-align: left;
+}
+.addr-fold { display: flex; flex-direction: column; gap: 14px; padding: 12px; margin-top: -4px;
+  border: 1px solid var(--border); border-radius: 10px; background: rgba(255, 255, 255, 0.02); }

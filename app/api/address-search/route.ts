@@ -47,15 +47,34 @@ export async function GET(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   if (!allow(ip)) return NextResponse.json({ error: "slow down" }, { status: 429 });
 
-  // ZIP fast-path: the local centroid table answers without leaving the box.
+  // ZIP fast-path: the local centroid table answers VALIDITY without leaving
+  // the box (the Census gazetteer carries no city names, so a bounded 1.5s
+  // Nominatim lookup enriches the label with "City, ST" when it can - validity
+  // never waits on it, and a timeout just means a plainer confirmation).
   if (/^\d{5}$/.test(q)) {
     const z = await lookupZip(q);
+    if (!z) return NextResponse.json({ results: [] });
+    let city = z.city ?? "", state = z.state ?? "";
+    if (!city) {
+      const ctrl2 = new AbortController();
+      const t2 = setTimeout(() => ctrl2.abort(), 1500);
+      try {
+        const r = await fetch(
+          `${BASE}/search?format=jsonv2&addressdetails=1&countrycodes=us&limit=1&postalcode=${q}`,
+          { signal: ctrl2.signal, headers: { "User-Agent": UA } },
+        );
+        if (r.ok) {
+          const j = (await r.json()) as Item[];
+          const a = j?.[0]?.address;
+          if (a) { city = a.city || a.town || a.village || a.municipality || ""; state = a.state ?? ""; }
+        }
+      } catch { /* enrichment only */ } finally { clearTimeout(t2); }
+    }
     return NextResponse.json({
-      results: z ? [{
-        label: `${z.city ? `${z.city}, ` : ""}${z.state ?? ""} ${q}`.trim(),
-        line1: "", city: z.city ?? "", state: z.state ?? "", zip: q,
-        lat: z.lat, lng: z.lng,
-      }] : [],
+      results: [{
+        label: `${city ? `${city}, ` : ""}${state ? `${state} ` : ""}${q}`.trim(),
+        line1: "", city, state, zip: q, lat: z.lat, lng: z.lng,
+      }],
     });
   }
 
