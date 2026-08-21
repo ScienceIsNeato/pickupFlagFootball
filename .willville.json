@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "You can now take back a game proposal you got wrong - withdraw it in two taps, and anyone who'd said they're in gets a short note. PR #93 is up, tested end to end including on the phone simulator.",
-    "direction": "Buff the PR green, then it's ready to merge.",
-    "last_update": "2026-08-21T17:35:00Z"
+    "status": "Withdraw-a-proposal is done and fully green - two-tap withdraw for the person who proposed it, honest notes to anyone who'd said they're in, and stale email links land on a straight answer. PR #93 is buffed and ready to merge.",
+    "direction": "Merge #93, then back to phone feedback.",
+    "last_update": "2026-08-21T18:20:00Z"
   }
 }
