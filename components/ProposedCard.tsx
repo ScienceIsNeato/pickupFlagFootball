@@ -188,7 +188,15 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
             {proposal.viewerIsProposer && !confirmWithdraw && (
               <p className="proposed-withdraw">
                 <button type="button" className="auth-link" disabled={busy}
-                  onClick={() => setConfirmWithdraw(true)}>withdraw this proposal…</button>
+                  onClick={async () => {
+                    // Refresh noticeCount at decision time - the card may have
+                    // sat open while people unsubscribed or changed their answer,
+                    // and the confirm copy promises the server's real recipient
+                    // count (which the send re-computes regardless).
+                    setBusy(true);
+                    try { await load(); } finally { setBusy(false); }
+                    setConfirmWithdraw(true);
+                  }}>withdraw this proposal…</button>
               </p>
             )}
             {proposal.viewerIsProposer && confirmWithdraw && (

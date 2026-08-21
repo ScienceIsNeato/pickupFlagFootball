@@ -202,6 +202,9 @@ export async function respondInterest(attemptId: string, interested: boolean): P
     if (!locked) return "missing";
     // Reject by the deadline too, not just status: an expired proposal stays OPEN
     // until the tick/resolve runs, so a late tap shouldn't still record interest.
+    // CANCELLED keeps its honest reason even when the withdraw lands between the
+    // outer read and this lock (same distinction as the pre-lock check).
+    if (locked.status === "CANCELLED") return "withdrawn";
     if (locked.status !== "OPEN" || locked.interestClosesAt.getTime() <= Date.now()) return "closed";
     await tx.insert(attemptInterest)
       .values({ attemptId, userId: uid, interested })

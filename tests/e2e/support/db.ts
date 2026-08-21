@@ -343,13 +343,16 @@ export async function seedDeclinedInterest(attemptId: string): Promise<string> {
   return email;
 }
 
-/** A bare verified user (no UI registration) — e.g. someone else's proposer. */
+/** A bare verified user (no UI registration) — e.g. someone else's proposer.
+ *  Upserts verification so a pre-existing unverified row still ends up verified,
+ *  matching the guarantee the name promises (and the other helpers here). */
 export async function createVerifiedUser(
   email: string, name: string, o: { lat: number; lng: number; zip: string },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO users (email, display_name, home_lat, home_lng, zip, email_verified)
-     VALUES ($1, $2, $3, $4, $5, now()) ON CONFLICT (email) DO NOTHING`,
+     VALUES ($1, $2, $3, $4, $5, now())
+     ON CONFLICT (email) DO UPDATE SET email_verified = now()`,
     [email, name, o.lat, o.lng, o.zip],
   );
 }
