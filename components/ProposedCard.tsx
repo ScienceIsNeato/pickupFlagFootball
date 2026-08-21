@@ -192,9 +192,20 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
                     // Refresh noticeCount at decision time - the card may have
                     // sat open while people unsubscribed or changed their answer,
                     // and the confirm copy promises the server's real recipient
-                    // count (which the send re-computes regardless).
+                    // count (which the send re-computes regardless). Best-effort:
+                    // a transient fetch failure keeps the loaded card and opens
+                    // the confirm anyway - a stale count must not block the
+                    // withdraw or blank the proposal into the error state.
                     setBusy(true);
-                    try { await load(); } finally { setBusy(false); }
+                    try {
+                      const r = await fetch(`/api/proposed?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+                      if (r.ok) {
+                        const d = (await r.json()) as Data;
+                        if (aliveRef.current) setState(d);
+                      }
+                    } catch { /* keep what we have */ } finally {
+                      setBusy(false);
+                    }
                     setConfirmWithdraw(true);
                   }}>withdraw this proposal…</button>
               </p>
