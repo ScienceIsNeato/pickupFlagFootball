@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Ran down every item on the audit's not-covered list - captured two dozen never-reviewed screens, had them reviewed, and fixed what surfaced, including a nasty invisible bug that made the top of the account page untappable on phones. All tests green.",
-    "direction": "The mobile rebuild is genuinely done - open the PR and ship it.",
-    "last_update": "2026-08-20T00:00:00Z"
+    "status": "First round of real-phone feedback worked through: signed-in users land on the map, my-games trays collapse, sign-out works on phones, and the signup form got a proper ZIP-first location input with instant checking. PR is up.",
+    "direction": "Get the polish PR merged, then keep iterating on phone feedback.",
+    "last_update": "2026-08-21T00:00:00Z"
   }
 }
