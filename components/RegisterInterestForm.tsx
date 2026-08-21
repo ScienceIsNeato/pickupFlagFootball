@@ -6,40 +6,51 @@ import { signIn } from "next-auth/react";
 import { registerWithPassword } from "@/lib/auth/register";
 import { GoogleButton } from "./GoogleButton";
 import { PasswordInput } from "@/components/PasswordInput";
+import { AddressFinder, type FoundAddress } from "@/components/AddressFinder";
 import { str } from "@/lib/forms";
 
 /** The registration window — the ONLY place an account is created. An anonymous
  *  visitor provides identity (email + username + password, or Google) AND a
  *  location in one step; the server creates the account, area, and interest
  *  signal atomically (createMember). A location is mandatory: it *is* the
- *  interest signal, so there's no such thing as a registered user without one. */
+ *  interest signal, so there's no such thing as a registered user without one.
+ *
+ *  Location comes from the AddressFinder ONLY — a picked, geocoder-validated
+ *  result (ZIPs resolve locally; streets via Nominatim). Free-text garbage
+ *  can't reach the server, and validation errors are our own visible messages:
+ *  iOS Safari silently swallows native required/pattern bubbles, which made
+ *  bad submits look like the form doing nothing. */
 export function RegisterInterestForm() {
   const [error, setError] = useState("");
+  const [fieldErrs, setFieldErrs] = useState<{ email?: string; username?: string; password?: string; addr?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [addr, setAddr] = useState<FoundAddress | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const errRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (error) { errRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); errRef.current?.focus({ preventScroll: true }); }
   }, [error]);
-  const [busy, setBusy] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
   // Honor the intended destination from a gated flow (e.g. /?signin=1&next=/my-games
   // → "create an account" → here). Only same-origin relative paths.
-  const errRef = useRef<HTMLDivElement>(null);
   const [dest, setDest] = useState("/play");
   useEffect(() => {
     const n = new URLSearchParams(window.location.search).get("next");
     if (n && /^\/(?![/\\])/.test(n)) setDest(n);
   }, []);
 
-  /** Read + validate the location fields for either signup path. null ⇒ no valid ZIP.
-   *  Stable identity so GoogleButton's GIS init effect doesn't re-run on each render. */
+  // The picked address rides a ref (not just state) so GoogleButton's stable
+  // getLocation callback always reads the current pick.
+  const addrRef = useRef<FoundAddress | null>(null);
+  addrRef.current = addr;
+
+  /** Location for either signup path — the AddressFinder's pick or nothing. */
   const readLocation = useCallback((): { zip: string; line1: string; line2: string; city: string; state: string } | null => {
-    const form = formRef.current;
-    if (!form) return null;
-    const fd = new FormData(form);
-    const zip = str(fd.get("zip"));
-    if (!/^\d{5}$/.test(zip)) return null;
+    const a = addrRef.current;
+    if (!a) return null;
+    const fd = formRef.current ? new FormData(formRef.current) : null;
     return {
-      zip, line1: str(fd.get("address_line1")), line2: str(fd.get("address_line2")),
-      city: str(fd.get("city")), state: str(fd.get("state")),
+      zip: a.zip, line1: a.line1, line2: str(fd?.get("address_line2") ?? ""),
+      city: a.city, state: a.state,
     };
   }, []);
 
@@ -50,11 +61,22 @@ export function RegisterInterestForm() {
     const email = str(fd.get("email"));
     const username = str(fd.get("username"));
     const password = str(fd.get("password"));
+    // Our own validation with visible messages (noValidate on the form).
+    const fe: typeof fieldErrs = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fe.email = "enter a real email address";
+    if (!username) fe.username = "pick a display name";
+    if (password.length < 8) fe.password = "at least 8 characters";
     const loc = readLocation();
-    if (!loc) { setError("enter a valid 5-digit ZIP code"); setBusy(false); return; }
+    if (!loc) fe.addr = "find and pick your ZIP or address above";
+    setFieldErrs(fe);
+    if (Object.keys(fe).length) {
+      setError("almost - fix the highlighted fields");
+      setBusy(false);
+      return;
+    }
     try {
       // Account + location + interest created atomically server-side.
-      const reg = await registerWithPassword({ email, password, name: username, ...loc });
+      const reg = await registerWithPassword({ email, password, name: username, ...loc! });
       if (!reg.ok) { setError(reg.error); setBusy(false); return; }
       const res = await signIn("password", { email, password, redirect: false });
       // `ok` is HTTP success, not auth success — check `error` too (see AuthModal).
@@ -64,17 +86,20 @@ export function RegisterInterestForm() {
   }
 
   return (
-    <form ref={formRef} className="reg-form" onSubmit={submit}>
-      {/* ZIP first: it's the one thing BOTH signup paths need (audit M13) — with
-          it above the Google button, google + zip really is the whole signup. */}
+    <form ref={formRef} className="reg-form" onSubmit={submit} noValidate>
+      {/* Location first: it's the one thing BOTH signup paths need (audit M13) —
+          with it above the Google button, google + a picked address really is
+          the whole signup. */}
       <label>
-        zip code <span className="reg-optional">(where we look for games)</span>
-        <input type="text" name="zip" placeholder="52241" inputMode="numeric"
-          autoComplete="postal-code" pattern="[0-9]{5}" required />
+        where you play <span className="reg-optional">(ZIP is enough - a street address sharpens distances)</span>
+        <AddressFinder value={addr} onSelect={(a) => { setAddr(a); if (a) setFieldErrs((f) => ({ ...f, addr: undefined })); }} />
+        {fieldErrs.addr && <span className="field-err">{fieldErrs.addr}</span>}
       </label>
       <div className="auth-google">
-        {/* Signup mode: requires the ZIP above before completing Google. */}
-        <GoogleButton dest={dest} mode="signup" getLocation={readLocation} onError={setError} />
+        {/* Signup mode: requires a picked address before completing Google. */}
+        <GoogleButton dest={dest} mode="signup" getLocation={readLocation}
+          onError={(m) => setError(m === "enter your zip code first, then continue with google"
+            ? "pick your ZIP or address first, then continue with google" : m)} />
       </div>
       <p className="reg-hint">
         signing up - with google or the form below - confirms you&apos;re 18 or
@@ -97,37 +122,23 @@ export function RegisterInterestForm() {
 
       <label>
         email
-        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" required />
+        <input type="email" name="email" placeholder="you@email.com" autoComplete="email" />
+        {fieldErrs.email && <span className="field-err">{fieldErrs.email}</span>}
       </label>
       <label>
         username
-        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" required />
+        <input type="text" name="username" placeholder="captain butterfingers" autoComplete="nickname" />
+        {fieldErrs.username && <span className="field-err">{fieldErrs.username}</span>}
       </label>
       <label>
         password
-        <PasswordInput name="password" placeholder="at least 8 characters"
-          autoComplete="new-password" minLength={8} required />
-      </label>
-
-      <p className="reg-section">your address <span className="reg-optional">(optional - sharpens distance to games)</span></p>
-      <label>
-        street address
-        <input type="text" name="address_line1" placeholder="123 Main St" autoComplete="address-line1" />
+        <PasswordInput name="password" placeholder="at least 8 characters" autoComplete="new-password" />
+        {fieldErrs.password && <span className="field-err">{fieldErrs.password}</span>}
       </label>
       <label>
-        apt / suite / unit
+        apt / suite / unit <span className="reg-optional">(optional)</span>
         <input type="text" name="address_line2" placeholder="Apt 4" autoComplete="address-line2" />
       </label>
-      <div className="reg-row">
-        <label>
-          city
-          <input type="text" name="city" placeholder="Coralville" autoComplete="address-level2" />
-        </label>
-        <label className="reg-state">
-          state
-          <input type="text" name="state" placeholder="IA" autoComplete="address-level1" maxLength={20} />
-        </label>
-      </div>
       <p className="reg-hint">
         we only use your address to measure how far games are from you. we never
         show it to anyone or sell it - see our <Link href="/privacy">privacy page</Link>.

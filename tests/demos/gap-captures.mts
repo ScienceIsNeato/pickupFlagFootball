@@ -120,7 +120,8 @@ async function main() {
     });
     await cap(browser, "register-duplicate-email", async (p) => {
       await p.goto("/show-interest");
-      await p.fill('input[name="zip"]', GALE.zip);
+      await p.fill(".addr-finder input", GALE.zip);
+      await p.locator(".addr-result").first().click();
       await p.fill('input[name="email"]', GALE.email);
       await p.fill('input[name="username"]', "Gale Again");
       await p.fill('input[name="password"]', "password123");

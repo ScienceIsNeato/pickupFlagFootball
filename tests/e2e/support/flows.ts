@@ -12,10 +12,15 @@ export async function registerViaUi(
   opts: { name: string; email: string; zip: string; password?: string },
 ): Promise<void> {
   if (!page.url().includes("/show-interest")) await page.goto("/show-interest");
+  // Location is a PICKED AddressFinder result now (no free-text ZIP input).
+  // 5-digit queries resolve from the local zip_centroids table, so this stays
+  // hermetic - no external geocoder in the loop.
+  await page.fill('.addr-finder input', opts.zip);
+  await page.locator(".addr-result").first().click();
+  await page.locator('[data-testid="addr-selected"]').waitFor({ timeout: 5000 });
   await page.fill('input[name="email"]', opts.email);
   await page.fill('input[name="username"]', opts.name);
   await page.fill('input[name="password"]', opts.password ?? "hunter2pass");
-  await page.fill('input[name="zip"]', opts.zip);
   world.email = opts.email;
   await Promise.all([
     page.waitForURL("**/play", { timeout: 30000 }),
