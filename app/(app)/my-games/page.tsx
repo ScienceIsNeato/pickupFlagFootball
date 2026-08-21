@@ -234,7 +234,7 @@ export default async function UpcomingGamesPage() {
                   </div>
                   <div className="mine-past-result">
                     {played
-                      ? <span className="game-played">✓ played · {head} in</span>
+                      ? <span className="game-played">✓ {head} played</span>
                       : <span className="mine-occ-def">— no game</span>}
                     {played && (youIn
                       ? <span className="mine-you mine-you-in">you played</span>

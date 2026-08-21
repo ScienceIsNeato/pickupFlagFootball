@@ -390,7 +390,7 @@ export function GameCard({ gameId }: { gameId: string }) {
                     {playedHistory.map((h, i) => (
                       <li key={i}>
                         <span>{new Date(`${h.date}T00:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                        <span className="game-played">✓ {h.inCount} in</span>
+                        <span className="game-played">✓ {h.inCount} played</span>
                       </li>
                     ))}
                   </ul>
@@ -409,7 +409,7 @@ export function GameCard({ gameId }: { gameId: string }) {
                       <li key={i}>
                         <span>{new Date(w.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                         {w.played
-                          ? <span className="game-played">✓ played · {w.count} in</span>
+                          ? <span className="game-played">✓ {w.count} played</span>
                           : w.status === "cancelled"
                           ? <span className="game-called-off">✕ called off{w.cancelNote ? ` · ${w.cancelNote}` : ""}</span>
                           : w.status === "skipped"
