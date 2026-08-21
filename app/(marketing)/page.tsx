@@ -1,9 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { skin } from "@/lib/skin";
 import Gallery from "./Gallery";
 import { InstallApp } from "@/components/InstallApp";
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ signin?: string; next?: string }> }) {
+  // A signed-in player has already been sold - the splash is for people we
+  // haven't met. Straight to the map - or, for a stale ?signin=1&next=... link,
+  // straight to the destination the link wanted (relative paths only, same
+  // validation the auth modal applies).
+  const sp = await searchParams;
+  const session = await auth();
+  if (session?.user?.id) {
+    redirect(sp.next && /^\/(?![/\\])/.test(sp.next) ? sp.next : "/play");
+  }
   return (
     <>
       <section className="hero">

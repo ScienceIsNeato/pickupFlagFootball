@@ -1,15 +1,26 @@
 import { E2E } from "./env";
 
-/** fetch with a hard abort timeout, so a stalled Mailpit call can't hang a run
- *  past its own deadline. */
+/** fetch with a hard abort timeout AND retries. The timeout keeps a stalled
+ *  Mailpit from hanging a run past its own deadline; the retries ride out the
+ *  transient stalls that show up while the host is still thrashing right after
+ *  the suite's build (three separate runs lost their first scenarios to a
+ *  single aborted DELETE in the beforeEach hook). Truly-dead Mailpit still
+ *  fails loudly - just after ~20s instead of 5. */
 async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw lastErr;
 }
 
 /** Throw away every captured message (run before each scenario). */

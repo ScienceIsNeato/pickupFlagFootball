@@ -94,11 +94,12 @@ async function main() {
     // 1) Showing interest — a clean, part-filled registration form.
     await shot(browser, "show-interest", undefined, async (page) => {
       await page.goto("/show-interest");
-      await page.locator('input[name="email"]').waitFor({ timeout: 15000 });
+      await page.locator('input[name="zip"]').waitFor({ timeout: 15000 });
+      await page.fill('input[name="zip"]', "78701");
+      await page.locator('[data-testid="zip-ok"]').waitFor({ timeout: 10000 });
       await page.fill('input[name="email"]', "riley@example.com");
       await page.fill('input[name="username"]', "Riley");
       await page.fill('input[name="password"]', "hunter2pass");
-      await page.fill('input[name="zip"]', "78701");
     });
 
     // 2) Joining a regular game — the map with the game card + join button open.

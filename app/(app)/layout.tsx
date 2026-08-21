@@ -60,11 +60,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <div className="nav-right">
           <nav>
-            <span className="nav-with-dot">
-              <Link href="/play">find a game</Link>
-              {loggedIn && <ChatUnreadDot />}
-            </span>
-            {loggedIn && <Link href="/my-games">my games</Link>}
+            <Link href="/play">find a game</Link>
+            {loggedIn && (
+              <span className="nav-with-dot">
+                <Link href="/my-games">my games</Link>
+                <ChatUnreadDot />
+              </span>
+            )}
             <Link href="/account">account</Link>
           </nav>
           <AccountMenu />

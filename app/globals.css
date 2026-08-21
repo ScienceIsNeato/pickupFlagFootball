@@ -790,9 +790,22 @@ section h2::after {
 .mine-you-in { color: var(--grass-l); }
 
 @media (max-width: 560px) {
-  /* stack the two panels: upcoming on top, past below (don't hide past) */
-  .mine-panel { width: auto; left: 8px; right: 8px; top: 58px; bottom: auto; max-height: calc(50vh - 64px); }
-  .mine-right { left: 8px; right: 8px; top: calc(58px + 50vh - 56px); bottom: 8px; max-height: none; }
+  /* phones: the panels become a scrolling stack IN FLOW (collapsible trays
+     slide naturally, nothing pins under the header) while the map stays put
+     as a fixed backdrop behind them */
+  body:has(.mine-panel) .dash-map {
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(70px + env(safe-area-inset-top, 0px)) 8px
+             calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+  /* !important: MapView's wrapper carries inline position/size styles */
+  body:has(.mine-panel) .dash-map > div:first-child {
+    position: fixed !important; inset: 0; height: auto !important; z-index: 0;
+  }
+  .mine-panel, .mine-right {
+    position: relative; z-index: 6; width: auto; max-height: none; overflow: visible;
+    top: auto; bottom: auto; left: auto; right: auto; margin: 0 0 10px;
+  }
 }
 .btn-green {
   height: 46px; margin-top: 6px; cursor: pointer;
@@ -1013,8 +1026,11 @@ section h2::after {
    number is noise, and "there is something to look at" is the whole message. */
 .nav-with-dot { position: relative; display: inline-flex; align-items: center; }
 .chat-dot {
-  position: absolute; top: -2px; right: -10px; width: 7px; height: 7px;
-  border-radius: 50%; background: var(--green);
+  position: absolute; top: -7px; right: -14px;
+  min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--green); color: #fff;
+  font-size: 0.625rem; font-weight: 700; line-height: 1;
   box-shadow: 0 0 0 2px rgba(12, 19, 38, .9);
 }
 
@@ -1152,7 +1168,7 @@ section h2::after {
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
   .map-legend { display: none; }         /* the always-open legend was audit M3 */
   .map-chips {
-    position: absolute; top: calc(58px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; z-index: 5;
+    position: absolute; top: calc(70px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; z-index: 5;
     display: flex; gap: 6px; align-items: center;
   }
   .map-chip {
@@ -1246,7 +1262,7 @@ section h2::after {
    banner slides underneath them; on scrolling pages the banner keeps the top
    and the page content starts below it instead of underneath it. */
 @media (max-width: 560px), ((pointer: coarse) and (max-height: 560px)) {
-  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: calc(104px + env(safe-area-inset-top, 0px)); }
+  body:has(.dash-map) .donate-banner, body:has(.dash-map) .unverified-banner { top: calc(116px + env(safe-area-inset-top, 0px)); }
   body:not(:has(.dash-map)):has(.donate-banner) .app-body,
   body:not(:has(.dash-map)):has(.unverified-banner) .app-body { padding-top: 160px; }
   /* compact phone rendering so the banner is a strip, not a third of the screen */
@@ -1325,3 +1341,47 @@ body { min-height: 100dvh; }
    disabled one drops the affordance cues instead of teasing a tap */
 .seg .game-leave { text-decoration: none; }
 .game-leave:disabled { text-decoration: none; opacity: 0.45; cursor: default; }
+
+/* collapsible my-games trays: the panel header is the toggle */
+.mine-fold summary { list-style: none; cursor: pointer; }
+.mine-fold summary::-webkit-details-marker { display: none; }
+.mine-fold summary svg { vertical-align: -2px; margin-left: 8px; color: var(--grass-l); transition: transform 0.15s ease; }
+.mine-fold[open] > summary svg { transform: rotate(90deg); }
+.mine-fold summary:focus-visible { outline: 2px solid var(--grass-l); outline-offset: 2px; border-radius: 6px; }
+
+/* address finder (registration): pick-only location - garbage can't get in */
+.addr-finder { position: relative; }
+.addr-results {
+  list-style: none; margin: 6px 0 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 2px; max-height: 40dvh; overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.addr-result {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  color: var(--ink); font: inherit; padding: 12px 10px; border-radius: 7px; cursor: pointer;
+}
+.addr-result:hover, .addr-result--hi { background: rgba(70, 137, 68, 0.18); }
+.addr-hint { color: var(--faint); font-size: 0.8125rem; margin: 6px 0 0; padding: 4px 10px; list-style: none; }
+.addr-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(70, 137, 68, 0.14); border: 1px solid var(--green);
+  border-radius: 10px; padding: 10px 12px;
+}
+.addr-chip-label { flex: 1; min-width: 0; font-size: 0.9375rem; }
+.addr-chip-x {
+  flex: none; width: 40px; height: 40px; margin: -8px -8px -8px 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--muted); cursor: pointer;
+}
+.addr-chip-x:hover { color: var(--ink); }
+
+/* L3 location input: inline ZIP confirmation + the street fold-out */
+.zip-ok { display: block; margin-top: 6px; font-size: 0.8125rem; color: var(--grass-l); font-weight: 600; }
+.zip-note { display: block; margin-top: 6px; font-size: 0.8125rem; color: var(--faint); }
+.addr-fold-link {
+  align-self: flex-start; background: none; border: 0; padding: 6px 0; margin-top: -4px;
+  color: var(--link); font-size: 0.875rem; font-family: inherit; cursor: pointer; text-align: left;
+}
+.addr-fold { display: flex; flex-direction: column; gap: 14px; padding: 12px; margin-top: -4px;
+  border: 1px solid var(--border); border-radius: 10px; background: rgba(255, 255, 255, 0.02); }

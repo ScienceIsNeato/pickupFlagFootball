@@ -39,5 +39,13 @@ export function ChatUnreadDot() {
   }, []);
 
   if (n <= 0) return null;
-  return <span className="chat-dot" aria-label={`${n} unread chat${n === 1 ? "" : "s"}`} />;
+  // A count pill, not a bare dot — an unexplained green speck communicates
+  // nothing (user feedback). The number + tooltip say what it is; screen
+  // readers get the full sentence.
+  return (
+    <span className="chat-dot" title="unread game chat"
+      aria-label={`${n} unread game chat message${n === 1 ? "" : "s"}`}>
+      {n > 9 ? "9+" : n}
+    </span>
+  );
 }
