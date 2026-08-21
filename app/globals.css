@@ -347,6 +347,21 @@ body:has(.dash-map) #bg { display: none; }             /* the map's flags take o
 .seg button.seg-on { background: var(--green); color: #fff; }
 .seg button.seg-on-out { background: var(--red); color: #fff; }
 .game-seg-cap { margin: 0 0 6px; font-size: 0.75rem; color: var(--muted); }
+/* proposer-only withdraw (C1): quiet link, then an inline confirm block */
+.proposed-withdraw { margin: 14px 0 0; font-size: 0.8125rem; }
+.proposed-withdraw .auth-link { color: var(--muted); }
+.proposed-withdraw .auth-link:hover { color: var(--red); }
+.proposed-withdraw-confirm {
+  margin: 14px 0 0; padding: 12px; border: 1px solid var(--red); border-radius: 8px;
+  font-size: 0.875rem;
+}
+.proposed-withdraw-confirm p { margin: 0 0 10px; line-height: 1.45; }
+.proposed-withdraw-actions { display: flex; align-items: center; gap: 16px; }
+.proposed-withdraw-actions .btn-danger {
+  min-height: 40px; padding: 0 14px; font: inherit; font-size: 0.875rem; font-weight: 700;
+  cursor: pointer; border: 0; border-radius: 8px; background: var(--red); color: #fff;
+}
+.proposed-withdraw-actions .btn-danger:disabled { opacity: 0.6; cursor: default; }
 /* captain's per-site "minimum expected players" control */
 .game-minplayers { margin: 4px 0 8px; }
 .game-minplayers-label { display: block; font-size: 0.8125rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }

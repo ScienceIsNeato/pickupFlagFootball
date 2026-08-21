@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { respondInterest } from "@/app/(app)/play/propose-actions";
+import { useRouter } from "next/navigation";
+import { respondInterest, withdrawProposal } from "@/app/(app)/play/propose-actions";
 
 import { ChatPanel } from "@/components/ChatPanel";
 import { CardTabs } from "@/components/CardTabs";
@@ -9,7 +10,8 @@ type Proposal = {
   attemptId: string; areaId: string; placeText: string;
   proposedStart: string; recurDow: number | null; recurTime: string | null;
   interestClosesAt: string; proposerName: string | null; interestCount: number;
-  viewerInterested: boolean | null; captains: string[];
+  viewerInterested: boolean | null; viewerIsProposer: boolean; noticeCount: number;
+  captains: string[];
 };
 type Data = { proposal: Proposal | null };
 
@@ -25,6 +27,8 @@ function firstLine(placeText: string): string {
 function respondReason(reason: string): string {
   return ({
     closed: "this proposal already closed.",
+    withdrawn: "the proposer withdrew this one.",
+    notyours: "only the proposer can withdraw this.",
     unverified: "confirm your email before joining in.",
     outofrange: "this game is outside your travel area.",
     nolocation: "set your home location to join in.",
@@ -76,6 +80,10 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [busy, setBusy] = useState(false);
   const [respondErr, setRespondErr] = useState("");
+  // Two-step withdraw (C1): the quiet link arms the confirm block; nothing
+  // happens until "yes, withdraw it". No modal — the card itself is the page.
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const router = useRouter();
   const aliveRef = useRef(true);
   useEffect(() => () => { aliveRef.current = false; }, []);
   const load = useCallback(async () => {
@@ -104,6 +112,23 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
       // The HUD's own tally for this exact proposal just changed — tell it to
       // re-read now instead of waiting for its next periodic poll.
       window.dispatchEvent(new Event("mime:hud-stale"));
+    } catch {
+      setRespondErr("something went wrong - try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function withdraw() {
+    if (!proposal || busy) return;
+    setBusy(true); setRespondErr("");
+    try {
+      const res = await withdrawProposal(proposal.attemptId);
+      if (!res.ok) { setRespondErr(respondReason(res.reason)); return; }
+      // The badge this page was reached from no longer exists — back to the map,
+      // and tell the HUD its forming tally is stale.
+      window.dispatchEvent(new Event("mime:hud-stale"));
+      router.push("/play");
     } catch {
       setRespondErr("something went wrong - try again.");
     } finally {
@@ -157,6 +182,54 @@ export function ProposedCard({ lat, lng }: { lat: number; lng: number }) {
                 aria-pressed={proposal.viewerInterested === false} disabled={busy} onClick={() => respond(false)}>not interested</button>
             </div>
             {respondErr && <p className="game-muted" role="alert">{respondErr}</p>}
+
+            {/* Proposer-only withdraw (C1). A quiet link, not a button row —
+                withdrawing is the rare correction path, not a peer of in/out. */}
+            {proposal.viewerIsProposer && !confirmWithdraw && (
+              <p className="proposed-withdraw">
+                <button type="button" className="auth-link" disabled={busy}
+                  onClick={async () => {
+                    // Refresh noticeCount at decision time - the card may have
+                    // sat open while people unsubscribed or changed their answer,
+                    // and the confirm copy promises the server's real recipient
+                    // count (which the send re-computes regardless). Best-effort:
+                    // a transient fetch failure keeps the loaded card and opens
+                    // the confirm anyway - a stale count must not block the
+                    // withdraw or blank the proposal into the error state.
+                    setBusy(true);
+                    try {
+                      const r = await fetch(`/api/proposed?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+                      if (r.ok) {
+                        const d = (await r.json()) as Data;
+                        if (aliveRef.current) setState(d);
+                      }
+                    } catch { /* keep what we have */ } finally {
+                      setBusy(false);
+                    }
+                    setConfirmWithdraw(true);
+                  }}>withdraw this proposal…</button>
+              </p>
+            )}
+            {proposal.viewerIsProposer && confirmWithdraw && (
+              <div className="proposed-withdraw-confirm" role="group" aria-label="confirm withdraw">
+                <p>
+                  {/* noticeCount is the server's actual recipient set for the
+                      withdrawal note, so this promise is exact - not a guess
+                      derived from the interest tally. */}
+                  {proposal.noticeCount > 0
+                    ? `withdraw this proposal? the ${proposal.noticeCount === 1 ? "person" : `${proposal.noticeCount} people`} who said they're in will get a note.`
+                    : "withdraw this proposal? it just disappears - nobody needs a note."}
+                  {" "}you can propose a corrected one right after.
+                </p>
+                <div className="proposed-withdraw-actions">
+                  <button type="button" className="btn-danger" disabled={busy} onClick={withdraw}>
+                    {busy ? "withdrawing…" : "yes, withdraw it"}
+                  </button>
+                  <button type="button" className="auth-link" disabled={busy}
+                    onClick={() => setConfirmWithdraw(false)}>keep it</button>
+                </div>
+              </div>
+            )}
             </div>
             {/* hidden, not unmounted: switching tabs must not destroy a
                 half-typed draft in the composer (audit M24). */}

@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "First round of real-phone feedback worked through: signed-in users land on the map, my-games trays collapse, sign-out works on phones, and the signup form got a proper ZIP-first location input with instant checking. PR is up.",
-    "direction": "Get the polish PR merged, then keep iterating on phone feedback.",
-    "last_update": "2026-08-21T00:00:00Z"
+    "status": "Withdraw-a-proposal is done and fully green - two-tap withdraw for the person who proposed it, honest notes to anyone who'd said they're in, and stale email links land on a straight answer. PR #93 is buffed and ready to merge.",
+    "direction": "Merge #93, then back to phone feedback.",
+    "last_update": "2026-08-21T18:20:00Z"
   }
 }

@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     areaLat: areas.centerLat, areaLng: areas.centerLng,
     proposedStart: formationAttempts.proposedStart, recurDow: formationAttempts.recurDow, recurTime: formationAttempts.recurTime,
     interestClosesAt: formationAttempts.interestClosesAt, createdAt: formationAttempts.createdAt,
-    proposerName: users.displayName,
+    proposerName: users.displayName, proposerId: formationAttempts.proposerId,
   }).from(formationAttempts)
     .innerJoin(users, eq(users.id, formationAttempts.proposerId))
     .innerJoin(areas, eq(areas.id, formationAttempts.areaId))
@@ -63,6 +63,22 @@ export async function GET(req: Request) {
     ));
   const [mine] = await db.select({ interested: attemptInterest.interested }).from(attemptInterest)
     .where(and(eq(attemptInterest.attemptId, best.id), eq(attemptInterest.userId, session.user.id))).limit(1);
+  // Proposer only: who'd actually get the withdrawal note. Same filters as
+  // withdrawProposal's recipient query — interested, not the proposer, still
+  // subscribed, not opted out of this area — so the confirm copy's "N people
+  // get a note" is a promise the send loop keeps exactly.
+  let noticeCount = 0;
+  if (best.proposerId === session.user.id) {
+    const [{ nc }] = await db.select({ nc: sql<number>`count(*)::int` }).from(attemptInterest)
+      .innerJoin(users, eq(users.id, attemptInterest.userId))
+      .where(and(
+        eq(attemptInterest.attemptId, best.id), eq(attemptInterest.interested, true),
+        eq(users.emailOptIn, true),
+        sql`${attemptInterest.userId} <> ${best.proposerId}::uuid`,
+        sql`not exists (select 1 from area_optouts ao where ao.area_id = ${best.areaId}::uuid and ao.user_id = ${attemptInterest.userId})`,
+      ));
+    noticeCount = nc;
+  }
   const capRows = await db.select({ name: users.displayName }).from(areaCaptains)
     .innerJoin(users, eq(users.id, areaCaptains.userId)).where(eq(areaCaptains.areaId, best.areaId));
   const captains = capRows.map((r) => r.name).filter((n): n is string => !!n);
@@ -75,6 +91,10 @@ export async function GET(req: Request) {
       interestClosesAt: new Date(best.interestClosesAt).toISOString(),
       proposerName: best.proposerName, interestCount: c,
       viewerInterested: mine ? mine.interested : null,
+      // Lets the card show the withdraw affordance only to the person who can
+      // actually use it (the server action re-checks ownership regardless).
+      viewerIsProposer: best.proposerId === session.user.id,
+      noticeCount,
       captains,
     },
   });

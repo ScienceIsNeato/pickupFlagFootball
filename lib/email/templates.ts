@@ -113,6 +113,24 @@ export function buildVerificationEmail(
   };
 }
 
+/** "The proposer pulled this one" — sent to everyone who said i'm-interested
+ *  when a still-OPEN proposal is withdrawn (never to the proposer themselves;
+ *  never sent at all when nobody had answered yet). Transactional, tied to an
+ *  action the recipient took, so no unsubscribe footer. */
+export function buildWithdrawnEmail(
+  displayName: string | null, appBaseUrl: string, place: string, when: string | null,
+): { subject: string; htmlContent: string; textContent: string } {
+  const base = appBaseUrl.replace(/\/+$/, "");
+  const ctaUrl = `${base}/play`;
+  const greeting = `hey ${displayName ?? "there"},`;
+  const intro = `heads up - the game proposed at ${place}${when ? ` (${when})` : ""} was withdrawn by the person who proposed it. nothing to do; your interest wasn't counted toward anything else. if a new game gets proposed near you, we'll ask again.`;
+  return {
+    subject: `that proposed game at ${place} was withdrawn · ${skin.brandName}`,
+    htmlContent: layout({ title: "proposal withdrawn", intro, cta: "see what's near you", ctaUrl, greeting, footer: null, base }),
+    textContent: `${greeting}\n\n${intro}\n\nsee what's near you: ${ctaUrl}\n\n${skin.brandName}\n${skin.footer.mailingAddress}`,
+  };
+}
+
 /** Reset-your-password email. The link carries the single-use reset token; the
  *  page it lands on lets the user set a new password. Sent only in response to a
  *  reset request, so it's transactional (no unsubscribe footer). */

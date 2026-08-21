@@ -58,6 +58,7 @@ export async function applyInterest(formData: FormData) {
     // Reject by the deadline too, not just status: an expired proposal stays OPEN
     // until the tick/resolve runs, so without this a late click could still record
     // interest past interestClosesAt and sway the outcome.
+    if (att.status === "CANCELLED") return "withdrawn"; // proposer pulled it — honest copy beats "closed"
     if (att.status !== "OPEN" || att.interestClosesAt.getTime() <= Date.now()) return "closed";
     await tx.insert(attemptInterest)
       .values({ attemptId: parsed.attemptId, userId: parsed.userId, interested })

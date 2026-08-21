@@ -24,6 +24,7 @@ export default async function InterestedPage({
       in: { title: "you're in", body: "nice - we've counted you in. if enough people are in by the deadline, the game's on and you'll get a heads-up." },
       out: { title: "no worries", body: "we won't count you toward this one. you'll still hear about other games proposed near you." },
       closed: { title: "this one's settled", body: "the interest window for this proposal has already closed." },
+      withdrawn: { title: "this one was withdrawn", body: "the person who proposed it pulled it back - usually to fix the date or spot. nothing needed from you." },
       outofrange: { title: "out of your area", body: "this game's spot is outside your travel area, so we can't count you in for it. find games closer to home on the map." },
       invalid: { title: "this link didn't work", body: "it may have expired or been altered." },
     };
@@ -38,10 +39,23 @@ export default async function InterestedPage({
 
   const parsed = t ? verifyInterestToken(t) : null;
   let place = "";
+  let withdrawn = false;
   if (parsed) {
     const [att] = await db.select({ placeText: formationAttempts.placeText, status: formationAttempts.status })
       .from(formationAttempts).where(eq(formationAttempts.id, parsed.attemptId)).limit(1);
     if (att && att.status === "OPEN") place = att.placeText.split(" — ")[0];
+    // A stale email link to a pulled proposal deserves the honest reason, not
+    // a generic "didn't work".
+    withdrawn = att?.status === "CANCELLED";
+  }
+
+  if (withdrawn) {
+    return (
+      <main className="prose">
+        <h1>this one was withdrawn</h1>
+        <p>the person who proposed it pulled it back - usually to fix the date or spot. nothing needed from you. find games on <Link href="/play">the map</Link>.</p>
+      </main>
+    );
   }
 
   if (!parsed || !place) {
