@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { World } from "../sim/harness/world";
 import {
-  activityTypes, areas, formationAttempts, games, gameOccurrences, gameRoster, users,
+  activityTypes, areas, formationAttempts, games, gameOccurrences, gameRoster,
+  notificationsSent, users,
 } from "@/lib/db/schema";
 import { latLngToCell } from "h3-js";
 import { runOccurrences } from "@/lib/mime/occurrences";
@@ -57,13 +58,33 @@ test("computeNextTickAt: standing game with no occurrence row → the derived po
   assert.equal(next?.toISOString(), POLL_OPENS.toISOString());
 });
 
+/** Mark queued mail as delivered — what the same tick's flush does right after
+ *  the engine step. Without it the pending POLL_ASK backlog is (correctly) the
+ *  nearest boundary, which would mask the calendar boundary under test. */
+async function deliverQueuedMail(db: EngineDb) {
+  await db.update(notificationsSent).set({ emailedAt: new Date() }).where(isNull(notificationsSent.emailedAt));
+}
+
 test("computeNextTickAt: once the poll row exists, the stored poll-close drives the wake", async () => {
   const world = await World.create();
   const db = world.db as unknown as EngineDb;
   await seedGame(db, 41.72, -91.62, 6);
   await runOccurrences(db, DURING_POLL); // opens the poll → row exists (polling)
+  await deliverQueuedMail(db); // its POLL_ASK backlog is sent; calendar is what's left
   const next = await computeNextTickAt(db, DURING_POLL);
   assert.equal(next?.toISOString(), POLL_CLOSES.toISOString());
+});
+
+// The flip side of the two calendar tests: opening a poll queues POLL_ASK mail,
+// and until that mail is out the engine's next move is to deliver it, not to
+// wait for the poll to close.
+test("computeNextTickAt: opening a poll queues mail, and that mail is the next wake", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  await seedGame(db, 41.79, -91.69, 6);
+  await runOccurrences(db, DURING_POLL);
+  const next = await computeNextTickAt(db, DURING_POLL);
+  assert.ok(next && next <= DURING_POLL, `expected an immediate wake to flush mail, got ${next?.toISOString()}`);
 });
 
 test("computeNextTickAt: awaiting_game → the kickoff is the next boundary", async () => {
@@ -72,6 +93,7 @@ test("computeNextTickAt: awaiting_game → the kickoff is the next boundary", as
   await seedGame(db, 41.73, -91.63, 6); // 6 in ≥ default min → scheduled
   await runOccurrences(db, DURING_POLL);
   await runOccurrences(db, AFTER_CLOSE); // tally → scheduled → awaiting_game
+  await deliverQueuedMail(db); // poll + decision mail sent; calendar is what's left
   const next = await computeNextTickAt(db, AFTER_CLOSE);
   assert.equal(next?.toISOString(), KICKOFF.toISOString());
 });
@@ -109,6 +131,64 @@ test("computeNextTickAt: a decided-but-unnotified occurrence is a past-due bound
   // the kickoff or next week's poll-open.
   assert.ok(next && next <= AFTER_CLOSE, `expected past-due boundary, got ${next?.toISOString()}`);
   assert.equal(next?.toISOString(), decidedAt.toISOString());
+});
+
+// Regression: enqueuing email set no boundary, so the "proposed near you" ask
+// waited for an unrelated wake — in practice the daily backstop, up to a day
+// late on a 48h interest window. A pending row must be past-due on sight.
+test("computeNextTickAt: queued email is a past-due boundary (mail doesn't wait for the daily cron)", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { actId, areaId } = await seedGame(db, 41.77, -91.67, 6);
+  const [u] = await db.insert(users)
+    .values({ email: "queued-nt@x.com", displayName: "Q", zip: "52241", homeLat: 41.77, homeLng: -91.67 })
+    .returning({ id: users.id });
+  const [att] = await db.insert(formationAttempts).values({
+    activityTypeId: actId, areaId, attemptNumber: 998, status: "OPEN",
+    proposerId: u.id, placeText: "Somewhere", proposedStart: new Date("2026-07-09T10:00:00Z"),
+    catchmentCells: [], cohortUserIds: [],
+    // Every calendar boundary here is in the future (this deadline, and the
+    // seeded game's 07-02 poll-open) — the queued mail is what pulls the wake
+    // back to now.
+    interestClosesAt: new Date("2026-07-06T10:00:00Z"),
+  }).returning({ id: formationAttempts.id });
+  const enqueuedAt = new Date(BEFORE_OPEN.getTime() - 60_000);
+  await db.insert(notificationsSent).values({
+    userId: u.id, attemptId: att.id, kind: "GAME_PROPOSED", channel: "email",
+    sentAt: enqueuedAt, emailedAt: null,
+  });
+  const next = await computeNextTickAt(db, BEFORE_OPEN);
+  assert.ok(next && next <= BEFORE_OPEN, `expected past-due boundary, got ${next?.toISOString()}`);
+  assert.equal(next?.toISOString(), enqueuedAt.toISOString());
+});
+
+// A failed send releases the row (emailed_at back to null). Without an age
+// bound that row is past-due forever, re-arming the tick every minute for good
+// — the always-awake burn this scheduler exists to prevent.
+test("computeNextTickAt: an email pending over an hour stops driving wakes (no infinite re-arm)", async () => {
+  const world = await World.create();
+  const db = world.db as unknown as EngineDb;
+  const { actId, areaId } = await seedGame(db, 41.78, -91.68, 6);
+  const [u] = await db.insert(users)
+    .values({ email: "stuck-nt@x.com", displayName: "S", zip: "52241", homeLat: 41.78, homeLng: -91.68 })
+    .returning({ id: users.id });
+  const [att] = await db.insert(formationAttempts).values({
+    activityTypeId: actId, areaId, attemptNumber: 997, status: "OPEN",
+    proposerId: u.id, placeText: "Stuck", proposedStart: new Date("2026-07-09T10:00:00Z"),
+    catchmentCells: [], cohortUserIds: [], interestClosesAt: new Date("2026-07-06T10:00:00Z"),
+  }).returning({ id: formationAttempts.id });
+  // Two hours before the tick's own clock — outside the one-hour window, so
+  // undeliverable rather than urgent. Anchored to BEFORE_OPEN, not Date.now():
+  // a wall-clock stamp lands ~2 months AFTER this tick's `now`, which passes the
+  // age filter and then loses the min() on distance alone — the assertion below
+  // would hold with the bound removed entirely, testing nothing.
+  await db.insert(notificationsSent).values({
+    userId: u.id, attemptId: att.id, kind: "GAME_PROPOSED", channel: "email",
+    sentAt: new Date(BEFORE_OPEN.getTime() - 2 * 3600_000), emailedAt: null,
+  });
+  const next = await computeNextTickAt(db, BEFORE_OPEN);
+  // Falls back to the real calendar boundary, not an immediate wake.
+  assert.equal(next?.toISOString(), POLL_OPENS.toISOString());
 });
 
 test("computeNextTickAt: paused series generates no wakes", async () => {

@@ -43,6 +43,23 @@ export async function computeNextTickAt(db: EngineDb, now: Date): Promise<Date |
       -- Chat digests owed. null everywhere = chat owes nobody = no wake from chat,
       -- the same "empty calendar, sleep" rule the rest of this query follows.
       select min(digest_due_at) from chat_threads where digest_due_at is not null
+      union all
+      -- Email waiting to go out. Enqueuing a notification (the "proposed near
+      -- you" ask, a game-on notice) sets no other boundary, so without this the
+      -- backlog sat until the next unrelated wake — in practice the daily
+      -- backstop, i.e. up to a day late on a 48h interest window. sent_at is the
+      -- enqueue time, so this is past-due on sight and the enqueuer clamps it to
+      -- an immediate wake: mail leaves within seconds of the action that queued it.
+      --
+      -- Bounded to the last hour on purpose. flushNotificationEmails releases a
+      -- row (emailed_at back to null) when a send fails, so an undeliverable row
+      -- would otherwise be a permanently past-due boundary — re-arming the tick
+      -- every minute forever, which is precisely the always-awake compute burn
+      -- this scheduler exists to avoid. After an hour of failing, delivery falls
+      -- back to the daily cron instead of spinning.
+      select min(sent_at) from notifications_sent
+        where channel = 'email' and emailed_at is null
+          and sent_at > ${new Date(now.getTime() - 3_600_000)}
     ) x`);
   const raw = (((res as { rows?: { next: string | Date | null }[] }).rows ?? [])[0]?.next) ?? null;
   let best: Date | null = raw ? new Date(raw) : null;
