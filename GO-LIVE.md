@@ -156,12 +156,14 @@ registrar. SSL provisions automatically in a few minutes.
 
 **Turn on the cron** — https://console.cloud.google.com/cloudscheduler →
 **Create Job**.
-- Region: us-central1 · Name: `pff-mime-tick` · Frequency: `0 5 * * *` ·
+- Region: us-central1 · Name: `pff-mime-tick` · Frequency: `0 5,17 * * *` ·
   Timezone: any.
-  (Daily, not frequent: the engine arms its own one-shot wake for the next real
-  boundary via Cloud Tasks, so this job is only the dead-man backstop. Each tick
-  wakes the Neon compute for a 5-minute minimum, so a frequent cron bills as an
-  always-on database — a 15-minute schedule cost ~$9/month on an idle site.)
+  (Twice daily, not frequent: the engine arms its own one-shot wake for the next
+  real boundary via Cloud Tasks, so this job is only the dead-man backstop. Each
+  tick wakes the Neon compute for a 5-minute minimum, so a frequent cron bills as
+  an always-on database — a 15-minute schedule cost ~$9/month on an idle site.
+  Twice rather than once only so the 13h "tick down" alert has margin; Cloud
+  Monitoring won't accept an absence threshold above 23h30m.)
 - Target type: **HTTP** · URL: `https://YOURDOMAIN.com/api/mime/tick` ·
   Method: **POST**.
 - **Add a header**: name `Authorization`, value `Bearer <your CRON_SECRET>`

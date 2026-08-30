@@ -133,12 +133,19 @@ mid-DDL.
 
 ## 6. Cron (replaces the old Vercel cron)
 
-Cloud Scheduler hits the tick route **daily** with the `CRON_SECRET` bearer.
+Cloud Scheduler hits the tick route **twice daily** (05:00/17:00 UTC) with the
+`CRON_SECRET` bearer.
 
-Daily is enough because the engine is event-driven: every run arms a one-shot
+That's enough because the engine is event-driven: every run arms a one-shot
 Cloud Task for its next real boundary (`scheduleNextTick`), including an
 immediate one whenever email is queued — so mail and deadlines don't wait on
 this job. It exists only as the dead-man backstop for a missed enqueue.
+
+Twice rather than once for a monitoring reason, not an engine one: Cloud
+Monitoring caps metric-absence conditions at 23h30m, so a once-daily tick
+cannot have a working "tick down" alert — the threshold would always expire in
+the gap before the next run and page every day. A 12-hour cadence lets the
+alert sit at 13h with real margin, and the second wake costs ~$0.13/month.
 
 Cadence matters for cost, not just tidiness: each tick wakes the Neon compute,
 which then idles a fixed 5 minutes before scale-to-zero, so a frequent cron
@@ -149,7 +156,7 @@ event-driven arm isn't doing its job.
 
 ```bash
 gcloud scheduler jobs create http pff-mime-tick \
-  --location=$REGION --schedule="0 5 * * *" \
+  --location=$REGION --schedule="0 5,17 * * *" \
   --uri="$APP_BASE_URL/api/mime/tick" --http-method=POST \
   --headers="Authorization=Bearer THE_CRON_SECRET" \
   --project=$PROJECT
@@ -159,7 +166,13 @@ gcloud scheduler jobs create http pff-mime-tick \
 doesn't match.)
 
 Dev has its own `pff-dev-mime-tick` job pointing at `dev.pickupflagfootball.com`,
-on the same daily schedule and for the same reason.
+on the same twice-daily schedule and for the same reason.
+
+Both have a `MIME-FF · <env> tick down` alert policy (Cloud Monitoring) watching
+the `mime_tick_ok_<env>` log metric, firing after 13h of absence. If you change
+the cron cadence, change those thresholds with it — they only make sense as a
+pair, and a mismatch is either a daily false page or a dead backstop nobody
+notices.
 
 ## 7. Custom domain
 
@@ -206,9 +219,12 @@ down" is a Cloud Monitoring alert, not an app event.
    Slack **notification channel** pointing at `#mime-alerts`
    (Console → Monitoring → Alerting → Edit notification channels → Slack).
 2. Create two alert policies on that channel:
-   - **Missed tick** — 0 successful (2xx) requests to `/api/mime/tick` in 130 min
-     = two missed hourly ticks (covers scheduler-paused / route-down). Keep this
-     window ≥ 2× the cron interval or it false-alarms between ticks.
+   - **Missed tick** — 0 successful (2xx) requests to `/api/mime/tick` in 13h,
+     i.e. one missed twice-daily backstop (covers scheduler-paused / route-down).
+     Keep this window between 1× and 2× the cron interval: below the interval it
+     false-alarms in the gap between ticks, and Cloud Monitoring refuses any
+     metric-absence threshold above 23h30m — which is the whole reason the cron
+     runs twice daily instead of once.
    - **Tick errors** — any `severity>=ERROR` log from the `pickupflagfootball-prod`
      Cloud Run service (covers the engine throwing *and* the email-flush failures,
      which log an error but still return 200).
