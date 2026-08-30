@@ -147,7 +147,9 @@ test("computeNextTickAt: queued email is a past-due boundary (mail doesn't wait 
     activityTypeId: actId, areaId, attemptNumber: 998, status: "OPEN",
     proposerId: u.id, placeText: "Somewhere", proposedStart: new Date("2026-07-09T10:00:00Z"),
     catchmentCells: [], cohortUserIds: [],
-    // Deadline far out: without the email boundary this is the next wake.
+    // Every calendar boundary here is in the future (this deadline, and the
+    // seeded game's 07-02 poll-open) — the queued mail is what pulls the wake
+    // back to now.
     interestClosesAt: new Date("2026-07-06T10:00:00Z"),
   }).returning({ id: formationAttempts.id });
   const enqueuedAt = new Date(BEFORE_OPEN.getTime() - 60_000);
@@ -175,10 +177,14 @@ test("computeNextTickAt: an email pending over an hour stops driving wakes (no i
     proposerId: u.id, placeText: "Stuck", proposedStart: new Date("2026-07-09T10:00:00Z"),
     catchmentCells: [], cohortUserIds: [], interestClosesAt: new Date("2026-07-06T10:00:00Z"),
   }).returning({ id: formationAttempts.id });
-  // Enqueued two hours ago and still unsent ⇒ undeliverable, not urgent.
+  // Two hours before the tick's own clock — outside the one-hour window, so
+  // undeliverable rather than urgent. Anchored to BEFORE_OPEN, not Date.now():
+  // a wall-clock stamp lands ~2 months AFTER this tick's `now`, which passes the
+  // age filter and then loses the min() on distance alone — the assertion below
+  // would hold with the bound removed entirely, testing nothing.
   await db.insert(notificationsSent).values({
     userId: u.id, attemptId: att.id, kind: "GAME_PROPOSED", channel: "email",
-    sentAt: new Date(Date.now() - 2 * 3600_000), emailedAt: null,
+    sentAt: new Date(BEFORE_OPEN.getTime() - 2 * 3600_000), emailedAt: null,
   });
   const next = await computeNextTickAt(db, BEFORE_OPEN);
   // Falls back to the real calendar boundary, not an immediate wake.
