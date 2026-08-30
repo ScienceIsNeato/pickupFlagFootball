@@ -133,15 +133,23 @@ mid-DDL.
 
 ## 6. Cron (replaces the old Vercel cron)
 
-Cloud Scheduler hits the tick route hourly with the `CRON_SECRET` bearer.
-(Hourly, not more often: each tick wakes the Neon compute, which then idles a
-fixed 5 minutes before scale-to-zero — at 15-min frequency that idle tail alone
-burned ~60 of the 100 free CU-hours/month. The FSM only needs day-level
-granularity, so hourly is plenty. Dev keeps its own `pff-dev-mime-tick` job.)
+Cloud Scheduler hits the tick route **daily** with the `CRON_SECRET` bearer.
+
+Daily is enough because the engine is event-driven: every run arms a one-shot
+Cloud Task for its next real boundary (`scheduleNextTick`), including an
+immediate one whenever email is queued — so mail and deadlines don't wait on
+this job. It exists only as the dead-man backstop for a missed enqueue.
+
+Cadence matters for cost, not just tidiness: each tick wakes the Neon compute,
+which then idles a fixed 5 minutes before scale-to-zero, so a frequent cron
+bills exactly like an always-on database. Hourly on prod plus 15-minute on dev
+cost ~$9/month on a site with no users. If you shorten this schedule, you are
+buying an always-awake database — don't, unless you also know why the
+event-driven arm isn't doing its job.
 
 ```bash
 gcloud scheduler jobs create http pff-mime-tick \
-  --location=$REGION --schedule="0 * * * *" \
+  --location=$REGION --schedule="0 5 * * *" \
   --uri="$APP_BASE_URL/api/mime/tick" --http-method=POST \
   --headers="Authorization=Bearer THE_CRON_SECRET" \
   --project=$PROJECT
@@ -149,6 +157,9 @@ gcloud scheduler jobs create http pff-mime-tick \
 
 (Use the same value as the `pff-cron-secret` secret. The route fails closed if it
 doesn't match.)
+
+Dev has its own `pff-dev-mime-tick` job pointing at `dev.pickupflagfootball.com`,
+on the same daily schedule and for the same reason.
 
 ## 7. Custom domain
 

@@ -232,17 +232,24 @@ start_tick() {
     return 0
   fi
   interval="${TICK_INTERVAL:-60}"
+  # Self-expiring: this loop is disowned, so it outlives the terminal that
+  # started it. A forgotten one polls the shared dev database every minute
+  # forever, which keeps its scale-to-zero compute permanently awake — that is
+  # a real bill, not a local annoyance (it once cost ~$9/month on its own).
+  # A local deploy nobody has touched in TICK_MAX_HOURS is abandoned; stop.
+  local max_hours="${TICK_MAX_HOURS:-8}"
   # Secret goes through the environment, not argv, so it stays out of `ps`.
   CRON_SECRET="$secret" \
   TICK_URL="http://127.0.0.1:$port/api/mime/tick" \
   TICK_INTERVAL="$interval" \
-  nohup bash -c 'while true; do
+  TICK_DEADLINE="$(( $(date +%s) + max_hours * 3600 ))" \
+  nohup bash -c 'while [[ $(date +%s) -lt $TICK_DEADLINE ]]; do
       curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" "$TICK_URL" >/dev/null 2>&1 || true
       sleep "$TICK_INTERVAL"
     done' >>"$log" 2>&1 </dev/null &
   TICK_PID=$!
   disown "$TICK_PID" 2>/dev/null || true
-  echo "  Tick loop running every ${interval}s (pid $TICK_PID)"
+  echo "  Tick loop running every ${interval}s, expires in ${max_hours}h (pid $TICK_PID)"
 }
 
 show_status() {
