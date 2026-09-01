@@ -44,3 +44,26 @@ tests/e2e/test-results/
 /tests/demos/.auth.json
 /tests/demos/.gap-auth*.json
 __pycache__/
+
+# Android/TWA build. The upload keystore is a credential — never commit it
+# (losing it is recoverable via Play support; leaking it is not worth finding out).
+# The Gradle project is regenerated from android/twa-manifest.json by
+# `bubblewrap update`, so only that manifest is source.
+android/*.keystore
+android/*.jks
+android/app/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/build.gradle
+android/settings.gradle
+android/gradle.properties
+android/local.properties
+android/.gradle/
+android/store_icon.png
+android/build/
+android/manifest-checksum.txt
+android/*.aab
+android/*.apk
+android/*.idsig
+android/assetlinks.json

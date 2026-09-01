@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/dashboard", destination: "/play", permanent: true }];
   },
+  // Digital Asset Links must be served from this exact well-known path for the
+  // Play Store app to verify as a Trusted Web Activity. Routed through a normal
+  // handler (app/api/assetlinks) rather than a static public/ file because the
+  // signing fingerprint only exists after the first Play upload — env config
+  // beats a code change to publish it.
+  async rewrites() {
+    return [{ source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" }];
+  },
 };
 
 // Sentry build wrapper: uploads source maps so stack traces map to TS source.
