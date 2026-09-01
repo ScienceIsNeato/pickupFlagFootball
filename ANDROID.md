@@ -63,19 +63,19 @@ is permanently unpublishable".
 ## Build
 
 ```bash
-cd android
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-export ANDROID_HOME=$HOME/android-sdk
-PW=$(cat ~/.pff-android-keys/upload-keystore-password.txt)
-BUBBLEWRAP_KEYSTORE_PASSWORD="$PW" BUBBLEWRAP_KEY_PASSWORD="$PW" \
-  bubblewrap build --skipPwaValidation
+./scripts/build_twa.sh
 ```
 
-Produces `app-release-bundle.aab` (upload this) and `app-release-signed.apk`
-(sideload for local testing).
+That's the supported path: it preflights the toolchain (the failures here all
+report as something unrelated) and runs `bubblewrap update` before `build`, so
+edits to `twa-manifest.json` actually reach the artifact. Running `bubblewrap
+build` alone silently ships the previously-generated project.
+
+Produces `android/app-release-bundle.aab` (upload this) and
+`android/app-release-signed.apk` (sideload for local testing).
 
 Only `android/twa-manifest.json` is source — the Gradle project is regenerated
-by `bubblewrap update`, so don't hand-edit anything else in `android/`.
+from it, so don't hand-edit anything else in `android/`.
 
 Bump `appVersionCode` (integer, must strictly increase on every upload) and
 `appVersion` (the human "1.0.0") in `twa-manifest.json` for each release.
@@ -86,6 +86,7 @@ and nasty: the build succeeds, and you only find out when `aapt2 dump badging`
 shows `versionName=''` or Play rejects the upload. Check it after building:
 
 ```bash
+# from the repo root
 ~/android-sdk/build-tools/36.1.0/aapt2 dump badging android/app-release-signed.apk | head -1
 ```
 
@@ -102,19 +103,34 @@ doesn't exist until after the first upload:
 1. Upload the AAB to Play Console (internal testing is enough).
 2. **Release → Setup → App signing** → copy the SHA-256 of the *App signing key
    certificate*. Also copy the *Upload key certificate* SHA-256.
-3. Set on the prod Cloud Run service:
+3. Set the repo variable **`TWA_SHA256_FINGERPRINTS`** (Settings → Secrets and
+   variables → Actions → Variables) to both fingerprints, comma-separated:
    ```
-   TWA_PACKAGE_NAME=com.pickupflagfootball.app
-   TWA_SHA256_FINGERPRINTS=<app-signing-sha256>,<upload-key-sha256>
+   <app-signing-sha256>,<upload-key-sha256>
    ```
    Both, not just the first: installs from Play are signed with Google's key,
    while an APK you sideload is signed with the upload key. List only one and
    the other build shows a URL bar and looks broken.
-4. Verify: `curl https://pickupflagfootball.com/.well-known/assetlinks.json`
-5. Reinstall the app. No URL bar ⇒ verified.
 
-The endpoint 404s until both env vars are set — deliberately. An assetlinks file
-that parses but names nobody reads as "we checked, and that app is not ours".
+   A repo **variable**, not a secret — this file is served to the public
+   internet, and masking it in CI logs would only make debugging harder.
+
+   > **Don't set this by hand on the Cloud Run service.** The deploy uses
+   > `gcloud run deploy --set-env-vars`, which *replaces* the entire env set, so
+   > a hand-set value works right up until the next merge to `main` and then
+   > disappears — assetlinks starts 404ing and every Play install grows a URL
+   > bar, with nothing in the deploy that looks like the cause. The pipeline
+   > passes these declaratively (`twa_package_name` input + this variable) so
+   > they survive.
+4. Re-run the prod deploy (merge or `workflow_dispatch`) so the service picks it up.
+5. Verify: `curl https://pickupflagfootball.com/.well-known/assetlinks.json`
+6. Reinstall the app. No URL bar ⇒ verified.
+
+The endpoint 404s until both are set — deliberately. An assetlinks file that
+parses but names nobody reads as "we checked, and that app is not ours". It also
+500s if *any* fingerprint is malformed rather than serving the valid ones: a
+partial list is the worst outcome, since the install path using the mangled cert
+breaks while the other keeps working.
 
 ## Store listing
 

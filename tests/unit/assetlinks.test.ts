@@ -8,14 +8,42 @@ import { GET } from "@/app/api/assetlinks/route";
 
 const REAL = "6A:C9:5E:16:B2:D3:8F:AC:B8:6B:1F:00:E2:A9:F9:2B:79:D1:0A:64:66:7C:C1:03:0B:AA:5F:FB:42:0D:3E:B3";
 
+// Save/restore rather than delete: these are real deploy vars, so a developer
+// with them exported would have them silently wiped for every later test in the
+// process. Restoring keeps this file side-effect free either way.
+const SAVED = {
+  pkg: process.env.TWA_PACKAGE_NAME,
+  fps: process.env.TWA_SHA256_FINGERPRINTS,
+};
+function restore(key: "TWA_PACKAGE_NAME" | "TWA_SHA256_FINGERPRINTS", value: string | undefined) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
 afterEach(() => {
-  delete process.env.TWA_PACKAGE_NAME;
-  delete process.env.TWA_SHA256_FINGERPRINTS;
+  restore("TWA_PACKAGE_NAME", SAVED.pkg);
+  restore("TWA_SHA256_FINGERPRINTS", SAVED.fps);
 });
 
 test("assetlinks: unset config 404s rather than claiming the app isn't ours", async () => {
+  delete process.env.TWA_PACKAGE_NAME;
+  delete process.env.TWA_SHA256_FINGERPRINTS;
   const res = await GET();
   assert.equal(res.status, 404);
+});
+
+test("assetlinks: whitespace-only config counts as unset, not as a package named ' '", async () => {
+  process.env.TWA_PACKAGE_NAME = "   ";
+  process.env.TWA_SHA256_FINGERPRINTS = REAL;
+  assert.equal((await GET()).status, 404);
+});
+
+// One typo in a two-cert list must not quietly ship the survivor: whichever
+// install path used the mangled cert breaks while the other looks fine.
+test("assetlinks: one bad fingerprint rejects the whole list, not just that entry", async () => {
+  process.env.TWA_PACKAGE_NAME = "com.pickupflagfootball.app";
+  process.env.TWA_SHA256_FINGERPRINTS = `${REAL},deadbeef`;
+  const res = await GET();
+  assert.equal(res.status, 500, "a partial list is worse than no list");
 });
 
 test("assetlinks: serves the delegation for a configured package", async () => {

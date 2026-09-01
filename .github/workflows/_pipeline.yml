@@ -17,6 +17,14 @@ on:
       stripe_price_id:              { type: string, required: false, default: "" }  # donation price id (non-secret)
       slack_webhook_secret:         { type: string, required: false, default: "" }  # …for SLACK_WEBHOOK_URL (activity feed); unset = Slack off
       neon_parent_branch_id: { type: string, required: true }  # Neon branch this env's DB lives on — rehearsal branches off it
+      # Play Store TWA identity, served at /.well-known/assetlinks.json. Declared
+      # here rather than set by hand on the service because the deploy below uses
+      # --set-env-vars, which REPLACES the whole env set — a hand-set value would
+      # survive until the next merge to main and then vanish, taking the app's
+      # URL-bar-free launch with it and pointing at nothing that looks like a cause.
+      # Empty (the default, and every non-prod env) ⇒ the route 404s, which is the
+      # honest answer for a domain that vouches for no app.
+      twa_package_name:   { type: string, required: false, default: "" }
       run_e2e:            { type: boolean, required: false, default: false } # full Playwright gate
       min_instances:      { type: string, required: false, default: "0" }
     secrets:
@@ -248,7 +256,7 @@ jobs:
           gcloud run deploy ${{ inputs.service_name }} \
             --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.environment }}-${{ github.sha }} \
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
-            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }};SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
+            --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }};SENTRY_ENVIRONMENT=${{ inputs.environment }};TWA_PACKAGE_NAME=${{ inputs.twa_package_name }};TWA_SHA256_FINGERPRINTS=${{ vars.TWA_SHA256_FINGERPRINTS }}" \
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
             --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}

@@ -35,8 +35,10 @@ function normalizeFingerprint(raw: string): string | null {
 }
 
 export async function GET() {
-  const pkg = process.env.TWA_PACKAGE_NAME;
-  const raw = process.env.TWA_SHA256_FINGERPRINTS;
+  // Trimmed: a trailing space or newline survives a copy-paste into a deploy
+  // config and would otherwise publish a package name that matches no app.
+  const pkg = process.env.TWA_PACKAGE_NAME?.trim();
+  const raw = process.env.TWA_SHA256_FINGERPRINTS?.trim();
   // Unconfigured ⇒ 404 rather than an empty statement of ownership. An
   // assetlinks.json that parses but delegates to nobody reads as "we checked and
   // this app is NOT ours", which is worse than absent while we're mid-setup.
@@ -44,19 +46,26 @@ export async function GET() {
     return NextResponse.json({ error: "assetlinks not configured" }, { status: 404 });
   }
 
-  const fingerprints = raw.split(",").map(normalizeFingerprint).filter((f): f is string => !!f);
-  if (!fingerprints.length) {
-    // Configured but unusable — a typo'd fingerprint would silently ship a file
-    // that can never verify, and the only symptom is a URL bar nobody connects
-    // back to an env var. Fail loudly in the logs instead.
-    console.error("[twa] TWA_SHA256_FINGERPRINTS set but no valid SHA-256 fingerprints parsed");
+  // All-or-nothing. Dropping the bad entries and serving the survivors is the
+  // worst outcome available: one typo in a two-cert list still returns 200, and
+  // whichever install path used the mangled cert quietly grows a URL bar while
+  // the other works fine — so the thing that's broken looks like the thing
+  // that's fine. Refuse the whole config instead.
+  const entries = raw.split(",").filter((e) => e.trim().length > 0);
+  const fingerprints = entries.map(normalizeFingerprint);
+  if (!fingerprints.length || fingerprints.some((f) => f === null)) {
+    const bad = entries.filter((_, i) => fingerprints[i] === null);
+    console.error(
+      `[twa] TWA_SHA256_FINGERPRINTS has ${bad.length} invalid entr${bad.length === 1 ? "y" : "ies"} ` +
+      "(expected 64 hex chars each); refusing to serve a partial assetlinks.json",
+    );
     return NextResponse.json({ error: "assetlinks misconfigured" }, { status: 500 });
   }
 
   return NextResponse.json(
     [{
       relation: [REL],
-      target: { namespace: "android_app", package_name: pkg, sha256_cert_fingerprints: fingerprints },
+      target: { namespace: "android_app", package_name: pkg, sha256_cert_fingerprints: fingerprints as string[] },
     }],
     {
       headers: {
