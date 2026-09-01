@@ -143,8 +143,12 @@ Needs, beyond the binary:
   enforced and the app's whole pitch is that it's not creepy about location.
 - **Content rating questionnaire** — user-generated content (game chat) has to be
   declared, which typically lands it above "Everyone".
-- **Screenshots** — min 2 phone screenshots. `npm run demo:shots` and the
-  simulator captures produce these.
+- **Screenshots** — min 2 phone screenshots; six are checked in at
+  `store/play/screenshots/` (1080×1920 PNG = 9:16, inside Play's 2:1 cap).
+  Regenerate with `./scripts/shoot_play_store.sh` — same stack-up-and-seed
+  runner as the splash gallery, shot through the real app rather than mocked.
+  They're committed rather than regenerated on demand so the assets you
+  uploaded stay recoverable; map tiles and seeded names shift between runs.
 - **Feature graphic** — 1024×500 PNG.
 - **App icon** — 512×512 (`public/pwa/icon-512.png`).
 

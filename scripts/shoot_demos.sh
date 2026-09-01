@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Capture the splash-gallery stills end to end: bring up the local stack, seed,
 # build + start the app (with the e2e map seam so shots can centre the map),
-# and screenshot the four core flows straight into public/gallery/.
+# and screenshot the core flows. Defaults to the splash-gallery stills;
+# SHOTS_SCRIPT swaps in another capture script (see shoot_play_store.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,8 +38,7 @@ done
 curl -sf http://127.0.0.1:3100/terms -o /dev/null 2>/dev/null || { echo "  ✗ app did not start within 60s" >&2; exit 1; }
 echo "  app up"
 
-echo "▸ capture stills → public/gallery"
-mkdir -p public/gallery
-node --import tsx tests/demos/shots.mts
+echo "▸ capture stills"
+node --import tsx "${SHOTS_SCRIPT:-tests/demos/shots.mts}"
 
-echo "done → public/gallery/"
+echo "done"
