@@ -41,6 +41,31 @@ tests/e2e/test-results/
 .env.sentry-build-plugin
 
 # demo recording artifacts (the served clips live in public/gallery/)
-/tests/demos/.auth.json
-/tests/demos/.gap-auth*.json
+# Playwright storageState from the capture scripts — session cookies, and
+# regenerated on every run. Glob, not one path per script: the previous
+# exact-path rules silently failed to cover a newly-added capture script.
+/tests/demos/.*auth*.json
 __pycache__/
+
+# Android/TWA build. The upload keystore is a credential — never commit it
+# (losing it is recoverable via Play support; leaking it is not worth finding out).
+# The Gradle project is regenerated from android/twa-manifest.json by
+# `bubblewrap update`, so only that manifest is source.
+android/*.keystore
+android/*.jks
+android/app/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/build.gradle
+android/settings.gradle
+android/gradle.properties
+android/local.properties
+android/.gradle/
+android/store_icon.png
+android/build/
+android/manifest-checksum.txt
+android/*.aab
+android/*.apk
+android/*.idsig
+android/assetlinks.json
