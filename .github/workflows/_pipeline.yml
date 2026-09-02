@@ -243,6 +243,14 @@ jobs:
           DATABASE_URL_UNPOOLED="$(gcloud secrets versions access latest \
             --secret="${{ inputs.db_unpooled_secret }}" --project="${{ env.PROJECT_ID }}")" \
           node scripts/migrate.mjs apply
+      # --memory=1Gi, not 512Mi: at 512 the Next.js cold start was wildly
+      # erratic — 871ms with a hot image, but 137s/201s/305s otherwise, which
+      # overran Cloud Run's startup probe and the 300s request timeout and took
+      # prod down for ~an hour on 2026-09-01 (15x504/6x500/1x503). Billing is
+      # per request-second at min-instances=0, so unused headroom costs nothing.
+      # NOTE: keep comments OUT of the backslash-continued gcloud command below —
+      # a '#' line after a trailing '\\' ends the command, and everything after it
+      # runs as a separate (failing) command instead of being passed as flags.
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ inputs.service_name }} \
@@ -250,7 +258,7 @@ jobs:
             --region=${{ env.REGION }} --platform=managed --allow-unauthenticated \
             --set-env-vars="^;^NODE_ENV=production;HOST=0.0.0.0;APP_BASE_URL=${{ inputs.app_base_url }};BREVO_SENDER_EMAIL=${{ env.BREVO_SENDER_EMAIL }};BREVO_SENDER_NAME=${{ env.BREVO_SENDER_NAME }};STRIPE_PRICE_ID=${{ inputs.stripe_price_id }};EMAIL_TRANSPORT=${{ env.EMAIL_TRANSPORT }};SENTRY_ENVIRONMENT=${{ inputs.environment }}" \
             --update-secrets="DATABASE_URL=${{ inputs.db_secret }}:latest,DATABASE_URL_UNPOOLED=${{ inputs.db_unpooled_secret }}:latest,AUTH_SECRET=${{ env.AUTH_SECRET_SECRET }}:latest,AUTH_GOOGLE_ID=${{ env.AUTH_GOOGLE_ID_SECRET }}:latest,AUTH_GOOGLE_SECRET=${{ env.AUTH_GOOGLE_SECRET_SECRET }}:latest,CRON_SECRET=${{ env.CRON_SECRET_SECRET }}:latest,STRIPE_SECRET_KEY=${{ inputs.stripe_secret_key_secret }}:latest,STRIPE_WEBHOOK_SECRET=${{ inputs.stripe_webhook_secret_secret }}:latest,BREVO_API_KEY=${{ env.BREVO_API_KEY_SECRET }}:latest" \
-            --memory=512Mi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
+            --memory=1Gi --cpu=1 --min-instances=${{ inputs.min_instances }} --max-instances=10 \
             --project=${{ env.PROJECT_ID }}
       # Optional, additive: bind the Slack activity-feed webhook when configured.
       # Leaves the deploy above untouched; --update-secrets only adds this one.
