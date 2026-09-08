@@ -53,6 +53,14 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 
+# The COPYs above run as root, so /app/.next is root-owned and appuser can't
+# write inside it. Next's image optimizer lazily mkdirs .next/cache/images on
+# the first /_next/image request and throws EACCES when it can't — reported to
+# Sentry even though the request itself is answered correctly. Pre-create it
+# owned by the runtime user. Scoped to cache/ deliberately: the rest of the
+# bundle should stay read-only to the process serving it.
+RUN mkdir -p .next/cache/images && chown -R appuser:appgroup .next/cache
+
 USER appuser
 EXPOSE 8080
 # Cloud Run injects PORT; the standalone server honors PORT + HOSTNAME.

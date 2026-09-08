@@ -1,7 +1,7 @@
 {
   "agent": {
-    "status": "Withdraw-a-proposal is done and fully green - two-tap withdraw for the person who proposed it, honest notes to anyone who'd said they're in, and stale email links land on a straight answer. PR #93 is buffed and ready to merge.",
-    "direction": "Merge #93, then back to phone feedback.",
-    "last_update": "2026-08-21T18:20:00Z"
+    "status": "Play Store wrapper is built and signed, screenshots are ready, and the site is on firmer footing after last week's blip. Cleaning up a harmless error that was setting off alerts.",
+    "direction": "Get the store listing filled in and the 14-day closed test started - that clock is the long pole.",
+    "last_update": "2026-09-08T08:00:00Z"
   }
 }
